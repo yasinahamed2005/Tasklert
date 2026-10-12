@@ -1,0 +1,28 @@
+{
+  "name": "Tasklert - Smart Alarm & Task Management",
+  "short_name": "Tasklert",
+  "description": "Smart task reminders, exact-time alarms, and real-time multi-device notifications.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#111A2E",
+  "theme_color": "#8B2CF5",
+  "icons": [
+    {
+      "src": "/tasklert-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

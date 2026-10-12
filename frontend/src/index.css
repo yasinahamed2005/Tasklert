@@ -1,0 +1,479 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap");
+@import "tailwindcss";
+
+/* =========================
+   THEME VARIABLES
+   ========================= */
+
+:root {
+  --app-header-height: 4.5rem;
+  --primary: #a855f7; /* default purple */
+  --primary-50: color-mix(in srgb, var(--primary) 12%, white);
+  --primary-100: color-mix(in srgb, var(--primary) 20%, white);
+  --primary-200: color-mix(in srgb, var(--primary) 35%, white);
+  --primary-400: color-mix(in srgb, var(--primary) 72%, white);
+  --primary-500: var(--primary);
+  --primary-600: color-mix(in srgb, var(--primary) 86%, black);
+  --primary-700: color-mix(in srgb, var(--primary) 70%, black);
+  --avatar-bg: color-mix(in srgb, var(--primary) 24%, white);
+  --avatar-border: color-mix(in srgb, var(--primary) 40%, white);
+  --avatar-text: color-mix(in srgb, var(--primary) 48%, black);
+  --app-bg-soft: color-mix(in srgb, var(--primary) 9%, white);
+  --app-bg-softer: color-mix(in srgb, var(--primary) 5%, white);
+  --surface-1: color-mix(in srgb, var(--primary) 7%, white);
+  --surface-2: color-mix(in srgb, var(--primary) 11%, white);
+  --surface-border: color-mix(in srgb, var(--primary) 24%, white);
+  --text-strong: color-mix(in srgb, var(--primary) 58%, black);
+  --text-muted: color-mix(in srgb, var(--primary) 42%, black);
+}
+
+body {
+  font-family: "Manrope", sans-serif;
+  color: var(--text-strong);
+  background:
+    radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--primary) 20%, white) 0%, transparent 36%),
+    radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--primary) 14%, white) 0%, transparent 40%),
+    linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg-softer) 100%);
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+.auth-page {
+  background:
+    radial-gradient(circle at 18% 22%, rgba(139, 44, 245, 0.28), transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(217, 70, 239, 0.22), transparent 45%),
+    linear-gradient(135deg, #111a2e 0%, #0c1424 50%, #080d19 100%);
+}
+
+.auth-grid-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 75%);
+}
+
+.auth-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  animation: floatBlob 9s ease-in-out infinite;
+}
+
+.auth-blob-one {
+  top: 18%;
+  left: -4rem;
+  width: 20rem;
+  height: 20rem;
+  background: rgba(139, 44, 245, 0.22);
+}
+
+.auth-blob-two {
+  right: -3rem;
+  bottom: 12%;
+  width: 18rem;
+  height: 18rem;
+  animation-delay: 1.8s;
+  background: rgba(217, 70, 239, 0.18);
+}
+
+@keyframes floatBlob {
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) translateX(10px) scale(1.06);
+  }
+}
+
+/* Theme color classes */
+.theme-blue {
+  --primary: #1e88e5;
+}
+
+.theme-peach {
+  --primary: #d4a373;
+}
+
+.theme-green {
+  --primary: #a3d977;
+}
+
+.theme-lavender {
+  --primary: #a78bfa;
+}
+
+.theme-dark {
+  --primary: #1f2937;
+}
+
+.theme-pink {
+  --primary: #c026d3;
+}
+
+/* Global theme mapping for existing Tailwind purple/fuchsia utility classes */
+.text-purple-500,
+.text-purple-600,
+.text-purple-700,
+.text-fuchsia-500,
+.text-fuchsia-600,
+.text-fuchsia-700 {
+  color: var(--primary-500) !important;
+}
+
+.bg-purple-50,
+.bg-purple-100,
+.bg-purple-200,
+.bg-fuchsia-50,
+.bg-fuchsia-100,
+.bg-fuchsia-200 {
+  background-color: var(--primary-100) !important;
+}
+
+.bg-purple-50\/30,
+.bg-purple-50\/50,
+.bg-fuchsia-50\/30,
+.bg-fuchsia-50\/50 {
+  background-color: color-mix(in srgb, var(--primary) 22%, white) !important;
+}
+
+.bg-purple-600,
+.bg-purple-700,
+.bg-fuchsia-600,
+.bg-fuchsia-700 {
+  background-color: var(--primary-600) !important;
+}
+
+.border-purple-100,
+.border-purple-200,
+.border-purple-400,
+.border-purple-500,
+.border-fuchsia-100,
+.border-fuchsia-200,
+.border-fuchsia-400,
+.border-fuchsia-500 {
+  border-color: var(--primary-200) !important;
+}
+
+.hover\:bg-purple-50:hover,
+.hover\:bg-purple-100:hover,
+.hover\:bg-fuchsia-50:hover,
+.hover\:bg-fuchsia-100:hover {
+  background-color: var(--primary-100) !important;
+}
+
+.hover\:bg-purple-50\/50:hover,
+.hover\:bg-fuchsia-50\/50:hover,
+.hover\:bg-purple-100\/50:hover,
+.hover\:bg-fuchsia-100\/50:hover {
+  background-color: color-mix(in srgb, var(--primary) 26%, white) !important;
+}
+
+.hover\:text-purple-600:hover,
+.hover\:text-purple-700:hover,
+.hover\:text-fuchsia-600:hover,
+.hover\:text-fuchsia-700:hover {
+  color: var(--primary-700) !important;
+}
+
+.hover\:border-purple-200:hover,
+.hover\:border-purple-400:hover,
+.hover\:border-fuchsia-200:hover,
+.hover\:border-fuchsia-400:hover {
+  border-color: var(--primary-400) !important;
+}
+
+.focus\:ring-purple-500:focus,
+.focus-within\:ring-purple-500:focus-within,
+.focus\:border-purple-500:focus,
+.focus-within\:border-purple-500:focus-within {
+  --tw-ring-color: var(--primary-500) !important;
+  border-color: var(--primary-500) !important;
+}
+
+.from-fuchsia-500,
+.from-purple-500,
+.from-purple-600,
+.to-fuchsia-500,
+.to-purple-600,
+.to-purple-700 {
+  --tw-gradient-from: var(--primary-500) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: var(--primary-600) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.fill-purple-500,
+.fill-fuchsia-500 {
+  fill: var(--primary-500) !important;
+}
+
+/* Neutral utility remap so pages are brighter and less plain white */
+.bg-gray-50,
+.bg-gray-100 {
+  background-color: var(--app-bg-soft) !important;
+}
+
+.bg-white {
+  background-color: var(--surface-1) !important;
+}
+
+.bg-white\/90 {
+  background-color: color-mix(in srgb, var(--surface-1) 92%, transparent) !important;
+}
+
+.border-gray-100,
+.border-gray-200,
+.border-slate-100,
+.border-slate-200 {
+  border-color: var(--surface-border) !important;
+}
+
+.text-gray-800,
+.text-slate-800,
+.text-gray-900,
+.text-slate-900 {
+  color: var(--text-strong) !important;
+}
+
+.text-gray-500,
+.text-gray-600,
+.text-slate-500,
+.text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+.shadow-sm,
+.shadow-md,
+.shadow-lg {
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--primary) 8%, transparent),
+    0 2px 6px color-mix(in srgb, var(--primary) 10%, transparent) !important;
+}
+
+/* Reusable avatar chip for initial letters */
+.initial-avatar {
+  background-color: var(--avatar-bg);
+  color: var(--avatar-text);
+  border: 1px solid var(--avatar-border);
+  font-weight: 700;
+}
+
+/* Strong primary action button for forms/modals */
+.btn-primary-strong {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 70%, black),
+    color-mix(in srgb, var(--primary) 86%, black)
+  ) !important;
+  color: #ffffff !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 46%, black);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.btn-primary-strong:hover {
+  filter: brightness(1.06);
+}
+
+/* High-contrast CTA for Add New Task cards */
+.add-task-cta {
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, white) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 86%, black),
+    var(--primary)
+  ) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 24%, transparent) !important;
+}
+
+.add-task-cta:hover {
+  filter: brightness(1.03);
+}
+
+.add-task-cta .cta-label,
+.add-task-cta .cta-icon {
+  color: #ffffff !important;
+}
+
+/* Auth CTA button */
+.auth-cta {
+  background: linear-gradient(135deg, #7c3aed, #d946ef) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(124, 58, 237, 0.35) !important;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.25) !important;
+}
+
+.auth-cta:hover {
+  filter: brightness(1.05);
+}
+
+.auth-cta:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* Notifications */
+.notif-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  color: #ffffff;
+  border-radius: 9999px;
+  font-size: 10px;
+  padding: 2px 6px;
+  font-weight: 700;
+  border: 2px solid var(--surface-1);
+}
+
+.notif-panel {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px color-mix(in srgb, var(--primary) 14%, transparent);
+  padding: 14px;
+  z-index: 60;
+}
+
+.notif-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 10%, white);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, white);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.notif-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.notif-item.is-read {
+  background: color-mix(in srgb, var(--primary) 5%, white);
+  border-color: color-mix(in srgb, var(--primary) 14%, white);
+  opacity: 0.8;
+}
+
+.notif-item.notif-kind-overdue {
+  background: linear-gradient(135deg, #fff1f2, #ffffff);
+  border-color: color-mix(in srgb, #ef4444 28%, white);
+}
+
+.notif-item.notif-kind-due_today {
+  background: linear-gradient(135deg, #fff7ed, #ffffff);
+  border-color: color-mix(in srgb, #f59e0b 26%, white);
+}
+
+.notif-item.notif-kind-reminder {
+  background: color-mix(in srgb, var(--primary) 10%, white);
+}
+
+.notif-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.notif-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary-600);
+}
+
+.notif-message {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.notif-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Alerts */
+.alert-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-1);
+  box-shadow: 0 18px 30px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.alert-card-today {
+  background: linear-gradient(135deg, var(--surface-1), var(--surface-2));
+}
+
+.alert-card-overdue {
+  background: linear-gradient(135deg, #fff1f2, #ffffff);
+  border-color: color-mix(in srgb, #ef4444 25%, white);
+}
+
+.alert-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.alert-count {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.alert-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary) 16%, white);
+  color: var(--primary-600);
+}
+
+.alert-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.alert-item {
+  font-size: 12px;
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--primary) 6%, white);
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.alert-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/tasklert-icon.svg" />
+    <link rel="alternate icon" type="image/png" href="/logo.png" />
+    <link rel="apple-touch-icon" href="/tasklert-icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#8B2CF5" />
+    <meta name="description" content="Smart task reminders, exact-time alarms, and real-time multi-device notifications." />
+    <title>Tasklert - Task &amp; Reminder Workspace</title>
+    <script>
+      // Register Tasklert Service Worker for PWA and Web Push
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(reg) {
+              console.log('Tasklert Service Worker registered:', reg.scope);
+            })
+            .catch(function(err) {
+              console.warn('Service Worker registration failed:', err);
+            });
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
