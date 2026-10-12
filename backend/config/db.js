@@ -7,15 +7,13 @@ export const connectDB = async () => {
       throw new Error("MongoDB connection string missing: please set MONGO_URI or MONGODB_URI");
     }
 
-    // Connect with Mongoose (preserving SSL/TLS settings for secure cloud databases)
-    const isSrv = mongoUri.startsWith("mongodb+srv://");
-    const connectionOptions = isSrv
-      ? {}
-      : {
-          ssl: process.env.MONGO_SSL === "true" || process.env.NODE_ENV === "production",
-          tls: process.env.MONGO_SSL === "true" || process.env.NODE_ENV === "production",
-          tlsAllowInvalidCertificates: false,
-        };
+    // Connect with Mongoose (automatically handles mongodb+srv:// and URI parameters)
+    const connectionOptions = {};
+    if (process.env.MONGO_SSL === "true") {
+      connectionOptions.ssl = true;
+      connectionOptions.tls = true;
+      connectionOptions.tlsAllowInvalidCertificates = false;
+    }
 
     await mongoose.connect(mongoUri, connectionOptions);
     console.log("✅ DB CONNECTED");
