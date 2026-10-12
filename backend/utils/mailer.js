@@ -163,14 +163,14 @@ const getFromAddress = () => {
 // Unified Dispatch Engine
 // -------------------------------------------------------------
 export const sendEmail = async ({ to, subject, text, html, attachments }) => {
-  // Strategy A: If RESEND_API_KEY is present, deliver via Resend HTTPS REST API (Port 443)
-  if (process.env.RESEND_API_KEY) {
-    return await sendViaResend({ to, subject, text, html, attachments });
-  }
-
-  // Strategy B: If BREVO_API_KEY is present, deliver via Brevo HTTPS REST API (Port 443)
+  // Strategy A: If BREVO_API_KEY is present, deliver via Brevo (supports sending to any recipient without domain verification)
   if (process.env.BREVO_API_KEY) {
     return await sendViaBrevo({ to, subject, text, html, attachments });
+  }
+
+  // Strategy B: If RESEND_API_KEY is present, deliver via Resend HTTPS REST API
+  if (process.env.RESEND_API_KEY) {
+    return await sendViaResend({ to, subject, text, html, attachments });
   }
 
   // Strategy C: Direct SMTP connection via Nodemailer
