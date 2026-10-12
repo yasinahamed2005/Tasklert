@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "build": "npm install --prefix backend",
     "start": "npm start --prefix backend",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "build:frontend": "npm run build --prefix frontend"
-  },
-  "dependencies": {
-    "nodemailer": "^8.0.10"
   }
 }
