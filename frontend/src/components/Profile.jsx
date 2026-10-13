@@ -90,9 +90,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6">
-      <ToastContainer position="top-right" autoClose={3000} />
-
+    <div className="w-full min-w-0 py-2 sm:py-4 px-2 sm:px-4">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Back Button */}
         <button

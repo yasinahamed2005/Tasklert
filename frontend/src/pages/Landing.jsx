@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -18,6 +18,7 @@ import {
   Zap,
 } from "lucide-react";
 import { TasklertLogo } from "../components/TasklertLogo";
+import { useBodyScrollLock } from "../utils/scrollLock";
 
 const features = [
   {
@@ -72,6 +73,17 @@ const Landing = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
 
+  useBodyScrollLock(mobileOpen);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
+
   const navLink = "text-sm font-medium text-slate-200/80 hover:text-white transition-colors cursor-pointer";
 
   return (
@@ -124,7 +136,12 @@ const Landing = () => {
 
       {/* MOBILE MENU */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/98 px-6 py-5 md:hidden">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation Menu"
+          className="fixed inset-0 z-50 bg-slate-950/98 px-6 py-5 md:hidden overflow-y-auto overscroll-contain modal-content-scroll"
+        >
           <div className="flex items-center justify-between">
             <TasklertLogo
               size={36}

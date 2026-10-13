@@ -7,7 +7,7 @@ const AlarmSettingsPage = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="p-4 md:p-6 min-h-screen">
+    <div className="p-2 sm:p-4 md:p-6 min-w-0 w-full">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Navigation & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

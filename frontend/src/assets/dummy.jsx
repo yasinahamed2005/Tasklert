@@ -117,7 +117,7 @@ export const menuItems = [
 
 export const SIDEBAR_CLASSES = {
     desktop: "hidden md:flex flex-col fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white/90 backdrop-blur-sm border-r border-purple-100 shadow-sm z-20 transition-all duration-300",
-    mobileButton: "absolute md:hidden top-25 left-5 z-50 bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 transition",
+    mobileButton: "fixed md:hidden top-[calc(var(--app-header-height)+0.75rem)] left-4 z-40 bg-purple-600 text-white p-2.5 rounded-full shadow-lg hover:bg-purple-700 transition active:scale-95 cursor-pointer",
     mobileDrawerBackdrop: "fixed inset-0 bg-black/40 backdrop-blur-sm",
     mobileDrawer: "absolute top-0 left-0 w-64 h-full bg-white/90 backdrop-blur-md border-r border-purple-100 shadow-lg z-50 p-4 flex flex-col space-y-6",
 }
@@ -181,7 +181,7 @@ export const getPriorityBadgeColor = (priority) => {
 
 // DASHBOARD
 // UI Constants
-export const WRAPPER = "p-4 md:p-6 min-h-screen overflow-hidden"
+export const WRAPPER = "p-2 sm:p-4 md:p-6 min-w-0 w-full"
 export const HEADER = "flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3"
 export const ADD_BUTTON =
     "flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 w-full md:w-auto justify-center text-sm md:text-base add-task-cta"
@@ -264,7 +264,7 @@ export const sortTasks = (list, sortBy) => {
 
 // CSS class groups
 export const CT_CLASSES = {
-    page: "p-4 md:p-6 min-h-screen overflow-hidden",
+    page: "p-2 sm:p-4 md:p-6 min-w-0 w-full",
     header: "flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-3 md:gap-4",
     titleWrapper: "flex-1 min-w-0",
     title: "text-xl md:text-2xl lg:text-3xl font-bold text-gray-800 flex items-center gap-2 truncate",
@@ -286,7 +286,7 @@ export const CT_CLASSES = {
 
 // constants/cssClasses.js
 export const layoutClasses = {
-    container: "p-6 min-h-screen overflow-hidden",
+    container: "p-2 sm:p-4 md:p-6 min-w-0 w-full",
     headerWrapper: "flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4",
     sortBox: "flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-purple-100 w-full md:w-auto",
     select: "px-3 py-2 border border-purple-100 rounded-lg focus:ring-2 focus:ring-purple-500 md:hidden text-sm",

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { PRODUCTIVITY_CARD, SIDEBAR_CLASSES, menuItems, LINK_CLASSES } from '../assets/dummy';
 import { Sparkles, Menu, X, Trophy } from "lucide-react";
+import { useBodyScrollLock } from "../utils/scrollLock";
 
 const Sidebar = ({ user, tasks }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -14,9 +15,17 @@ const Sidebar = ({ user, tasks }) => {
   const firstName = fullName.trim().split(" ")[0];
   const initial = firstName.charAt(0).toUpperCase();
 
+  useBodyScrollLock(mobileOpen);
+
   useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "auto";
-    return () => { document.body.style.overflow = "auto"; }
+    if (!mobileOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mobileOpen]);
 
   const renderMenuItems = (isMobile = false) => (
@@ -125,6 +134,7 @@ const Sidebar = ({ user, tasks }) => {
         <button
           onClick={() => setMobileOpen(true)}
           className={SIDEBAR_CLASSES.mobileButton}
+          aria-label="Open navigation menu"
         >
           <Menu className='w-5 h-5' />
         </button>
@@ -132,13 +142,16 @@ const Sidebar = ({ user, tasks }) => {
 
       {/* MOBILE DRAWER */}
       {mobileOpen && (
-        <div className='fixed inset-0 z-40'>
+        <div className='fixed inset-0 z-40 overscroll-none overflow-hidden'>
           <div
             className={SIDEBAR_CLASSES.mobileDrawerBackdrop}
             onClick={() => setMobileOpen(false)}
           />
           <div
-            className={`${SIDEBAR_CLASSES.mobileDrawer} flex flex-col justify-between`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation Menu"
+            className={`${SIDEBAR_CLASSES.mobileDrawer} flex flex-col justify-between max-h-full overflow-y-auto overscroll-contain modal-content-scroll`}
             onClick={(e) => e.stopPropagation()}
           >
             <div>
@@ -147,7 +160,8 @@ const Sidebar = ({ user, tasks }) => {
                 <h2 className='text-lg font-bold text-purple-600'>Menu</h2>
                 <button
                   onClick={() => setMobileOpen(false)}
-                  className='text-gray-700 hover:text-purple-600'
+                  aria-label="Close navigation menu"
+                  className='text-gray-700 hover:text-purple-600 p-1 rounded-lg'
                 >
                   <X className='w-5 h-5' />
                 </button>

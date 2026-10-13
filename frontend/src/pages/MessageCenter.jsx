@@ -135,7 +135,7 @@ const MessageCenter = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-purple-100">
         <div className="flex items-center gap-2 mb-1">
           <Send className="w-5 h-5 text-purple-500" />

@@ -35,12 +35,27 @@ body {
     radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--primary) 14%, white) 0%, transparent 40%),
     linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg-softer) 100%);
   margin: 0;
+  max-width: 100%;
   overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 html {
   scrollbar-gutter: stable;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Modal background lock & scroll isolation */
+body.modal-scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+}
+
+.modal-content-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .auth-page {

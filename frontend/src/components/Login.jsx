@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { LogIn, Mail, Lock, Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, ShieldAlert, X } from "lucide-react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { TasklertIcon } from "./TasklertLogo";
+import { useModalAccessibility } from "../utils/scrollLock";
 
 const INITIAL_FORM = { email: "", password: "" };
 
@@ -15,7 +16,13 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
   const [rememberMe, setRememberMe] = useState(false);
 
   // Forgot Password Modal States
+  const forgotModalRef = useRef(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
+  useModalAccessibility({
+    isOpen: showForgotModal,
+    onClose: () => setShowForgotModal(false),
+    modalRef: forgotModalRef,
+  });
   const [forgotStep, setForgotStep] = useState(1); // 1: request OTP, 2: verify OTP & new password
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotOtp, setForgotOtp] = useState("");
@@ -301,15 +308,29 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
       {/* Forgot Password Modal */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl border border-[#34445F] bg-[#111A2E] p-6 shadow-2xl text-[#F8FAFC]">
-            <div className="flex items-center justify-between pb-4 border-b border-[#34445F]">
-              <div className="flex items-center gap-2 text-[#F8FAFC] font-semibold text-base">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md overscroll-none overflow-hidden animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowForgotModal(false);
+            }
+          }}
+        >
+          <div
+            ref={forgotModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forgot-modal-title"
+            className="w-full max-w-md max-h-[90vh] max-h-[90dvh] flex flex-col rounded-2xl border border-[#34445F] bg-[#111A2E] p-6 shadow-2xl text-[#F8FAFC] overflow-hidden"
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-[#34445F] shrink-0">
+              <div id="forgot-modal-title" className="flex items-center gap-2 text-[#F8FAFC] font-semibold text-base">
                 <KeyRound className="h-5 w-5 text-[#8B2CF5]" />
                 Reset Password
               </div>
               <button
                 onClick={() => setShowForgotModal(false)}
+                aria-label="Close"
                 className="rounded-lg p-1 text-[#AAB8CF] hover:bg-[#19243A] hover:text-[#F8FAFC] transition cursor-pointer"
               >
                 <X className="h-5 w-5" />

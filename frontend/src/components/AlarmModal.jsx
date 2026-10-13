@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { BellRing, Volume2, VolumeX, Clock, Flag, CheckCircle, ArrowRight, X } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
+import { useModalAccessibility } from "../utils/scrollLock";
 import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -8,9 +9,19 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const SNOOZE_OPTIONS = [5, 10, 15, 30];
 
 const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
+  const modalRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [selectedSnooze, setSelectedSnooze] = useState(5);
   const [loadingAction, setLoadingAction] = useState(false);
+
+  useModalAccessibility({
+    isOpen: Boolean(alarm),
+    onClose: () => {
+      soundManager.stop();
+      onClose();
+    },
+    modalRef,
+  });
 
   useEffect(() => {
     if (!alarm) return;
@@ -89,15 +100,28 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   const priorityClass = priorityColors[alarm.priority] || priorityColors.Medium;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-fadeIn">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overscroll-none overflow-hidden animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleDismiss();
+        }
+      }}
+    >
       {/* Sound waves pulsing background effect */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
         <div className="w-[420px] h-[420px] rounded-full bg-[#8B2CF5]/15 animate-ping opacity-75" />
       </div>
 
-      <div className="relative w-full max-w-lg rounded-3xl border border-[#8B2CF5]/40 bg-[#111A2E] p-6 sm:p-8 shadow-2xl text-[#F8FAFC]">
-        {/* Top Header Badge */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#34445F]">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="alarm-modal-title"
+        className="relative w-full max-w-lg max-h-[90vh] max-h-[90dvh] flex flex-col rounded-3xl border border-[#8B2CF5]/40 bg-[#111A2E] p-5 sm:p-7 shadow-2xl text-[#F8FAFC] overflow-hidden"
+      >
+        {/* Top Header Badge (shrink-0) */}
+        <div className="flex items-center justify-between pb-4 border-b border-[#34445F] shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#8B2CF5] to-[#D946EF] text-white shadow-lg shadow-[#8B2CF5]/40 animate-bounce-slow">
               <BellRing className="h-5 w-5 animate-pulse" />
@@ -116,6 +140,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
               onClick={toggleMute}
               className="rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition cursor-pointer"
               title={isMuted ? "Unmute Alarm" : "Mute Sound"}
+              aria-label={isMuted ? "Unmute Alarm" : "Mute Sound"}
             >
               {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />}
             </button>
@@ -123,14 +148,15 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
               onClick={handleDismiss}
               className="rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition cursor-pointer"
               title="Dismiss"
+              aria-label="Close Alarm"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* Task Title & Details */}
-        <div className="my-6 space-y-3">
+        {/* Task Title & Details (Scrollable if needed on small screens) */}
+        <div className="my-5 space-y-3 flex-1 min-h-0 overflow-y-auto overscroll-contain modal-content-scroll pr-1">
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${priorityClass}`}>
               <Flag className="h-3 w-3" />
@@ -142,7 +168,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
             </span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] leading-snug">
+          <h2 id="alarm-modal-title" className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] leading-snug">
             {alarm.title}
           </h2>
 
@@ -153,8 +179,8 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
           )}
         </div>
 
-        {/* Snooze & Dismiss Controls */}
-        <div className="space-y-4 pt-2">
+        {/* Snooze & Dismiss Controls (Stable shrink-0 Footer) */}
+        <div className="space-y-4 pt-3 border-t border-[#34445F]/60 shrink-0">
           {/* Snooze Options */}
           <div className="flex items-center justify-between rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-xs">
             <span className="text-[#AAB8CF] font-medium pl-2">Snooze duration:</span>

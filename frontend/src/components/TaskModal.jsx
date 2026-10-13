@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_TASK, baseControlClasses, priorityStyles } from '../assets/dummy';
 import { PlusCircle, X, AlignLeft, Flag, Calendar, CheckCircle, Save, Paperclip, Link, FileText, Image, Video, Trash2, Upload, BellRing, Clock, Play, Square, Volume2, Globe, Shield, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { soundManager } from '../utils/soundManager';
+import { useModalAccessibility } from '../utils/scrollLock';
 
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/tasks`;
 
@@ -15,6 +16,9 @@ const ALARM_SOUND_OPTIONS = [
 ];
 
 const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
+  const modalRef = useRef(null);
+  useModalAccessibility({ isOpen, onClose, modalRef });
+
   const [taskData, setTaskData] = useState({
     ...DEFAULT_TASK,
     attachments: [],
@@ -248,17 +252,31 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/40 z-50 overflow-y-auto p-3 sm:p-6 flex justify-center items-start sm:items-center">
-      <div className="bg-white border border-purple-100 rounded-2xl max-w-xl w-full shadow-2xl relative my-auto max-h-[92vh] flex flex-col animate-fadeIn">
-        {/* Sticky Header */}
-        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-purple-100 sticky top-0 bg-white/95 backdrop-blur-sm z-10 rounded-t-2xl shrink-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overscroll-none overflow-hidden animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-modal-title"
+        className="bg-white border border-purple-100 rounded-2xl max-w-xl w-full shadow-2xl relative max-h-[90vh] max-h-[90dvh] flex flex-col overflow-hidden animate-fadeIn"
+      >
+        {/* Fixed Header */}
+        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-purple-100 bg-white/95 backdrop-blur-xs z-10 rounded-t-2xl shrink-0">
+          <h2 id="task-modal-title" className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
             {taskData.id ? <Save className='text-purple-500 w-5 h-5' /> : <PlusCircle className='text-purple-500 w-5 h-5' />}
             {taskData.id ? 'Edit Task' : 'Create New Task'}
           </h2>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-lg text-gray-500 hover:text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -267,7 +285,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
         {/* FORM */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1">
+          <div className="overflow-y-auto overscroll-contain modal-content-scroll p-4 sm:p-6 space-y-4 flex-1 min-h-0">
           {error && (
             <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
@@ -712,8 +730,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
           </div>
 
-          {/* Sticky Footer Action Buttons */}
-          <div className="p-4 sm:p-5 border-t border-purple-100 bg-gray-50/90 rounded-b-2xl sticky bottom-0 z-10 flex items-center justify-end gap-3 shrink-0">
+          {/* Stable Footer Action Buttons */}
+          <div className="p-4 sm:p-5 border-t border-purple-100 bg-gray-50/95 rounded-b-2xl z-10 flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
