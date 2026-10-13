@@ -4,12 +4,36 @@ import User from "../models/userModel.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 
-const getFrontendUrl = () => {
-  return process.env.FRONTEND_URL || "http://localhost:5173";
+const getFrontendUrl = (req) => {
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes("localhost")) {
+    return process.env.FRONTEND_URL.replace(/\/$/, "");
+  }
+  if (req) {
+    const origin = req.headers["origin"] || req.headers["referer"];
+    if (origin) {
+      try {
+        const u = new URL(origin);
+        if (!u.hostname.includes("localhost")) {
+          return `${u.protocol}//${u.host}`;
+        }
+      } catch (e) {}
+    }
+  }
+  return (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
 };
 
-const getBackendUrl = () => {
-  return process.env.BACKEND_URL || "http://localhost:5000";
+const getBackendUrl = (req) => {
+  if (process.env.BACKEND_URL && !process.env.BACKEND_URL.includes("localhost")) {
+    return process.env.BACKEND_URL.replace(/\/$/, "");
+  }
+  if (req) {
+    const proto = req.headers["x-forwarded-proto"] || (req.secure ? "https" : req.protocol) || "https";
+    const host = req.headers["x-forwarded-host"] || req.get?.("host");
+    if (host && !host.includes("localhost")) {
+      return `${proto}://${host}`;
+    }
+  }
+  return (process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
 };
 
 const PROVIDER_NAMES = {
@@ -59,8 +83,8 @@ export async function getAuthStatus(req, res) {
  */
 export async function initiateOAuth(req, res) {
   const provider = (req.params.provider || "").toLowerCase();
-  const frontendUrl = getFrontendUrl();
-  const backendUrl = getBackendUrl();
+  const frontendUrl = getFrontendUrl(req);
+  const backendUrl = getBackendUrl(req);
 
   if (!PROVIDER_NAMES[provider]) {
     return res.redirect(
@@ -84,6 +108,8 @@ export async function initiateOAuth(req, res) {
       provider,
       nonce: crypto.randomBytes(16).toString("hex"),
       createdAt: Date.now(),
+      returnTo: frontendUrl,
+      backendUrl: backendUrl,
     },
     JWT_SECRET,
     { expiresIn: "10m" }
@@ -156,8 +182,8 @@ export async function initiateOAuth(req, res) {
  */
 export async function handleOAuthCallback(req, res) {
   const provider = (req.params.provider || "").toLowerCase();
-  const frontendUrl = getFrontendUrl();
-  const backendUrl = getBackendUrl();
+  let frontendUrl = getFrontendUrl(req);
+  let backendUrl = getBackendUrl(req);
   const providerName = PROVIDER_NAMES[provider] || "Social";
 
   const { code, state, error, error_description } = req.query;
@@ -183,6 +209,8 @@ export async function handleOAuthCallback(req, res) {
     if (decoded.provider !== provider) {
       throw new Error("Provider mismatch in state parameter");
     }
+    if (decoded.returnTo) frontendUrl = decoded.returnTo;
+    if (decoded.backendUrl) backendUrl = decoded.backendUrl;
   } catch (stateErr) {
     console.error("State validation error:", stateErr.message);
     return res.redirect(
