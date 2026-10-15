@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from "../config/api";
 
 // Official Brand SVG Icons
 const GoogleIcon = () => (
@@ -43,7 +44,7 @@ const PROVIDERS = [
 
 export const SocialAuthButtons = () => {
   const [redirectingProvider, setRedirectingProvider] = useState(null);
-  const backendApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const backendApiUrl = API_BASE_URL;
 
   // Initiate genuine server-side OAuth flow
   const handleInitiateOAuth = (providerId) => {

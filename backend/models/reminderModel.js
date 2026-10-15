@@ -11,7 +11,7 @@ const reminderSchema = new mongoose.Schema(
     task: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Task",
-      required: true,
+      required: false,
       index: true,
     },
     title: {
@@ -71,7 +71,16 @@ const reminderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["scheduled", "dispatched", "snoozed", "dismissed", "completed", "cancelled"],
+      enum: [
+        "scheduled",
+        "dispatched",
+        "snoozed",
+        "dismissed",
+        "completed",
+        "cancelled",
+        "failed",
+        "failed_retryable",
+      ],
       default: "scheduled",
       index: true,
     },
@@ -96,6 +105,45 @@ const reminderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    deliveryAttempts: {
+      type: Number,
+      default: 0,
+    },
+    maxRetries: {
+      type: Number,
+      default: 3,
+    },
+    nextRetryAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    lastError: {
+      type: String,
+      default: null,
+    },
+    channelOutcomes: {
+      push: {
+        status: { type: String, default: null },
+        attemptedAt: { type: Date, default: null },
+        error: { type: String, default: null },
+      },
+      inApp: {
+        status: { type: String, default: null },
+        attemptedAt: { type: Date, default: null },
+        error: { type: String, default: null },
+      },
+      email: {
+        status: { type: String, default: null },
+        attemptedAt: { type: Date, default: null },
+        error: { type: String, default: null },
+      },
+    },
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: true,
+    },
     isClaimed: {
       type: Boolean,
       default: false,
@@ -110,8 +158,10 @@ const reminderSchema = new mongoose.Schema(
 );
 
 // Composite indexes for rapid due reminder queries
-reminderSchema.index({ status: 1, alarmEnabled: 1, scheduledAt: 1, isClaimed: 1 });
+reminderSchema.index({ status: 1, alarmEnabled: 1, scheduledAt: 1, isClaimed: 1, nextRetryAt: 1 });
 reminderSchema.index({ owner: 1, status: 1, scheduledAt: 1 });
+reminderSchema.index({ owner: 1, scheduledAt: 1 });
+reminderSchema.index({ owner: 1, alarmEnabled: 1, scheduledAt: 1 });
 
 const Reminder =
   mongoose.models.Reminder || mongoose.model("Reminder", reminderSchema);

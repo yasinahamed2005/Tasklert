@@ -34,6 +34,8 @@ const userPreferencesSchema = new mongoose.Schema(
       enabled: { type: Boolean, default: false },
       start: { type: String, default: "22:00" }, // "HH:MM"
       end: { type: String, default: "07:00" },
+      mode: { type: String, enum: ["silent", "defer"], default: "silent" },
+      timeZone: { type: String, default: "UTC" },
     },
     priorityRules: {
       High: {

@@ -2,6 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Tasklert" />
     <link rel="icon" type="image/svg+xml" href="/tasklert-icon.svg" />
     <link rel="alternate icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/tasklert-icon.svg" />
@@ -16,12 +21,23 @@
           navigator.serviceWorker.register('/sw.js')
             .then(function(reg) {
               console.log('Tasklert Service Worker registered:', reg.scope);
+              reg.onupdatefound = function() {
+                var installing = reg.installing;
+                if (installing) {
+                  installing.onstatechange = function() {
+                    if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('New Tasklert version installed and ready.');
+                    }
+                  };
+                }
+              };
             })
             .catch(function(err) {
               console.warn('Service Worker registration failed:', err);
             });
         });
       }
+
     </script>
   </head>
   <body>

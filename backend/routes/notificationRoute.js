@@ -8,6 +8,7 @@ import {
 } from "../controllers/notificationController.js";
 import {
   deleteDevice,
+  getDeliveryLogs,
   getDevices,
   getVapidPublicKey,
   sendTestNotification,
@@ -30,6 +31,7 @@ notificationRouter.patch("/devices/:id", authMiddleware, updateDevice);
 notificationRouter.delete("/devices/:id", authMiddleware, deleteDevice);
 notificationRouter.post("/devices/:id/test", authMiddleware, sendDeviceTestNotification);
 notificationRouter.post("/test", authMiddleware, sendTestNotification);
+notificationRouter.get("/delivery-logs", authMiddleware, getDeliveryLogs);
 
 // In-app Notification Inbox History
 notificationRouter.get("/", authMiddleware, getNotifications);

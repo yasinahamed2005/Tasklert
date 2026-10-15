@@ -82,15 +82,17 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const action = event.action;
+  const action = event.action || "open";
   const notifData = event.notification.data || {};
-  const targetUrl = notifData.url || "/";
+  let targetUrl = notifData.url || "/";
 
-  // Handle action buttons
-  if (action === "dismiss" && notifData.alarmId) {
-    // Dismiss alarm
-    const dismissUrl = `/api/reminders/${notifData.alarmId}/dismiss`;
-    // Background fetch will be made if token is available, or handled on client
+  // Build targetUrl with alarm parameters for navigation
+  if (notifData.alarmId) {
+    const separator = targetUrl.includes("?") ? "&" : "?";
+    targetUrl = `${targetUrl}${separator}alarmId=${encodeURIComponent(notifData.alarmId)}`;
+    if (action) {
+      targetUrl = `${targetUrl}&notifAction=${encodeURIComponent(action)}`;
+    }
   }
 
   // Open or focus Tasklert client window
@@ -106,6 +108,11 @@ self.addEventListener("notificationclick", (event) => {
               alarmId: notifData.alarmId,
               taskId: notifData.taskId,
             });
+            if ("navigate" in client && targetUrl && !client.url.includes(targetUrl)) {
+              try {
+                client.navigate(targetUrl);
+              } catch (_) {}
+            }
             return client.focus();
           }
         }
@@ -116,8 +123,4 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// 3. FETCH: Pass-through without interfering with authenticated API responses
-self.addEventListener("fetch", (event) => {
-  // Let network handle all API calls and dynamic fetches directly
-  return;
-});
+

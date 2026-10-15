@@ -53,6 +53,11 @@ const taskSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  completedAt: {
+    type: Date,
+    default: null,
+    index: true,
+  },
   subtasks: {
     type: [subtaskSchema],
     default: [],
@@ -84,11 +89,74 @@ const taskSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  recurrence: {
+    type: recurrenceSchema,
+    default: () => ({ frequency: "none", interval: 1, endsOn: null, alertBeforeEnd: null, endAlertsSent: [] }),
+  },
+  alarmSound: {
+    type: String,
+    default: "digital",
+  },
+  alarmVolume: {
+    type: Number,
+    default: 80,
+  },
+  alarmRepeat: {
+    type: String,
+    default: "never",
+  },
+  snoozeDuration: {
+    type: Number,
+    default: 5,
+  },
+  advanceNoticeMinutes: {
+    type: Number,
+    default: 0,
+  },
+  channels: {
+    push: { type: Boolean, default: true },
+    inApp: { type: Boolean, default: true },
+    email: { type: Boolean, default: false },
+  },
+  timeZone: {
+    type: String,
+    default: "UTC",
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
+  project: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Project",
+    default: null,
+    index: true,
+  },
+  tags: {
+    type: [String],
+    default: [],
+    index: true,
+  },
+  recurrenceSpawned: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
+
+taskSchema.index({ owner: 1, completed: 1, completedAt: 1 });
+taskSchema.index({ owner: 1, createdAt: 1 });
+taskSchema.index({ owner: 1, dueDate: 1 });
+taskSchema.index({ owner: 1, isDeleted: 1, completed: 1 });
+taskSchema.index({ owner: 1, isDeleted: 1, createdAt: -1 });
 
 const Task = mongoose.models.Task || mongoose.model("Task", taskSchema);
 

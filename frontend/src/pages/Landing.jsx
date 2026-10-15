@@ -181,34 +181,34 @@ const Landing = () => {
             Productivity &amp; Task Reminder Workspace
           </div>
 
-          <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+          <h1 className="mt-6 text-3xl font-black leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
             Get things done.{" "}
             <span className="bg-gradient-to-r from-purple-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
               Never miss a deadline.
             </span>
           </h1>
 
-          <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
+          <p className="mt-5 max-w-xl text-sm sm:text-lg leading-relaxed text-slate-300">
             Tasklert combines intelligent task priority management with automatic email reminders and quick messaging, keeping your workflow organized and stress-free.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
             <button
               onClick={() => navigate("/signup")}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-500 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-purple-600/30 transition hover:brightness-110 active:scale-95 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-500 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-purple-600/30 transition hover:brightness-110 active:scale-95 cursor-pointer text-center"
             >
               Start Free Trial
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
               onClick={() => navigate("/login")}
-              className="rounded-full border border-white/20 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/15 cursor-pointer"
+              className="rounded-full border border-white/20 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/15 cursor-pointer text-center"
             >
               Sign In to Workspace
             </button>
           </div>
 
-          <div className="mt-10 grid grid-cols-3 gap-3 sm:max-w-md">
+          <div className="mt-10 grid grid-cols-3 gap-2 sm:gap-3 sm:max-w-md">
             {stats.map((item) => (
               <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-center backdrop-blur-md">
                 <p className="text-lg font-extrabold text-white sm:text-xl">{item.value}</p>
@@ -221,7 +221,7 @@ const Landing = () => {
         {/* DASHBOARD PREVIEW MOCKUP WITH FLOATING REMINDER POPUP */}
         <section className="relative flex items-center justify-center pt-6 lg:pt-0">
           {/* Floating Task Reminder Alert Card */}
-          <div className="absolute -top-3 right-0 sm:right-4 z-20 flex items-center gap-3 rounded-2xl border border-purple-400/40 bg-slate-900/95 p-3.5 shadow-2xl shadow-purple-950/80 backdrop-blur-xl animate-bounce-slow">
+          <div className="absolute -top-3 right-0 sm:right-4 z-20 flex items-center gap-3 rounded-2xl border border-purple-400/40 bg-slate-900/95 p-3.5 shadow-2xl shadow-purple-950/80 backdrop-blur-xl animate-bounce-slow max-w-[92%] sm:max-w-none">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-md">
               <BellRing className="h-5 w-5 animate-pulse" />
             </div>
@@ -458,8 +458,13 @@ const Landing = () => {
       </section>
 
       {/* FOOTER */}
-      <footer className="relative z-10 mx-auto w-full max-w-7xl border-t border-white/10 px-4 py-8 text-center text-xs text-slate-400 sm:px-6 lg:px-10">
-        © {new Date().getFullYear()} Tasklert. All rights reserved. Built to keep your work organized and on time.
+      <footer className="relative z-10 mx-auto w-full max-w-7xl border-t border-white/10 px-4 py-8 text-center text-xs text-slate-400 sm:px-6 lg:px-10 space-y-2">
+        <p className="text-slate-300 font-medium">
+          Designed and developed by <span className="font-semibold text-purple-300">Israth Yasin Ahamad</span>
+        </p>
+        <p className="text-slate-500 text-[11px]">
+          © {new Date().getFullYear()} Tasklert. All rights reserved. Built to keep your work organized and on time.
+        </p>
       </footer>
     </div>
   );

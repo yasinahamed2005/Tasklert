@@ -83,9 +83,9 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
       </header>
 
       {/* Main Content Layout */}
-      <main className="relative z-10 mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl gap-10 px-4 pb-8 pt-6 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-10 lg:py-10">
-        {/* Left Side: Branding and Highlights */}
-        <section className="flex flex-col justify-center">
+      <main className="relative z-10 mx-auto w-full max-w-7xl flex flex-col justify-center min-h-[calc(100dvh-5rem)] px-3 py-4 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-12 lg:px-10 lg:py-10">
+        {/* Left Side: Branding and Highlights (Desktop only to prevent mobile scroll/whitespace) */}
+        <section className="hidden lg:flex flex-col justify-center">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B2CF5]/40 bg-[#8B2CF5]/10 px-4 py-1.5 text-xs font-semibold text-[#D946EF]">
             <Sparkles className="h-4 w-4 text-[#8B2CF5]" />
             Task &amp; Reminder Workspace
@@ -167,7 +167,7 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
         </section>
 
         {/* Right Side: Authentication Card */}
-        <section className="flex items-center justify-center">{children}</section>
+        <section className="w-full flex items-center justify-center my-auto py-2 sm:py-4">{children}</section>
       </main>
     </div>
   );

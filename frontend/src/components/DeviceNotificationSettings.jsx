@@ -24,6 +24,11 @@ import {
   Tablet,
   ChevronDown,
   ChevronUp,
+  Calendar,
+  History,
+  AlertTriangle,
+  CheckCircle,
+  Radio,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -38,8 +43,9 @@ import {
   sendTestToSpecificDevice,
 } from "../utils/pushManager";
 import { soundManager } from "../utils/soundManager";
+import { API_BASE_URL } from "../config/api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = API_BASE_URL;
 
 const SOUND_OPTIONS = [
   { id: "digital", label: "Digital Beep (Electronic)" },
@@ -69,9 +75,21 @@ export const DeviceNotificationSettings = () => {
     defaultVolume: 80,
     defaultSnoozeDuration: 5,
     defaultChannels: { push: true, inApp: true, email: false },
-    quietHours: { enabled: false, start: "22:00", end: "07:00" },
+    quietHours: {
+      enabled: false,
+      start: "22:00",
+      end: "07:00",
+      mode: "silent",
+      timeZone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
+    },
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // Upcoming Alarms & Delivery History
+  const [upcomingAlarms, setUpcomingAlarms] = useState([]);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+  const [deliveryLogs, setDeliveryLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Fetch connected devices
   const fetchDevices = useCallback(async () => {
@@ -101,17 +119,64 @@ export const DeviceNotificationSettings = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (data.success && data.preferences) {
-        setPrefs(data.preferences);
+        setPrefs((prev) => ({
+          ...prev,
+          ...data.preferences,
+          quietHours: {
+            ...prev.quietHours,
+            ...(data.preferences.quietHours || {}),
+          },
+        }));
       }
     } catch (err) {
       console.error("Failed to load preferences:", err);
     }
   }, []);
 
+  // Fetch upcoming scheduled alarms
+  const fetchUpcomingAlarms = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      setLoadingUpcoming(true);
+      const { data } = await axios.get(`${API_BASE}/api/reminders/upcoming`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (data.success) {
+        setUpcomingAlarms(data.upcoming || []);
+      }
+    } catch (err) {
+      console.error("Failed to load upcoming alarms:", err);
+    } finally {
+      setLoadingUpcoming(false);
+    }
+  }, []);
+
+  // Fetch delivery history logs
+  const fetchDeliveryLogs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      setLoadingLogs(true);
+      const { data } = await axios.get(`${API_BASE}/api/notifications/delivery-logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (data.success) {
+        setDeliveryLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error("Failed to load delivery logs:", err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchDevices();
     fetchPreferences();
-  }, [fetchDevices, fetchPreferences]);
+    fetchUpcomingAlarms();
+    fetchDeliveryLogs();
+  }, [fetchDevices, fetchPreferences, fetchUpcomingAlarms, fetchDeliveryLogs]);
 
   const currentDeviceId =
     typeof window !== "undefined" ? localStorage.getItem("tasklert_device_id") : null;
@@ -306,9 +371,246 @@ export const DeviceNotificationSettings = () => {
     }
   };
 
+  const savePreferencesDirect = async (newPrefs) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(`${API_BASE}/api/reminders/preferences`, newPrefs, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Preferences updated!");
+    } catch (e) {
+      toast.error("Failed to update preferences");
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* 1. Device Notification Status Banner */}
+      {/* SCREEN 11: ALARM & NOTIFICATION PREFERENCES MATCHING MOCKUP */}
+      <div className="rounded-3xl border border-purple-100 bg-white p-5 sm:p-6 shadow-sm space-y-3.5">
+        <h3 className="text-sm font-bold text-gray-800 pb-2 border-b border-purple-50">
+          Notification Preferences
+        </h3>
+
+        {/* Row 1: Enable Reminders */}
+        <div className="flex items-center justify-between py-1.5 border-b border-purple-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-800">Enable Reminders</p>
+              <p className="text-[11px] text-gray-400">Receive alarm and push alerts</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(isCurrentDeviceConnected && permission === "granted")}
+            disabled={subscribing}
+            onClick={() => (isCurrentDeviceConnected ? handleDisablePush() : handleEnablePush())}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+              isCurrentDeviceConnected && permission === "granted" ? "bg-purple-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                isCurrentDeviceConnected && permission === "granted" ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Row 2: Task Due Reminder */}
+        <div className="flex items-center justify-between py-1.5 border-b border-purple-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-800">Task Due Reminder</p>
+              <p className="text-[11px] text-gray-400">Get notified before task due time</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(prefs.defaultChannels?.inApp ?? true)}
+            onClick={() => {
+              const updated = {
+                ...prefs,
+                defaultChannels: {
+                  ...prefs.defaultChannels,
+                  inApp: !(prefs.defaultChannels?.inApp ?? true),
+                },
+              };
+              setPrefs(updated);
+              savePreferencesDirect(updated);
+            }}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              (prefs.defaultChannels?.inApp ?? true) ? "bg-purple-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                (prefs.defaultChannels?.inApp ?? true) ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Row 3: Daily Summary */}
+        <div className="flex items-center justify-between py-1.5 border-b border-purple-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-800">Daily Summary</p>
+              <p className="text-[11px] text-gray-400">Receive daily task summary</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(prefs.defaultChannels?.email)}
+            onClick={() => {
+              const updated = {
+                ...prefs,
+                defaultChannels: {
+                  ...prefs.defaultChannels,
+                  email: !prefs.defaultChannels?.email,
+                },
+              };
+              setPrefs(updated);
+              savePreferencesDirect(updated);
+            }}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              prefs.defaultChannels?.email ? "bg-purple-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                prefs.defaultChannels?.email ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Row 4: Quiet Hours */}
+        <div className="flex items-center justify-between py-1.5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Moon className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-800">Quiet Hours</p>
+              <p className="text-[11px] text-gray-400">
+                {prefs.quietHours?.start || "10:00 PM"} - {prefs.quietHours?.end || "07:00 AM"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(prefs.quietHours?.enabled)}
+            onClick={() => {
+              const updated = {
+                ...prefs,
+                quietHours: {
+                  ...prefs.quietHours,
+                  enabled: !prefs.quietHours?.enabled,
+                },
+              };
+              setPrefs(updated);
+              savePreferencesDirect(updated);
+            }}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              prefs.quietHours?.enabled ? "bg-purple-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                prefs.quietHours?.enabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* SCREEN 11: DEVICES CARD MATCHING MOCKUP */}
+      <div className="rounded-3xl border border-purple-100 bg-white p-5 sm:p-6 shadow-sm space-y-3">
+        <h4 className="text-sm font-bold text-gray-800">Devices</h4>
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-800">This Device</p>
+              <p className="text-[11px] text-gray-500">
+                Active • {getDeviceInfo().browser || "Chrome"} on {getDeviceInfo().os || "Android"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleTestPush}
+            disabled={testingPush}
+            className="p-1.5 px-3 rounded-xl bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 transition cursor-pointer text-xs font-bold shadow-xs"
+            title="Test alarm on this device"
+          >
+            {testingPush ? "Testing..." : "Test Alert"}
+          </button>
+        </div>
+      </div>
+
+      {/* SCREEN 11: NOTIFICATION HISTORY CARD MATCHING MOCKUP */}
+      <div className="rounded-3xl border border-purple-100 bg-white p-5 sm:p-6 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-bold text-gray-800">Notification History</h4>
+          <span className="text-xs font-semibold text-purple-600">View All</span>
+        </div>
+        <div className="space-y-2">
+          {deliveryLogs.length > 0 ? (
+            deliveryLogs.slice(0, 3).map((log) => (
+              <div
+                key={log._id || log.id}
+                className="flex items-center justify-between p-3 rounded-2xl border border-purple-50 hover:bg-purple-50/30 transition"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-xl bg-purple-50 text-purple-600 shrink-0">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
+                      {log.title || "Task Reminder"}
+                    </p>
+                    <p className="text-[11px] text-gray-400 truncate">
+                      {log.body || "Task due soon"} • {log.createdAt ? new Date(log.createdAt).toLocaleDateString() : "10 Oct, 10:00 AM"}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                  Delivered
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center justify-between p-3 rounded-2xl border border-purple-50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-purple-50 text-purple-600 shrink-0">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-bold text-gray-800">Task Reminder</p>
+                  <p className="text-[11px] text-gray-400">Design landing page • 10 Oct, 10:00 AM</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                Delivered
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
       <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
@@ -779,33 +1081,121 @@ export const DeviceNotificationSettings = () => {
               </label>
 
               {prefs.quietHours?.enabled && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] text-gray-500">From:</label>
-                    <input
-                      type="time"
-                      value={prefs.quietHours?.start || "22:00"}
-                      onChange={(e) =>
-                        setPrefs((prev) => ({
-                          ...prev,
-                          quietHours: { ...prev.quietHours, start: e.target.value },
-                        }))
-                      }
-                      className="w-full text-xs border border-gray-200 rounded-lg p-1.5"
-                    />
+                <div className="mt-2 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">From:</label>
+                      <input
+                        type="time"
+                        value={prefs.quietHours?.start || "22:00"}
+                        onChange={(e) =>
+                          setPrefs((prev) => ({
+                            ...prev,
+                            quietHours: { ...prev.quietHours, start: e.target.value },
+                          }))
+                        }
+                        className="w-full text-xs border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">To:</label>
+                      <input
+                        type="time"
+                        value={prefs.quietHours?.end || "07:00"}
+                        onChange={(e) =>
+                          setPrefs((prev) => ({
+                            ...prev,
+                            quietHours: { ...prev.quietHours, end: e.target.value },
+                          }))
+                        }
+                        className="w-full text-xs border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
                   </div>
+
+                  {/* Quiet Hours Mode */}
                   <div>
-                    <label className="text-[11px] text-gray-500">To:</label>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                      Action During Quiet Hours
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPrefs((prev) => ({
+                            ...prev,
+                            quietHours: { ...prev.quietHours, mode: "silent" },
+                          }))
+                        }
+                        className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                          (prefs.quietHours?.mode || "silent") === "silent"
+                            ? "border-purple-500 bg-purple-50/50 text-purple-900"
+                            : "border-gray-200 hover:border-gray-300 text-gray-700"
+                        }`}
+                      >
+                        <p className="text-xs font-bold">Silent Mode</p>
+                        <p className="text-[10px] text-gray-500 leading-tight mt-0.5">
+                          Dispatch notification without playing audible sound
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPrefs((prev) => ({
+                            ...prev,
+                            quietHours: { ...prev.quietHours, mode: "defer" },
+                          }))
+                        }
+                        className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                          prefs.quietHours?.mode === "defer"
+                            ? "border-purple-500 bg-purple-50/50 text-purple-900"
+                            : "border-gray-200 hover:border-gray-300 text-gray-700"
+                        }`}
+                      >
+                        <p className="text-xs font-bold">Defer Mode</p>
+                        <p className="text-[10px] text-gray-500 leading-tight mt-0.5">
+                          Hold alarms until quiet hours end, then sound alert
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Time Zone */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-gray-600">
+                        Quiet Hours Time Zone
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tz =
+                            typeof Intl !== "undefined"
+                              ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                              : "UTC";
+                          setPrefs((prev) => ({
+                            ...prev,
+                            quietHours: { ...prev.quietHours, timeZone: tz },
+                          }));
+                          toast.info(`Time zone set to: ${tz}`);
+                        }}
+                        className="text-[10px] text-purple-600 hover:underline cursor-pointer"
+                      >
+                        Use Local ({typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"})
+                      </button>
+                    </div>
                     <input
-                      type="time"
-                      value={prefs.quietHours?.end || "07:00"}
+                      type="text"
+                      placeholder="e.g. Asia/Kolkata, America/New_York, UTC"
+                      value={prefs.quietHours?.timeZone || ""}
                       onChange={(e) =>
                         setPrefs((prev) => ({
                           ...prev,
-                          quietHours: { ...prev.quietHours, end: e.target.value },
+                          quietHours: { ...prev.quietHours, timeZone: e.target.value },
                         }))
                       }
-                      className="w-full text-xs border border-gray-200 rounded-lg p-1.5"
+                      className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
                 </div>
@@ -824,6 +1214,306 @@ export const DeviceNotificationSettings = () => {
             {savingPrefs ? "Saving..." : "Save Preferences"}
           </button>
         </div>
+      </div>
+
+      {/* 3. Upcoming Scheduled Alarms Section */}
+      <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between pb-3 border-b border-purple-50">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">
+                Upcoming Scheduled Alarms
+              </h3>
+              <p className="text-xs text-gray-500">
+                Scheduled reminders due to ring across your devices
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchUpcomingAlarms}
+            disabled={loadingUpcoming}
+            className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-semibold p-1.5 rounded-lg hover:bg-purple-50 transition cursor-pointer"
+            title="Refresh upcoming alarms"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingUpcoming ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+
+        {loadingUpcoming ? (
+          <div className="py-8 flex justify-center items-center">
+            <RefreshCw className="h-6 w-6 text-purple-500 animate-spin" />
+          </div>
+        ) : upcomingAlarms.length === 0 ? (
+          <div className="text-center py-8">
+            <Clock className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-xs sm:text-sm font-medium text-gray-600">No active scheduled alarms</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Set an alarm from any task using the alarm icon to receive multi-device reminders.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 divide-y divide-gray-100">
+            {upcomingAlarms.map((alarm) => {
+              const displayTime = alarm.snoozedUntil
+                ? new Date(alarm.snoozedUntil)
+                : alarm.nextRetryAt
+                ? new Date(alarm.nextRetryAt)
+                : new Date(alarm.scheduledAt);
+
+              const statusBadge =
+                alarm.status === "snoozed" ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                    <Clock className="h-3 w-3" /> Snoozed
+                  </span>
+                ) : alarm.status === "failed_retryable" ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                    <AlertTriangle className="h-3 w-3" /> Retrying
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">
+                    <CheckCircle className="h-3 w-3" /> Scheduled
+                  </span>
+                );
+
+              return (
+                <div
+                  key={alarm._id}
+                  className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-purple-50/30 rounded-xl px-2 transition"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
+                        {alarm.title || alarm.task?.title || "Scheduled Reminder"}
+                      </p>
+                      {statusBadge}
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1 flex-wrap">
+                      <span className="font-semibold text-purple-700">
+                        {displayTime.toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}{" "}
+                        at{" "}
+                        {displayTime.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {alarm.repeat && alarm.repeat !== "never" && (
+                        <span className="bg-purple-100/70 text-purple-700 px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase">
+                          Repeat: {alarm.repeat}
+                        </span>
+                      )}
+                      {alarm.timeZone && (
+                        <span className="text-gray-400">({alarm.timeZone})</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-600">
+                      {alarm.channels?.push !== false && (
+                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-medium">
+                          Push
+                        </span>
+                      )}
+                      {alarm.channels?.inApp !== false && (
+                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-medium">
+                          In-App
+                        </span>
+                      )}
+                      {alarm.channels?.email && (
+                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-medium">
+                          Email
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={alarm.alarmEnabled !== false}
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem("token");
+                          await axios.patch(`${API_BASE}/api/reminders/${alarm._id}/toggle`, {}, {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          toast.success("Alarm toggled!");
+                          fetchUpcomingAlarms();
+                        } catch (e) {
+                          toast.error("Failed to toggle alarm");
+                        }
+                      }}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                        alarm.alarmEnabled !== false ? "bg-purple-600" : "bg-gray-300"
+                      }`}
+                      title={alarm.alarmEnabled !== false ? "Alarm is ON" : "Alarm is OFF"}
+                    >
+                      <div
+                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                          alarm.alarmEnabled !== false ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Notification Delivery History & Outcomes Section */}
+      <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between pb-3 border-b border-purple-50">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">
+                Delivery Outcomes & Audit Log
+              </h3>
+              <p className="text-xs text-gray-500">
+                Real-time delivery verification across Web Push, In-App, and Email
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchDeliveryLogs}
+            disabled={loadingLogs}
+            className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-semibold p-1.5 rounded-lg hover:bg-purple-50 transition cursor-pointer"
+            title="Refresh delivery logs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingLogs ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+
+        {/* Technical Delivery Notice */}
+        <div className="mt-3 p-3 rounded-xl bg-purple-50/60 border border-purple-100 text-[11px] text-purple-900 leading-relaxed flex items-start gap-2">
+          <Info className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-purple-950 mb-0.5">Delivery Status Verification Note</p>
+            <p className="text-gray-600">
+              Web Push status <span className="font-semibold text-emerald-700">"Accepted"</span> indicates that your alert was successfully accepted by the push gateway (FCM, Apple APNs, or Mozilla WebPush). Physical delivery and audible chime depend on device network connectivity, power-saving mode, and OS background app policies.
+            </p>
+          </div>
+        </div>
+
+        {loadingLogs ? (
+          <div className="py-8 flex justify-center items-center">
+            <RefreshCw className="h-6 w-6 text-purple-500 animate-spin" />
+          </div>
+        ) : deliveryLogs.length === 0 ? (
+          <div className="text-center py-8">
+            <History className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-xs sm:text-sm font-medium text-gray-600">No delivery logs recorded yet</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Dispatched alarm delivery events and test notifications will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-500 font-semibold">
+                  <th className="pb-2">Time</th>
+                  <th className="pb-2">Channel</th>
+                  <th className="pb-2">Target / Device</th>
+                  <th className="pb-2">Outcome</th>
+                  <th className="pb-2 text-right">Attempt</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {deliveryLogs.map((log) => {
+                  let statusBadge = (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                      {log.status}
+                    </span>
+                  );
+
+                  if (log.status === "accepted" || log.status === "success") {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {log.status === "accepted" ? "Accepted by Gateway" : "Delivered"}
+                      </span>
+                    );
+                  } else if (log.status === "failed_retryable") {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                        <AlertTriangle className="h-3 w-3" /> Awaiting Retry
+                      </span>
+                    );
+                  } else if (log.status === "failed") {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                        <X className="h-3 w-3" /> Failed
+                      </span>
+                    );
+                  } else if (log.status === "unsubscribed") {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600">
+                        Expired / Pruned
+                      </span>
+                    );
+                  }
+
+                  const channelLabel =
+                    log.channel === "push"
+                      ? "Web Push"
+                      : log.channel === "email"
+                      ? "Email"
+                      : "In-App";
+
+                  return (
+                    <tr key={log._id} className="hover:bg-purple-50/20">
+                      <td className="py-2.5 whitespace-nowrap text-gray-500">
+                        {new Date(log.createdAt).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}{" "}
+                        {new Date(log.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-2.5 whitespace-nowrap font-medium text-gray-800">
+                        {channelLabel}
+                      </td>
+                      <td className="py-2.5 text-gray-600 max-w-[180px] truncate">
+                        {log.target || log.task?.title || "Device"}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex flex-col gap-0.5">
+                          {statusBadge}
+                          {log.error && (
+                            <span className="text-[10px] text-rose-500 max-w-[200px] truncate" title={log.error}>
+                              {log.errorCategory ? `[${log.errorCategory}] ` : ""}{log.error}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-gray-500">
+                        #{log.attempt || 1}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

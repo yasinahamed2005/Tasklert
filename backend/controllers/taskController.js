@@ -58,10 +58,13 @@ const normalizeRecurrence = (recurrence, existingRecurrence) => {
 };
 
 const getNextDueDate = (dueDate, recurrence) => {
-  if (!dueDate || recurrence.frequency === "none") return null;
+  if (!recurrence || recurrence.frequency === "none") return null;
 
-  const next = new Date(dueDate);
-  const interval = recurrence.interval || 1;
+  const baseDate = dueDate ? new Date(dueDate) : new Date();
+  if (isNaN(baseDate.getTime())) return null;
+
+  const next = new Date(baseDate);
+  const interval = Math.max(1, Number(recurrence.interval || 1));
 
   if (recurrence.frequency === "daily") {
     next.setDate(next.getDate() + interval);
@@ -69,9 +72,14 @@ const getNextDueDate = (dueDate, recurrence) => {
     next.setDate(next.getDate() + 7 * interval);
   } else if (recurrence.frequency === "monthly") {
     next.setMonth(next.getMonth() + interval);
+  } else {
+    return null;
   }
 
-  if (recurrence.endsOn && next > new Date(recurrence.endsOn)) return null;
+  if (recurrence.endsOn) {
+    const end = new Date(recurrence.endsOn);
+    if (!isNaN(end.getTime()) && next > end) return null;
+  }
   return next;
 };
 
@@ -89,25 +97,48 @@ export const createTask = async (req, res) => {
       reminderAt,
       recurrence,
       attachments,
+      project,
+      tags,
     } = req.body;
 
     const parsedRecurrence = normalizeRecurrence(recurrence, null);
+    const parsedTags = Array.isArray(tags)
+      ? Array.from(new Set(tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean)))
+      : [];
+
+    const isCompleted = normalizeCompleted(completed);
 
     const task = new Task({
       title,
       description,
       priority,
       dueDate,
-      completed: normalizeCompleted(completed),
+      completed: isCompleted,
+      completedAt: isCompleted ? new Date() : null,
       subtasks: normalizeSubtasks(subtasks),
       reminderEnabled: Boolean(reminderEnabled),
       reminderAt: reminderAt ? new Date(reminderAt) : null,
+      alarmSound: req.body.alarmSound || req.body.sound || "digital",
+      alarmVolume: req.body.alarmVolume !== undefined ? Number(req.body.alarmVolume) : 80,
+      alarmRepeat: req.body.alarmRepeat || req.body.repeat || "never",
+      snoozeDuration: req.body.snoozeDuration ? Number(req.body.snoozeDuration) : 5,
+      advanceNoticeMinutes: req.body.advanceNoticeMinutes ? Number(req.body.advanceNoticeMinutes) : 0,
+      channels: {
+        push: req.body.channels?.push !== undefined ? Boolean(req.body.channels.push) : true,
+        inApp: req.body.channels?.inApp !== undefined ? Boolean(req.body.channels.inApp) : true,
+        email: req.body.channels?.email !== undefined ? Boolean(req.body.channels.email) : false,
+      },
+      timeZone: req.body.timeZone || "UTC",
       recurrence: parsedRecurrence,
+      recurrenceSpawned: false,
+      project: project || null,
+      tags: parsedTags,
       attachments: Array.isArray(attachments) ? attachments : [],
       owner: req.user.id,
     });
 
     const saved = await task.save();
+    await saved.populate("project", "name color");
 
     // Auto-create exact-time Reminder if alarm/reminder is enabled
     if (saved.reminderEnabled && saved.reminderAt) {
@@ -144,25 +175,49 @@ export const createTask = async (req, res) => {
   }
 };
 
-// GET ALL TASKS FOR LOGGED-IN USER
+// GET ALL TASKS FOR LOGGED-IN USER (excludes soft-deleted)
 export const getTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ owner: req.user.id }).sort({ createdAt: -1 });
+    const filter = { owner: req.user.id, isDeleted: { $ne: true } };
+
+    if (req.query.project) {
+      filter.project = req.query.project;
+    }
+    if (req.query.tag) {
+      filter.tags = req.query.tag.trim().toLowerCase();
+    }
+    if (req.query.search) {
+      const q = req.query.search.trim();
+      const regex = new RegExp(q, "i");
+      filter.$or = [
+        { title: regex },
+        { description: regex },
+        { tags: regex },
+      ];
+    }
+
+    const tasks = await Task.find(filter)
+      .populate("project", "name color")
+      .sort({ createdAt: -1 });
+
     res.json({ success: true, tasks });
-} 
-catch (err) {
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
-}
+};
 
-// GET SINGLE TASK BY ID (MUST BELONG TO THAT USER)
+// GET SINGLE TASK BY ID (MUST BELONG TO THAT USER AND NOT BE DELETED)
 export const getTaskById = async (req, res) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, owner: req.user.id });
-    if (!task) return res.status(404).json({
-      success: false,
-      message: "Task not found"
-    });
+    const task = await Task.findOne({ _id: req.params.id, owner: req.user.id, isDeleted: { $ne: true } })
+      .populate("project", "name color");
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
+    }
 
     res.json({ success: true, task });
   } catch (err) {
@@ -173,7 +228,7 @@ export const getTaskById = async (req, res) => {
 // UPDATE A TASK
 export const updateTask = async (req, res) => {
   try {
-    const existingTask = await Task.findOne({ _id: req.params.id, owner: req.user.id });
+    const existingTask = await Task.findOne({ _id: req.params.id, owner: req.user.id, isDeleted: { $ne: true } });
     if (!existingTask) {
       return res.status(404).json({
         success: false,
@@ -184,7 +239,16 @@ export const updateTask = async (req, res) => {
     const data = { ...req.body };
 
     if (data.completed !== undefined) {
-      data.completed = normalizeCompleted(data.completed);
+      const isCurrentlyCompleted = normalizeCompleted(existingTask.completed);
+      const willBeCompleted = normalizeCompleted(data.completed);
+      data.completed = willBeCompleted;
+      if (!isCurrentlyCompleted && willBeCompleted) {
+        data.completedAt = new Date();
+      } else if (isCurrentlyCompleted && !willBeCompleted) {
+        data.completedAt = null;
+      } else if (isCurrentlyCompleted && willBeCompleted) {
+        data.completedAt = existingTask.completedAt || null;
+      }
     }
     if (data.subtasks !== undefined) data.subtasks = normalizeSubtasks(data.subtasks);
     if (data.recurrence !== undefined) {
@@ -208,15 +272,25 @@ export const updateTask = async (req, res) => {
       data.emailReminderLastSentAt = null;
     }
 
+    if (data.tags !== undefined) {
+      data.tags = Array.isArray(data.tags)
+        ? Array.from(new Set(data.tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean)))
+        : [];
+    }
+    if (data.project !== undefined) {
+      data.project = data.project || null;
+    }
+
     const updated = await Task.findOneAndUpdate(
-      { _id: req.params.id, owner: req.user.id },
+      { _id: req.params.id, owner: req.user.id, isDeleted: { $ne: true } },
       data,
       { new: true, runValidators: true }
-    );
+    ).populate("project", "name color");
 
     const turnedCompleted = !normalizeCompleted(existingTask.completed) && normalizeCompleted(updated.completed);
+    const turnedIncomplete = normalizeCompleted(existingTask.completed) && !normalizeCompleted(updated.completed);
     const recurrence = normalizeRecurrence(updated.recurrence || {}, updated.recurrence);
-    const shouldCreateNext = turnedCompleted && recurrence.frequency !== "none";
+    const shouldCreateNext = turnedCompleted && recurrence.frequency !== "none" && !existingTask.recurrenceSpawned;
 
     if (turnedCompleted) {
       await Notification.deleteMany({ owner: req.user.id, task: updated._id });
@@ -224,6 +298,11 @@ export const updateTask = async (req, res) => {
         { owner: req.user.id, task: updated._id },
         { status: "completed", alarmEnabled: false }
       );
+    }
+
+    if (turnedIncomplete) {
+      // Allow future completion to spawn recurrence if toggled back
+      await Task.updateOne({ _id: updated._id }, { recurrenceSpawned: false });
     }
 
     // Sync reminder changes to Reminder collection
@@ -260,11 +339,16 @@ export const updateTask = async (req, res) => {
           dueDate: nextDueDate,
           owner: updated.owner,
           completed: false,
+          completedAt: null,
           subtasks: (updated.subtasks || []).map((item) => ({ title: item.title, completed: false })),
           reminderEnabled: false,
           reminderAt: null,
-          recurrence,
+          recurrence: { ...recurrence, endAlertsSent: [] },
+          recurrenceSpawned: false,
+          project: updated.project?._id || updated.project || null,
+          tags: updated.tags || [],
         });
+        await Task.updateOne({ _id: updated._id }, { recurrenceSpawned: true });
       }
     }
 
@@ -275,20 +359,123 @@ export const updateTask = async (req, res) => {
   }
 };
 
-// DELETE A TASK
+// DELETE A TASK (Soft-delete to allow undo)
 export const deleteTask = async (req, res) => {
   try {
-    const deleted = await Task.findOneAndDelete({ _id: req.params.id, owner: req.user.id });
+    const task = await Task.findOne({ _id: req.params.id, owner: req.user.id, isDeleted: { $ne: true } });
 
-    if (!deleted) 
+    if (!task) 
       return res.status(404).json({ success: false, message: "Task not found or not yours" });
 
-    await Notification.deleteMany({ owner: req.user.id, task: deleted._id });
-    await Reminder.deleteMany({ owner: req.user.id, task: deleted._id });
+    task.isDeleted = true;
+    task.deletedAt = new Date();
+    await task.save();
 
-    res.json({ success: true, message: "Task deleted" });
+    // Cancel active reminders so alarms do not fire for deleted tasks
+    await Reminder.updateMany({ owner: req.user.id, task: task._id }, { alarmEnabled: false, status: "cancelled" });
+
+    res.json({ success: true, message: "Task moved to trash", task });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// RESTORE A SOFT-DELETED TASK (Undo delete)
+export const restoreTask = async (req, res) => {
+  try {
+    const task = await Task.findOne({ _id: req.params.id, owner: req.user.id, isDeleted: true });
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Deleted task not found" });
+    }
+
+    task.isDeleted = false;
+    task.deletedAt = null;
+    await task.save();
+
+    // Re-schedule reminder if it was active and in the future
+    if (task.reminderEnabled && task.reminderAt && new Date(task.reminderAt) > new Date() && !task.completed) {
+      await Reminder.updateMany(
+        { owner: req.user.id, task: task._id },
+        { alarmEnabled: true, status: "scheduled" }
+      );
+    }
+
+    res.json({ success: true, message: "Task restored successfully", task });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// BULK TASK OPERATIONS (Complete, Incomplete, Priority, Project, Delete)
+export const bulkTaskOperations = async (req, res) => {
+  try {
+    const { taskIds, action, value } = req.body;
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({ success: false, message: "No task IDs provided" });
+    }
+
+    const filter = {
+      _id: { $in: taskIds },
+      owner: req.user.id,
+      isDeleted: { $ne: true },
+    };
+
+    let result;
+    if (action === "complete") {
+      const now = new Date();
+      // Set completedAt only on tasks currently incomplete
+      result = await Task.updateMany({ ...filter, completed: false }, { completed: true, completedAt: now });
+      // Ensure any already completed tasks are also updated in result count
+      const alreadyDone = await Task.updateMany({ ...filter, completed: true }, { completed: true });
+      result = { modifiedCount: (result.modifiedCount || 0) + (alreadyDone.modifiedCount || 0) };
+    } else if (action === "incomplete") {
+      result = await Task.updateMany(filter, { completed: false, completedAt: null });
+    } else if (action === "priority") {
+      if (!["Low", "Medium", "High"].includes(value)) {
+        return res.status(400).json({ success: false, message: "Invalid priority value" });
+      }
+      result = await Task.updateMany(filter, { priority: value });
+    } else if (action === "project") {
+      result = await Task.updateMany(filter, { project: value || null });
+    } else if (action === "delete") {
+      result = await Task.updateMany(filter, { isDeleted: true, deletedAt: new Date() });
+      await Reminder.updateMany(
+        { task: { $in: taskIds }, owner: req.user.id },
+        { alarmEnabled: false, status: "cancelled" }
+      );
+    } else {
+      return res.status(400).json({ success: false, message: `Unknown bulk action: ${action}` });
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk action '${action}' applied to ${result.modifiedCount} task${result.modifiedCount === 1 ? "" : "s"}.`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET ALL DISTINCT TAGS FOR LOGGED-IN USER
+export const getUserTags = async (req, res) => {
+  try {
+    const tasks = await Task.find({ owner: req.user.id, isDeleted: { $ne: true } }).select("tags");
+    const tagSet = new Set();
+    tasks.forEach((t) => {
+      if (Array.isArray(t.tags)) {
+        t.tags.forEach((tag) => {
+          if (tag && typeof tag === "string" && tag.trim()) {
+            tagSet.add(tag.trim().toLowerCase());
+          }
+        });
+      }
+    });
+    res.json({ success: true, tags: Array.from(tagSet).sort() });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 

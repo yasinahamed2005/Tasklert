@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { PRODUCTIVITY_CARD, SIDEBAR_CLASSES, menuItems, LINK_CLASSES } from '../assets/dummy';
-import { Sparkles, Menu, X, Trophy } from "lucide-react";
-import { useBodyScrollLock } from "../utils/scrollLock";
+import { Sparkles, Trophy } from "lucide-react";
 
 const Sidebar = ({ user, tasks }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   const totalTasks = tasks?.length || 0;
   const completedTasks = tasks?.filter((t) => t.completed).length || 0;
   const productivity = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -15,20 +12,7 @@ const Sidebar = ({ user, tasks }) => {
   const firstName = fullName.trim().split(" ")[0];
   const initial = firstName.charAt(0).toUpperCase();
 
-  useBodyScrollLock(mobileOpen);
-
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        setMobileOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileOpen]);
-
-  const renderMenuItems = (isMobile = false) => (
+  const renderMenuItems = () => (
     <ul className='space-y-2'>
       {menuItems.map(({ text, path, icon }) => (
         <li key={text}>
@@ -38,13 +22,12 @@ const Sidebar = ({ user, tasks }) => {
               [
                 LINK_CLASSES.base,
                 isActive ? LINK_CLASSES.active : LINK_CLASSES.inactive,
-                isMobile ? "justify-start" : "lg:justify-start"
+                "justify-center lg:justify-start"
               ].join(" ")
             }
-            onClick={() => setMobileOpen(false)}
           >
             <span className={LINK_CLASSES.icon}>{icon}</span>
-            <span className={`${isMobile ? "block" : "hidden lg:block"} ${LINK_CLASSES.text}`}>
+            <span className={`hidden lg:block ${LINK_CLASSES.text}`}>
               {text}
             </span>
           </NavLink>
@@ -55,8 +38,11 @@ const Sidebar = ({ user, tasks }) => {
 
   return (
     <>
-      {/* DESKTOP SIDEBAR */}
-      <div className={`${SIDEBAR_CLASSES.desktop} flex flex-col justify-between`}>
+      {/* DESKTOP SIDEBAR - Strictly hidden on phones (<768px), compact on tablet (md: 768px-1024px), full on desktop (lg: 1024px+) */}
+      <aside
+        aria-label="Sidebar Navigation"
+        className="hidden md:flex flex-col justify-between fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white/90 backdrop-blur-sm border-r border-purple-100 shadow-sm z-20 transition-all duration-300"
+      >
         <div>
           {/* User Info */}
           <div className='p-3 lg:p-5 border-b border-purple-100 block'>
@@ -127,78 +113,7 @@ const Sidebar = ({ user, tasks }) => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* MOBILE MENU BUTTON */}
-      {!mobileOpen && (
-        <button
-          onClick={() => setMobileOpen(true)}
-          className={SIDEBAR_CLASSES.mobileButton}
-          aria-label="Open navigation menu"
-        >
-          <Menu className='w-5 h-5' />
-        </button>
-      )}
-
-      {/* MOBILE DRAWER */}
-      {mobileOpen && (
-        <div className='fixed inset-0 z-40 overscroll-none overflow-hidden'>
-          <div
-            className={SIDEBAR_CLASSES.mobileDrawerBackdrop}
-            onClick={() => setMobileOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Navigation Menu"
-            className={`${SIDEBAR_CLASSES.mobileDrawer} flex flex-col justify-between max-h-full overflow-y-auto overscroll-contain modal-content-scroll`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              {/* Header */}
-              <div className='flex justify-between items-center mb-4 border-b pb-2'>
-                <h2 className='text-lg font-bold text-purple-600'>Menu</h2>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  aria-label="Close navigation menu"
-                  className='text-gray-700 hover:text-purple-600 p-1 rounded-lg'
-                >
-                  <X className='w-5 h-5' />
-                </button>
-              </div>
-
-              {/* User Info */}
-              <div className='flex items-center gap-3 mb-6'>
-                <div className='w-10 h-10 rounded-full initial-avatar flex items-center justify-center shadow-md font-bold'>
-                  {initial}
-                </div>
-                <div>
-                  <h2 className='text-lg font-bold text-gray-800'>Hi, {firstName}</h2>
-                  <p className='text-sm text-purple-500 font-medium flex items-center gap-1'>
-                    <Sparkles className='w-3 h-3' /> Smash those goals!
-                  </p>
-                </div>
-              </div>
-
-              {/* Mobile Menu Items */}
-              {renderMenuItems(true)}
-            </div>
-
-            {/* Mobile Bottom Cup Vision Card */}
-            <div className='mt-6 p-4 rounded-2xl bg-gradient-to-b from-purple-50/80 via-purple-50/50 to-purple-100/60 border border-purple-100 text-center relative overflow-hidden'>
-              <div className='mx-auto mb-2 w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-fuchsia-500 flex items-center justify-center text-white shadow-sm'>
-                <Trophy className='w-6 h-6 text-amber-300' />
-              </div>
-              <h4 className='text-xs font-bold text-gray-800'>
-                Keep it up, {firstName}!
-              </h4>
-              <p className='text-[11px] text-gray-500 mt-0.5'>
-                You're doing great today.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      </aside>
     </>
   );
 };

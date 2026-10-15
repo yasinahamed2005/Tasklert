@@ -1,6 +1,6 @@
 import React from "react";
 import DeviceNotificationSettings from "../components/DeviceNotificationSettings";
-import { Bell, ArrowLeft } from "lucide-react";
+import { Bell, ArrowLeft, AlarmClock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const AlarmSettingsPage = () => {
@@ -11,13 +11,23 @@ const AlarmSettingsPage = () => {
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Navigation & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-purple-600 transition-colors bg-white px-3.5 py-1.5 rounded-lg border border-slate-200/80 shadow-xs hover:border-purple-200 self-start"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1.5" />
-            Back
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-purple-600 transition-colors bg-white px-3.5 py-1.5 rounded-lg border border-slate-200/80 shadow-xs hover:border-purple-200"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Back
+            </button>
+
+            <button
+              onClick={() => navigate("/alarms")}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3.5 py-1.5 rounded-lg shadow-xs transition"
+            >
+              <AlarmClock className="w-3.5 h-3.5" />
+              <span>Alarms Clock (On/Off)</span>
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-purple-100/70 text-purple-700 border border-purple-200/60 self-start sm:self-auto">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

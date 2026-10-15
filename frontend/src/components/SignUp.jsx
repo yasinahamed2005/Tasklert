@@ -5,8 +5,9 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { TasklertIcon } from "./TasklertLogo";
+import { API_BASE_URL } from "../config/api";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = API_BASE_URL;
 const INITIAL_FORM = { name: "", email: "", password: "" };
 const RESEND_COOLDOWN_SECONDS = 60;
 

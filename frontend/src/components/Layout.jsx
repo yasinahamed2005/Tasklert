@@ -7,8 +7,12 @@ import { TrendingUp, Circle, Clock, Zap } from "lucide-react";
 import { toast } from "react-toastify";
 import AlertsPanel from "./AlertsPanel";
 import AlarmModal from "./AlarmModal";
+import MobileBottomNav from "./MobileBottomNav";
+import NotificationPermissionBanner from "./NotificationPermissionBanner";
+import { AppStartupFallback } from "./PageSkeletons";
+import { API_BASE_URL } from "../config/api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = API_BASE_URL;
 
 // STATISTIC CARD (defined outside Layout to avoid remounting on each render)
 const StatCard = ({ title, value, icon }) => (
@@ -29,7 +33,7 @@ const StatCard = ({ title, value, icon }) => (
 
 const Layout = ({ onLogout, user }) => {
   const location = useLocation();
-  const isFullWidthPage = ["/settings", "/profile", "/messages"].includes(location.pathname);
+  const isFullWidthPage = ["/settings", "/profile", "/messages", "/calendar", "/analytics", "/focus"].includes(location.pathname);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -155,6 +159,8 @@ const Layout = ({ onLogout, user }) => {
   useEffect(() => {
     if (!notifications.length) return;
 
+    // Mobile-only suppression: do not display blocking overdue toast popups on mobile screens (<768px)
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const canNotify = typeof window !== "undefined" && "Notification" in window;
 
     notifications.forEach((item) => {
@@ -162,16 +168,16 @@ const Layout = ({ onLogout, user }) => {
       const key = `tasklert-notif-${item._id}`;
       if (localStorage.getItem(key)) return;
 
-      toast.info(item.message, {
-        autoClose: 7000,
-        pauseOnHover: true,
-        closeOnClick: true,
-      });
-
-      if (canNotify && Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {});
+      // Display banner toast on desktop/website only (suppressed on mobile)
+      if (!isMobile) {
+        toast.info(item.message, {
+          autoClose: 7000,
+          pauseOnHover: true,
+          closeOnClick: true,
+        });
       }
 
+      // Only dispatch native browser notification if user already explicitly granted permission
       if (canNotify && Notification.permission === "granted") {
         new Notification(item.title || "Task Update", {
           body: item.message,
@@ -210,7 +216,7 @@ const Layout = ({ onLogout, user }) => {
     };
   }, [tasks, isTaskCompleted]);
 
-  // 1. Listen for background push notifications forwarded to active tab via Service Worker
+  // 1. Listen for background push notifications and action clicks forwarded via Service Worker
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
@@ -218,6 +224,38 @@ const Layout = ({ onLogout, user }) => {
       if (event.data?.type === "TASKLERT_ALARM_EVENT" && event.data?.alarm) {
         console.log("🔔 Received alarm event from Service Worker:", event.data.alarm);
         setActiveAlarm(event.data.alarm);
+      } else if (event.data?.type === "TASKLERT_NOTIFICATION_ACTION") {
+        const { action, alarmId } = event.data;
+        const token = localStorage.getItem("token");
+        if (token && alarmId) {
+          if (action === "dismiss") {
+            axios
+              .post(
+                `${API_BASE}/api/reminders/${alarmId}/dismiss`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+              .then(() => {
+                toast.info("Alarm dismissed.");
+                fetchTasks();
+                fetchNotifications();
+              })
+              .catch(console.error);
+          } else if (action === "snooze") {
+            axios
+              .post(
+                `${API_BASE}/api/reminders/${alarmId}/snooze`,
+                { durationMinutes: 5 },
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+              .then(() => {
+                toast.info("Alarm snoozed for 5 minutes.");
+                fetchTasks();
+                fetchNotifications();
+              })
+              .catch(console.error);
+          }
+        }
       }
     };
 
@@ -225,7 +263,71 @@ const Layout = ({ onLogout, user }) => {
     return () => {
       navigator.serviceWorker.removeEventListener("message", handleMessage);
     };
-  }, []);
+  }, [fetchTasks, fetchNotifications]);
+
+  // Handle URL query parameters triggered by Service Worker notification clicks (e.g. ?alarmId=...&notifAction=dismiss)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const alarmId = params.get("alarmId");
+    const notifAction = params.get("notifAction");
+
+    if (!alarmId) return;
+
+    const token = localStorage.getItem("token");
+    window.history.replaceState({}, "", location.pathname);
+
+    if (!token) return;
+
+    if (notifAction === "dismiss") {
+      axios
+        .post(
+          `${API_BASE}/api/reminders/${alarmId}/dismiss`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .then(() => {
+          toast.info("Alarm dismissed.");
+          fetchTasks();
+          fetchNotifications();
+        })
+        .catch(console.error);
+    } else if (notifAction === "snooze") {
+      axios
+        .post(
+          `${API_BASE}/api/reminders/${alarmId}/snooze`,
+          { durationMinutes: 5 },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .then(() => {
+          toast.info("Alarm snoozed for 5 minutes.");
+          fetchTasks();
+          fetchNotifications();
+        })
+        .catch(console.error);
+    } else {
+      // Open action or general click: fetch reminder and open alarm modal
+      axios
+        .get(`${API_BASE}/api/reminders/${alarmId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then(({ data }) => {
+          if (data?.reminder) {
+            const r = data.reminder;
+            setActiveAlarm({
+              title: r.title,
+              body: r.message,
+              alarmId: r._id,
+              taskId: r.task?._id || r.task,
+              sound: r.sound || "digital",
+              volume: r.volume || 80,
+              priority: r.priority || "Medium",
+              scheduledAt: r.scheduledAt,
+            });
+          }
+        })
+        .catch(console.error);
+    }
+  }, [location.search, location.pathname, fetchTasks, fetchNotifications]);
 
   // 2. Active foreground tab alarm trigger for remindable tasks
   useEffect(() => {
@@ -263,13 +365,14 @@ const Layout = ({ onLogout, user }) => {
   }, [tasks, isTaskCompleted]);
 
 
-  // LOADING
+  const outletContext = useMemo(
+    () => ({ tasks, refreshTasks: fetchTasks, user }),
+    [tasks, fetchTasks, user]
+  );
+
+  // INITIAL APP LOAD
   if (loading)
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500" />
-      </div>
-    );
+    return <AppStartupFallback label="Loading Tasklert Workspace..." />;
 
   // ERROR
   if (error)
@@ -299,18 +402,18 @@ const Layout = ({ onLogout, user }) => {
         onClearAllNotifications={clearAllNotifications}
       />
       <Sidebar user={user} tasks={tasks} />
-      <div className="ml-0 xl:ml-64 lg:ml-64 md:ml-20 pt-[calc(var(--app-header-height)+0.75rem)] px-3 pb-3 sm:px-4 sm:pb-4 md:px-4 md:pb-4 transition-all duration-300">
+      <div className="w-full min-w-0 ml-0 md:ml-20 lg:ml-64 xl:ml-64 pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300">
         {isFullWidthPage ? (
           <div className="w-full min-w-0">
-            <Outlet context={{ tasks, refreshTasks: fetchTasks }} />
+            <Outlet context={outletContext} />
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
-            <div className="xl:col-span-2 space-y-3 sm:space-y-4 min-w-0">
-              <Outlet context={{ tasks, refreshTasks: fetchTasks }} />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0 max-w-full">
+            <div className="xl:col-span-2 space-y-3 sm:space-y-4 min-w-0 w-full max-w-full">
+              <Outlet context={outletContext} />
             </div>
 
-            <div className="xl:col-span-1 space-y-4 sm:space-y-6 min-w-0">
+            <div className="hidden xl:block xl:col-span-1 space-y-4 sm:space-y-6 min-w-0">
               <AlertsPanel tasks={tasks} />
               {/* STATISTICS */}
               <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-purple-100">
@@ -366,9 +469,9 @@ const Layout = ({ onLogout, user }) => {
 
                   <div className="relative pt-1">
                     <div className="flex gap-1.5 items-center">
-                      <div className="flex-1 h-2 sm:h-3 bg-purple-100 rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 sm:h-3 rounded-full overflow-hidden theme-progress-track">
                         <div
-                          className="h-full bg-gradient-to-r from-fuchsia-500 to-purple-600 transition-all duration-500"
+                          className="h-full rounded-full transition-all duration-500 theme-progress-fill"
                           style={{ width: `${stats.completionPercentage}%` }}
                         />
                       </div>
@@ -443,6 +546,12 @@ const Layout = ({ onLogout, user }) => {
           }}
         />
       )}
+
+      {/* RESPECTFUL NOTIFICATION PERMISSION ONBOARDING BANNER */}
+      <NotificationPermissionBanner />
+
+      {/* NATIVE-APP MOBILE BOTTOM NAVIGATION */}
+      <MobileBottomNav user={user} onLogout={onLogout} tasks={tasks} />
     </div>
   );
 };

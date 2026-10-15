@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_TASK, baseControlClasses, priorityStyles } from '../assets/dummy';
-import { PlusCircle, X, AlignLeft, Flag, Calendar, CheckCircle, Save, Paperclip, Link, FileText, Image, Video, Trash2, Upload, BellRing, Clock, Play, Square, Volume2, Globe, Shield, Sparkles } from 'lucide-react';
+import { PlusCircle, X, AlignLeft, Flag, Calendar, CheckCircle, Save, Paperclip, Link, FileText, Image, Video, Trash2, Upload, BellRing, Clock, Play, Square, Volume2, Globe, Shield, Sparkles, RotateCw, Folder, Tag, Bookmark, Plus } from 'lucide-react';
 import axios from 'axios';
 import { soundManager } from '../utils/soundManager';
 import { useModalAccessibility } from '../utils/scrollLock';
+import { API_BASE_URL, resolveAttachmentUrl } from '../config/api';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/tasks`;
+const API_BASE = `${API_BASE_URL}/api/tasks`;
 
 const ALARM_SOUND_OPTIONS = [
   { id: 'digital', label: 'Digital Beep (Electronic)' },
@@ -29,6 +30,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     advanceNoticeMinutes: 0,
     channels: { push: true, inApp: true, email: false },
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+    project: '',
+    tags: [],
   });
   const [subtaskInput, setSubtaskInput] = useState("");
   const [linkInput, setLinkInput] = useState("");
@@ -36,10 +39,44 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [previewingSound, setPreviewingSound] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectColor, setNewProjectColor] = useState("#8B2CF5");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateStatus, setTemplateStatus] = useState("");
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     if (!isOpen) return;
+
+    const fetchProjectsAndTemplates = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const [projRes, tmplRes] = await Promise.allSettled([
+          axios.get(`${API_BASE_URL}/api/projects`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_BASE_URL}/api/templates`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        if (projRes.status === "fulfilled" && projRes.value.data?.projects) {
+          setProjects(projRes.value.data.projects);
+        }
+        if (tmplRes.status === "fulfilled" && tmplRes.value.data?.templates) {
+          setTemplates(tmplRes.value.data.templates);
+        }
+      } catch (e) {
+        console.warn("Could not load projects/templates", e);
+      }
+    };
+    fetchProjectsAndTemplates();
 
     if (taskToEdit) {
       const normalized = taskToEdit.completed === "Yes" || taskToEdit.completed === true ? "Yes" : "No";
@@ -50,6 +87,19 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
         priority: taskToEdit.priority || "Low",
         dueDate: taskToEdit.dueDate?.split("T")[0] || "",
         completed: normalized,
+        project: taskToEdit.project?._id || (typeof taskToEdit.project === "string" ? taskToEdit.project : "") || "",
+        tags: Array.isArray(taskToEdit.tags) ? taskToEdit.tags : [],
+        recurrence: taskToEdit.recurrence ? {
+          frequency: taskToEdit.recurrence.frequency || "none",
+          interval: taskToEdit.recurrence.interval || 1,
+          endsOn: taskToEdit.recurrence.endsOn ? taskToEdit.recurrence.endsOn.split("T")[0] : "",
+          alertBeforeEnd: taskToEdit.recurrence.alertBeforeEnd || "",
+        } : {
+          frequency: "none",
+          interval: 1,
+          endsOn: "",
+          alertBeforeEnd: "",
+        },
         reminderEnabled: Boolean(taskToEdit.reminderEnabled),
         reminderAt: taskToEdit.reminderAt
           ? new Date(taskToEdit.reminderAt).toISOString().slice(0, 16)
@@ -77,6 +127,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     } else {
       setTaskData({
         ...DEFAULT_TASK,
+        project: "",
+        tags: [],
         attachments: [],
         alarmSound: 'digital',
         alarmVolume: 80,
@@ -89,6 +141,10 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     }
     setSubtaskInput("");
     setLinkInput("");
+    setTagInput("");
+    setShowNewProject(false);
+    setShowSaveTemplate(false);
+    setTemplateStatus("");
     setError(null);
     setPreviewingSound(null);
     soundManager.stop();
@@ -197,6 +253,105 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     };
   }, []);
 
+  const handleAddTag = (e) => {
+    if (e) e.preventDefault();
+    const clean = tagInput.trim().toLowerCase().replace(/^#/, "");
+    if (!clean) return;
+    if (!(taskData.tags || []).includes(clean)) {
+      setTaskData((prev) => ({
+        ...prev,
+        tags: [...(prev.tags || []), clean],
+      }));
+    }
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    setTaskData((prev) => ({
+      ...prev,
+      tags: (prev.tags || []).filter((t) => t !== tagToRemove),
+    }));
+  };
+
+  const handleApplyTemplate = (tmplId) => {
+    if (!tmplId) return;
+    const tmpl = templates.find((t) => t._id === tmplId);
+    if (!tmpl) return;
+    setTaskData((prev) => ({
+      ...prev,
+      title: tmpl.title || prev.title,
+      description: tmpl.description !== undefined ? tmpl.description : prev.description,
+      priority: tmpl.priority || prev.priority,
+      subtasks: Array.isArray(tmpl.subtasks)
+        ? tmpl.subtasks.map((s) => ({ title: s.title || s, completed: false }))
+        : prev.subtasks,
+      tags: Array.isArray(tmpl.tags) && tmpl.tags.length > 0 ? tmpl.tags : prev.tags,
+      project: tmpl.project || prev.project,
+    }));
+    setTemplateStatus(`Applied "${tmpl.name}"`);
+    setTimeout(() => setTemplateStatus(""), 3000);
+  };
+
+  const handleSaveAsTemplate = async (e) => {
+    e.preventDefault();
+    if (!templateName.trim()) return;
+    if (!taskData.title.trim()) {
+      setError("Please give the task a title before saving as a template.");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("token");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/templates`,
+        {
+          name: templateName.trim(),
+          title: taskData.title,
+          description: taskData.description,
+          priority: taskData.priority,
+          subtasks: taskData.subtasks,
+          tags: taskData.tags,
+          project: taskData.project || undefined,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (data.success && data.template) {
+        setTemplates((prev) => [data.template, ...prev]);
+        setTemplateName("");
+        setShowSaveTemplate(false);
+        setTemplateStatus(`Saved template "${data.template.name}"!`);
+        setTimeout(() => setTemplateStatus(""), 3500);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to save template");
+    }
+  };
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+    setCreatingProject(true);
+    try {
+      const token = localStorage.getItem("token");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/projects`,
+        { name: newProjectName.trim(), color: newProjectColor },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (data.success && data.project) {
+        setProjects((prev) => [data.project, ...prev]);
+        setTaskData((prev) => ({ ...prev, project: data.project._id }));
+        setNewProjectName("");
+        setShowNewProject(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to create project");
+    } finally {
+      setCreatingProject(false);
+    }
+  };
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
 
@@ -217,8 +372,18 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
       const isEdit = Boolean(taskData.id);
       const url = isEdit ? `${API_BASE}/${taskData.id}/gp` : `${API_BASE}/gp`;
 
+      const recurrencePayload = taskData.recurrence && taskData.recurrence.frequency !== "none" ? {
+        frequency: taskData.recurrence.frequency,
+        interval: Math.max(1, Number(taskData.recurrence.interval || 1)),
+        endsOn: taskData.recurrence.endsOn ? new Date(taskData.recurrence.endsOn).toISOString() : null,
+        alertBeforeEnd: taskData.recurrence.alertBeforeEnd ? Number(taskData.recurrence.alertBeforeEnd) : null,
+      } : { frequency: "none", interval: 1, endsOn: null, alertBeforeEnd: null };
+
       const payload = {
         ...taskData,
+        project: taskData.project || null,
+        tags: Array.isArray(taskData.tags) ? taskData.tags : [],
+        recurrence: recurrencePayload,
         reminderAt: taskData.reminderEnabled && taskData.reminderAt
           ? new Date(taskData.reminderAt).toISOString()
           : null,
@@ -253,7 +418,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overscroll-none overflow-hidden animate-fadeIn"
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overscroll-none overflow-hidden animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -265,19 +430,22 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-modal-title"
-        className="bg-white border border-purple-100 rounded-2xl max-w-xl w-full shadow-2xl relative max-h-[90vh] max-h-[90dvh] flex flex-col overflow-hidden animate-fadeIn"
+        className="bg-white border border-purple-100 rounded-t-3xl sm:rounded-2xl max-w-xl w-full shadow-2xl relative max-h-[92vh] max-h-[92dvh] flex flex-col overflow-hidden"
       >
+        {/* Mobile Pull Indicator */}
+        <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
+
         {/* Fixed Header */}
-        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-purple-100 bg-white/95 backdrop-blur-xs z-10 rounded-t-2xl shrink-0">
-          <h2 id="task-modal-title" className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-            {taskData.id ? <Save className='text-purple-500 w-5 h-5' /> : <PlusCircle className='text-purple-500 w-5 h-5' />}
-            {taskData.id ? 'Edit Task' : 'Create New Task'}
+        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-purple-100 bg-white/95 backdrop-blur-xs z-10 sm:rounded-t-2xl shrink-0">
+          <h2 id="task-modal-title" className="text-lg sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+            {taskData.id ? <Save className='text-purple-500 w-5 h-5 shrink-0' /> : <PlusCircle className='text-purple-500 w-5 h-5 shrink-0' />}
+            <span className="truncate">{taskData.id ? 'Edit Task' : 'Create New Task'}</span>
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 rounded-lg text-gray-500 hover:text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+            className="p-2 rounded-lg text-gray-500 hover:text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -291,6 +459,70 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
               {error}
             </div>
           )}
+
+          {/* Templates Quick Actions Bar */}
+          <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-900">
+                <Bookmark className="w-4 h-4 text-purple-600" />
+                <span>Templates</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {templates.length > 0 && (
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleApplyTemplate(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="text-xs bg-white border border-purple-200 rounded-lg px-2.5 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer font-medium"
+                  >
+                    <option value="" disabled>Load from template...</option>
+                    {templates.map((tmpl) => (
+                      <option key={tmpl._id} value={tmpl._id}>
+                        {tmpl.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+                  className="text-xs font-medium text-purple-700 hover:text-purple-900 bg-white border border-purple-200 px-2.5 py-1 rounded-lg hover:bg-purple-100/50 transition cursor-pointer"
+                >
+                  {showSaveTemplate ? "Cancel" : "Save as Template"}
+                </button>
+              </div>
+            </div>
+
+            {templateStatus && (
+              <div className="text-xs text-purple-700 bg-purple-100/70 px-2.5 py-1 rounded-md font-medium">
+                {templateStatus}
+              </div>
+            )}
+
+            {showSaveTemplate && (
+              <div className="pt-2 border-t border-purple-100 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Template name (e.g., Weekly Sprint)"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="flex-1 text-xs px-2.5 py-1.5 border border-purple-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveAsTemplate}
+                  disabled={!templateName.trim()}
+                  className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 transition cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Task Title */}
           <div>
@@ -324,21 +556,35 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
           </div>
 
           {/* Priority & Due Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1.5">
                 <Flag className="w-4 h-4 text-purple-500" /> Priority
               </label>
-              <select
-                name="priority"
-                value={taskData.priority}
-                onChange={handleChange}
-                className={`${baseControlClasses} ${priorityStyles[taskData.priority]}`}
-              >
-                <option>Low</option>
-                <option>Medium</option>
-                <option>High</option>
-              </select>
+              {/* 3 Horizontal Pill Buttons matching Screen 7 Mockup */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { val: "Low", label: "🍃 Low", active: "bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200 font-bold" },
+                  { val: "Medium", label: "⚠️ Medium", active: "bg-amber-50 text-amber-700 border-amber-300 ring-2 ring-amber-200 font-bold" },
+                  { val: "High", label: "🔥 High", active: "bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-200 font-bold" },
+                ].map((item) => {
+                  const isSelected = taskData.priority === item.val;
+                  return (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setTaskData((prev) => ({ ...prev, priority: item.val }))}
+                      className={`py-2 px-1.5 rounded-xl text-xs border transition-all text-center cursor-pointer ${
+                        isSelected
+                          ? item.active
+                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 font-medium"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className='flex items-center gap-1 text-sm font-medium text-gray-700 mb-1'>
@@ -354,6 +600,209 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
                 className={baseControlClasses}
               />
             </div>
+          </div>
+
+          {/* Project & Tags Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Project Selection */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1 text-sm font-medium text-gray-700">
+                  <Folder className="w-4 h-4 text-purple-500" /> Project
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewProject(!showNewProject)}
+                  className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 flex items-center gap-0.5 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> {showNewProject ? "Close" : "New Project"}
+                </button>
+              </div>
+
+              <select
+                name="project"
+                value={taskData.project || ""}
+                onChange={handleChange}
+                className={baseControlClasses}
+              >
+                <option value="">No Project (General)</option>
+                {projects.map((proj) => (
+                  <option key={proj._id} value={proj._id}>
+                    {proj.name}
+                  </option>
+                ))}
+              </select>
+
+              {showNewProject && (
+                <div className="mt-2 p-2.5 rounded-xl border border-purple-200 bg-purple-50/60 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Project name..."
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      className="flex-1 text-xs px-2.5 py-1.5 border border-purple-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <input
+                      type="color"
+                      value={newProjectColor}
+                      onChange={(e) => setNewProjectColor(e.target.value)}
+                      className="w-7 h-7 rounded border border-purple-200 cursor-pointer bg-white"
+                      title="Project color"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewProject(false)}
+                      className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateProject}
+                      disabled={creatingProject || !newProjectName.trim()}
+                      className="px-3 py-1 text-xs bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {creatingProject ? "Saving..." : "Create"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tags Input */}
+            <div>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+                <Tag className="w-4 h-4 text-purple-500" /> Tags
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddTag(e);
+                    }
+                  }}
+                  placeholder="e.g. bug, release"
+                  className={baseControlClasses}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTag}
+                  className="px-3 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-xs font-semibold shrink-0 cursor-pointer"
+                >
+                  Add
+                </button>
+              </div>
+
+              {taskData.tags && taskData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {taskData.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200"
+                    >
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="hover:text-red-500 ml-0.5 text-xs cursor-pointer font-bold leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Repeating Task (Recurrence) Option */}
+          <div className="rounded-xl border border-purple-200/90 bg-purple-50/40 p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+                <RotateCw className="w-3.5 h-3.5 text-purple-600" /> Recurring Task (Repeat Schedule)
+              </label>
+              <select
+                value={taskData.recurrence?.frequency || "none"}
+                onChange={(e) =>
+                  setTaskData((prev) => ({
+                    ...prev,
+                    recurrence: {
+                      ...(prev.recurrence || {}),
+                      frequency: e.target.value,
+                    },
+                  }))
+                }
+                className="text-xs border border-purple-200 rounded-lg p-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer font-medium text-gray-700"
+              >
+                <option value="none">Does not repeat</option>
+                <option value="daily">Repeats Daily</option>
+                <option value="weekly">Repeats Weekly</option>
+                <option value="monthly">Repeats Monthly</option>
+              </select>
+            </div>
+
+            {taskData.recurrence?.frequency && taskData.recurrence.frequency !== "none" && (
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-purple-100 text-xs">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-700 block mb-1">
+                    Repeat Every (Interval)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={taskData.recurrence?.interval || 1}
+                      onChange={(e) =>
+                        setTaskData((prev) => ({
+                          ...prev,
+                          recurrence: {
+                            ...(prev.recurrence || {}),
+                            interval: Math.max(1, parseInt(e.target.value, 10) || 1),
+                          },
+                        }))
+                      }
+                      className="w-20 text-xs border border-purple-200 rounded-lg p-1.5 bg-white font-medium text-gray-800"
+                    />
+                    <span className="text-gray-500 capitalize">
+                      {taskData.recurrence.frequency === "daily"
+                        ? "days"
+                        : taskData.recurrence.frequency === "weekly"
+                        ? "weeks"
+                        : "months"}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-700 block mb-1">
+                    End Repeat Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    min={today}
+                    value={taskData.recurrence?.endsOn || ""}
+                    onChange={(e) =>
+                      setTaskData((prev) => ({
+                        ...prev,
+                        recurrence: {
+                          ...(prev.recurrence || {}),
+                          endsOn: e.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full text-xs border border-purple-200 rounded-lg p-1.5 bg-white font-medium text-gray-800"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Smart Alarm & Exact-Time Reminder Panel */}
@@ -635,7 +1084,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
                           <FileText className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                         )}
                         <a
-                          href={att.url}
+                          href={resolveAttachmentUrl(att.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="truncate text-purple-700 hover:underline font-medium"
@@ -731,29 +1180,29 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
           </div>
 
           {/* Stable Footer Action Buttons */}
-          <div className="p-4 sm:p-5 border-t border-purple-100 bg-gray-50/95 rounded-b-2xl z-10 flex items-center justify-end gap-3 shrink-0">
+          <div className="p-3.5 sm:p-5 border-t border-purple-100 bg-gray-50/95 sm:rounded-b-2xl z-10 flex items-center justify-end gap-2.5 sm:gap-3 shrink-0 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] sm:pb-5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition cursor-pointer"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition cursor-pointer text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary-strong font-medium py-2.5 px-5 rounded-xl flex items-center justify-center gap-2
-                         disabled:opacity-50 hover:shadow-md transition cursor-pointer"
+              className="flex-1 sm:flex-initial btn-primary-strong font-semibold py-2.5 px-5 rounded-xl flex items-center justify-center gap-2
+                         disabled:opacity-50 hover:shadow-md transition cursor-pointer text-center"
             >
               {loading ? (
                 'Saving...'
               ) : taskData.id ? (
                 <>
-                  <Save className="w-4 h-4" /> Update Task
+                  <Save className="w-4 h-4 shrink-0" /> Update Task
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> Create Task
+                  <PlusCircle className="w-4 h-4 shrink-0" /> Create Task
                 </>
               )}
             </button>

@@ -11,14 +11,16 @@ const themes = [
   { name: "theme-pink", label: "Vibrant Fuchsia", color: "#c026d3" },
 ];
 
-const ThemeSettings = ({ onClose }) => {
+const ThemeSettings = ({ isOpen = true, onClose }) => {
   const modalRef = useRef(null);
 
   useModalAccessibility({
-    isOpen: true,
+    isOpen,
     onClose,
     modalRef,
   });
+
+  if (!isOpen) return null;
 
   const applyTheme = (theme) => {
     document.documentElement.classList.remove(
@@ -31,6 +33,7 @@ const ThemeSettings = ({ onClose }) => {
     );
     document.documentElement.classList.add(theme);
     localStorage.setItem("theme", theme);
+    window.dispatchEvent(new CustomEvent("themechange", { detail: theme }));
     onClose();
   };
 

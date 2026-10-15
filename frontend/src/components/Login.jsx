@@ -6,6 +6,7 @@ import axios from "axios";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { TasklertIcon } from "./TasklertLogo";
 import { useModalAccessibility } from "../utils/scrollLock";
+import { API_BASE_URL } from "../config/api";
 
 const INITIAL_FORM = { email: "", password: "" };
 
@@ -32,11 +33,12 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
   const [forgotMessage, setForgotMessage] = useState({ text: "", type: "" });
 
   const navigate = useNavigate();
-  const url = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const url = API_BASE_URL;
 
-  // Handle OAuth callback parameters (e.g. ?oauth_success=true&token=... or ?error=...)
+  // Handle OAuth callback parameters (via secure single-use auth code or legacy token fallback)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const oauthCode = params.get("oauth_code");
     const oauthSuccess = params.get("oauth_success");
     const token = params.get("token");
     const userId = params.get("userId");
@@ -52,6 +54,37 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
       return;
     }
 
+    // Modern secure flow: exchange single-use authorization code
+    if (oauthCode) {
+      // Clear URL query parameters immediately to prevent reuse / history leakage
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setLoading(true);
+
+      (async () => {
+        try {
+          const { data } = await axios.post(`${url}/api/auth/exchange`, { code: oauthCode });
+          if (data.success && data.token) {
+            localStorage.setItem("token", data.token);
+            if (data.user?.id) localStorage.setItem("userId", data.user.id);
+
+            onSubmit?.({ token: data.token, userId: data.user.id, ...data.user });
+            const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
+            toast.success(`Welcome, ${data.user?.name || "User"}! Successfully signed in via ${providerLabel}.`);
+            navigate("/", { replace: true });
+          } else {
+            toast.error(data.message || "Failed to finalize authentication.");
+          }
+        } catch (err) {
+          console.error("OAuth code exchange error:", err);
+          toast.error(err.response?.data?.message || "Failed to exchange authorization code.");
+        } finally {
+          setLoading(false);
+        }
+      })();
+      return;
+    }
+
+    // Legacy fallback
     if (oauthSuccess === "true" && token) {
       localStorage.setItem("token", token);
       if (userId) localStorage.setItem("userId", userId);

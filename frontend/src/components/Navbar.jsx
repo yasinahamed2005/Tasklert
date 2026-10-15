@@ -47,18 +47,18 @@ const Navbar = ({
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 h-[var(--app-header-height)] bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-200">
-        <div className="h-full flex items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
+        <div className="h-full flex items-center justify-between px-3 sm:px-4 md:px-6 max-w-7xl mx-auto">
           
           {/* LOGO LOCKUP */}
           <TasklertLogo
-            size={38}
-            textSize="text-2xl"
+            size={32}
+            textSize="text-xl sm:text-2xl"
             textColor="text-purple-900"
             onClick={() => navigate("/")}
           />
 
           {/* RIGHT */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount}
@@ -69,22 +69,22 @@ const Navbar = ({
             <div ref={menuref} className="relative">
               <button
                 onClick={handleMenuToggle}
-                className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-[color:var(--primary-50)] transition"
+                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:px-3 sm:py-2 rounded-full hover:bg-[color:var(--primary-50)] transition cursor-pointer"
               >
                 {user?.avatar && !avatarError ? (
                   <img
                     src={user.avatar}
                     alt="avatar"
-                    className="w-9 h-9 rounded-full"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover"
                     onError={() => setAvatarError(true)}
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full initial-avatar flex items-center justify-center text-sm">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full initial-avatar flex items-center justify-center text-sm font-bold shadow-xs">
                     {initial}
                   </div>
                 )}
                 <ChevronDown
-                  className={`w-4 h-4 transition ${
+                  className={`w-4 h-4 transition hidden sm:block ${
                     menuOpen ? "rotate-180" : ""
                   }`}
                 />

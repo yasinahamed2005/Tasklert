@@ -5,6 +5,7 @@ import {
     SortDesc, SortAsc, Award,
     Edit2,
     Trash2,
+    Copy,
     MoreVertical,
     Clock,
     Calendar,
@@ -12,6 +13,9 @@ import {
     Type,
     Search,
     Bell,
+    BarChart3,
+    Timer,
+    AlarmClock,
 } from "lucide-react"
 
 // BACKEND TEST 
@@ -75,6 +79,8 @@ export const DEFAULT_TASK = {
         alertBeforeEnd: "",
     },
     subtasks: [],
+    project: "",
+    tags: [],
     id: null,
 };
 
@@ -111,7 +117,11 @@ export const menuItems = [
     { text: "Dashboard", path: "/", icon: <Home className="w-5 h-5" /> },
     { text: "Pending Tasks", path: "/pending", icon: <ListChecks className="w-5 h-5" /> },
     { text: "Completed Tasks", path: "/complete", icon: <CheckCircle2 className="w-5 h-5" /> },
+    { text: "Calendar", path: "/calendar", icon: <Calendar className="w-5 h-5" /> },
+    { text: "Focus Timer", path: "/focus", icon: <Timer className="w-5 h-5" /> },
+    { text: "Analytics", path: "/analytics", icon: <BarChart3 className="w-5 h-5" /> },
     { text: "Quick Send", path: "/messages", icon: <Send className="w-5 h-5" /> },
+    { text: "Alarms & Clock", path: "/alarms", icon: <AlarmClock className="w-5 h-5" /> },
     { text: "Alarms & Settings", path: "/settings", icon: <Bell className="w-5 h-5" /> },
 ]
 
@@ -124,19 +134,19 @@ export const SIDEBAR_CLASSES = {
 
 export const LINK_CLASSES = {
     base: "group flex items-center px-4 py-3 rounded-xl transition-all duration-300",
-    active: "bg-gradient-to-r from-purple-50 to-fuchsia-50 border-l-4 border-purple-500 text-purple-700 font-medium shadow-sm",
+    active: "sidebar-link-active font-medium shadow-xs",
     inactive: "hover:bg-purple-50/50 text-gray-600 hover:text-purple-700",
     icon: "transition-transform duration-300 group-hover:scale-110 text-purple-500",
     text: "text-sm font-medium ml-2",
 }
 
 export const PRODUCTIVITY_CARD = {
-    container: "bg-purple-50/50 rounded-xl p-3 border border-purple-100",
+    container: "bg-purple-50/50 rounded-xl p-3 border border-purple-100 shadow-2xs",
     header: "flex items-center justify-between mb-2",
-    label: "text-xs font-semibold text-purple-700",
-    badge: "text-xs bg-purple-200 text-purple-700 px-2 py-0.5 rounded-full",
-    barBg: "w-full h-2 bg-purple-200 rounded-full overflow-hidden",
-    barFg: "h-full bg-gradient-to-r from-fuchsia-500 to-purple-600 animate-pulse",
+    label: "text-xs font-bold text-purple-700 uppercase tracking-wider",
+    badge: "text-xs bg-purple-200 text-purple-700 px-2 py-0.5 rounded-full font-extrabold",
+    barBg: "w-full h-2.5 rounded-full overflow-hidden theme-progress-track",
+    barFg: "h-full rounded-full transition-all duration-500 theme-progress-fill",
 }
 
 export const TIP_CARD = {
@@ -184,8 +194,8 @@ export const getPriorityBadgeColor = (priority) => {
 export const WRAPPER = "p-2 sm:p-4 md:p-6 min-w-0 w-full"
 export const HEADER = "flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3"
 export const ADD_BUTTON =
-    "flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 w-full md:w-auto justify-center text-sm md:text-base add-task-cta"
-export const STATS_GRID = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6"
+    "flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl transition-all duration-300 w-full md:w-auto justify-center text-sm md:text-base font-semibold add-task-cta shadow-sm cursor-pointer"
+export const STATS_GRID = "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-4 md:mb-6"
 export const STAT_CARD =
     "p-3 md:p-4 rounded-xl bg-white shadow-sm border border-purple-100 hover:shadow-md transition-all duration-300 min-w-0"
 export const ICON_WRAPPER = "p-1.5 md:p-2 rounded-lg"
@@ -307,26 +317,27 @@ export const layoutClasses = {
 // Menu options for task actions
 export const MENU_OPTIONS = [
     { action: "edit", label: "Edit Task", icon: <Edit2 size={14} className="text-purple-600" /> },
+    { action: "duplicate", label: "Duplicate Task", icon: <Copy size={14} className="text-indigo-600" /> },
     { action: "delete", label: "Delete Task", icon: <Trash2 size={14} className="text-red-600" /> },
 ]
 
 // CSS class groups for TaskItem
 export const TI_CLASSES = {
-    wrapper: "group p-4 sm:p-5 rounded-xl shadow-sm bg-white border-l-4 hover:shadow-md transition-all duration-300 border border-purple-100",
-    leftContainer: "flex items-start gap-2 sm:gap-3 flex-1 min-w-0",
-    completeBtn: "mt-0.5 sm:mt-1 p-1 sm:p-1.5 rounded-full hover:bg-purple-100 transition-colors duration-300",
+    wrapper: "group p-3.5 sm:p-5 rounded-xl shadow-sm bg-white border-l-4 hover:shadow-md transition-all duration-300 border border-purple-100 flex items-start justify-between gap-2.5 sm:gap-4",
+    leftContainer: "flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0",
+    completeBtn: "mt-0.5 p-1.5 rounded-full hover:bg-purple-100 transition-colors duration-300 shrink-0 cursor-pointer",
     checkboxIconBase: "w-4 h-4 sm:w-5 sm:h-5",
-    titleBase: "text-base sm:text-lg font-medium truncate",
-    priorityBadge: "text-xs px-2 py-0.5 rounded-full shrink-0",
-    description: "text-sm text-gray-500 mt-1 truncate",
-    subtasksContainer: "mt-3 sm:mt-4 space-y-2 sm:space-y-3 bg-purple-50/30 p-2 sm:p-3 rounded-lg border border-purple-100",
+    titleBase: "text-sm sm:text-base md:text-lg font-semibold truncate",
+    priorityBadge: "text-xs px-2 py-0.5 rounded-full shrink-0 font-medium",
+    description: "text-xs sm:text-sm text-gray-500 mt-1 line-clamp-2",
+    subtasksContainer: "mt-2.5 sm:mt-4 space-y-2 sm:space-y-3 bg-purple-50/30 p-2 sm:p-3 rounded-lg border border-purple-100",
     progressBarBg: "h-1.5 bg-purple-100 rounded-full overflow-hidden",
     progressBarFg: "h-full bg-gradient-to-r from-fuchsia-500 to-purple-600 transition-all duration-300",
-    rightContainer: "flex flex-col items-end gap-2 sm:gap-3",
-    menuButton: "p-1 sm:p-1.5 hover:bg-purple-100 rounded-lg text-gray-500 hover:text-purple-700 transition-colors duration-200",
-    menuDropdown: "absolute right-0 mt-1 w-40 sm:w-48 bg-white border border-purple-100 rounded-xl shadow-lg z-10 overflow-hidden animate-fadeIn",
-    dateRow: "flex items-center gap-1.5 text-xs font-medium whitespace-nowrap",
-    createdRow: "flex items-center gap-1.5 text-xs text-gray-400 whitespace-nowrap",
+    rightContainer: "flex flex-col items-end gap-2 shrink-0",
+    menuButton: "p-2 hover:bg-purple-100 rounded-lg text-gray-500 hover:text-purple-700 transition-colors duration-200 cursor-pointer",
+    menuDropdown: "absolute right-0 mt-1 w-40 sm:w-48 bg-white border border-purple-100 rounded-xl shadow-lg z-20 overflow-hidden animate-fadeIn",
+    dateRow: "flex items-center gap-1.5 text-[11px] sm:text-xs font-medium whitespace-nowrap",
+    createdRow: "flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-400 whitespace-nowrap hidden sm:flex",
 }
 // APP.JSX
 const user = {

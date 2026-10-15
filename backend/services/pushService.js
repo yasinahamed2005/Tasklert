@@ -40,23 +40,91 @@ export function getPublicVapidKey() {
 }
 
 /**
+ * Classify Web Push delivery error codes
+ */
+export function classifyPushError(err) {
+  const statusCode = err?.statusCode || null;
+  if (statusCode === 404 || statusCode === 410) {
+    return {
+      category: "expired_subscription",
+      isRetryable: false,
+      statusCode,
+      reason: "Subscription expired or revoked by browser",
+    };
+  }
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      category: "auth_error",
+      isRetryable: false,
+      statusCode,
+      reason: "VAPID authentication or origin rejected by push service",
+    };
+  }
+  if (statusCode === 413) {
+    return {
+      category: "payload_too_large",
+      isRetryable: false,
+      statusCode,
+      reason: "Notification payload size exceeds provider limit",
+    };
+  }
+  if (statusCode === 429) {
+    return {
+      category: "rate_limited",
+      isRetryable: true,
+      statusCode,
+      reason: "Push service rate limited the dispatch",
+    };
+  }
+  if (statusCode >= 500 && statusCode < 600) {
+    return {
+      category: "server_error",
+      isRetryable: true,
+      statusCode,
+      reason: `Push service transient error (HTTP ${statusCode})`,
+    };
+  }
+  const code = err?.code || "";
+  if (["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"].includes(code)) {
+    return {
+      category: "network_transient",
+      isRetryable: true,
+      statusCode: 0,
+      reason: `Network connection issue (${code})`,
+    };
+  }
+  return {
+    category: "unknown",
+    isRetryable: false,
+    statusCode,
+    reason: err?.message || "Push delivery failed",
+  };
+}
+
+/**
  * Dispatch Web Push notification to all active device subscriptions of a user
  */
 export async function sendPushToUser(userId, payload, metadata = {}) {
-  if (!vapidConfigured) {
+  if (!isVapidConfigured()) {
     console.warn("Cannot send push: VAPID keys not configured");
-    return { success: false, reason: "VAPID_NOT_CONFIGURED", sentCount: 0 };
+    return { success: false, reason: "VAPID_NOT_CONFIGURED", acceptedCount: 0 };
   }
 
   try {
-    const subscriptions = await PushSubscription.find({ owner: userId });
+    const subscriptions = await PushSubscription.find({
+      owner: userId,
+      subscriptionStatus: "active",
+    });
+
     if (!subscriptions || subscriptions.length === 0) {
-      return { success: true, sentCount: 0, totalDevices: 0, message: "No devices subscribed" };
+      return { success: true, acceptedCount: 0, totalDevices: 0, message: "No active devices subscribed" };
     }
 
     const payloadString = JSON.stringify(payload);
-    let sentCount = 0;
+    let acceptedCount = 0;
     let failedCount = 0;
+    let hasRetryableError = false;
+    const errors = [];
 
     const dispatchPromises = subscriptions.map(async (sub) => {
       const pushSubscriptionFormat = {
@@ -77,18 +145,19 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
           }
         );
 
-        sentCount++;
+        acceptedCount++;
 
-        // Log success
+        // Log provider acceptance (honest reporting)
         await DeliveryLog.create({
           owner: userId,
           reminder: metadata.reminderId || null,
           task: metadata.taskId || null,
           channel: "push",
-          target: sub.endpoint.slice(0, 80) + "...",
-          status: "success",
+          target: sub.deviceName || "Browser Device",
+          status: "accepted",
           statusCode: response.statusCode || 201,
-          payloadSummary: payload.title || "Notification",
+          attempt: metadata.attempt || 1,
+          payloadSummary: payload.title || "Alarm",
         }).catch(() => {});
 
         // Update device last active & last successful push
@@ -98,11 +167,15 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
         ).catch(() => {});
       } catch (err) {
         failedCount++;
-        const statusCode = err.statusCode || null;
+        const classified = classifyPushError(err);
+        if (classified.isRetryable) {
+          hasRetryableError = true;
+        }
+        errors.push(classified.reason);
 
-        // Auto-prune expired or invalid subscriptions (404 Not Found, 410 Gone)
-        if (statusCode === 404 || statusCode === 410) {
-          console.log(`Pruning expired push subscription: ${sub._id} (status: ${statusCode})`);
+        // Auto-prune expired subscriptions
+        if (classified.category === "expired_subscription") {
+          console.log(`Pruning expired push subscription ${sub._id} (${classified.statusCode})`);
           await PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
 
           await DeliveryLog.create({
@@ -110,25 +183,27 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
             reminder: metadata.reminderId || null,
             task: metadata.taskId || null,
             channel: "push",
-            target: sub.endpoint.slice(0, 80) + "...",
+            target: sub.deviceName || "Browser Device",
             status: "unsubscribed",
-            statusCode,
-            error: "Subscription expired or revoked",
-            payloadSummary: payload.title || "Notification",
+            statusCode: classified.statusCode,
+            errorCategory: classified.category,
+            error: classified.reason,
+            attempt: metadata.attempt || 1,
+            payloadSummary: payload.title || "Alarm",
           }).catch(() => {});
         } else {
-          console.error(`Push delivery error to ${sub._id}:`, err.message);
-
           await DeliveryLog.create({
             owner: userId,
             reminder: metadata.reminderId || null,
             task: metadata.taskId || null,
             channel: "push",
-            target: sub.endpoint.slice(0, 80) + "...",
-            status: "failed",
-            statusCode,
-            error: err.message,
-            payloadSummary: payload.title || "Notification",
+            target: sub.deviceName || "Browser Device",
+            status: classified.isRetryable ? "failed_retryable" : "failed",
+            statusCode: classified.statusCode,
+            errorCategory: classified.category,
+            error: classified.reason,
+            attempt: metadata.attempt || 1,
+            payloadSummary: payload.title || "Alarm",
           }).catch(() => {});
         }
       }
@@ -137,14 +212,16 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
     await Promise.allSettled(dispatchPromises);
 
     return {
-      success: true,
-      sentCount,
+      success: acceptedCount > 0,
+      acceptedCount,
       failedCount,
       totalDevices: subscriptions.length,
+      hasRetryableError: acceptedCount === 0 && hasRetryableError,
+      errors,
     };
   } catch (error) {
     console.error("sendPushToUser general error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, isRetryable: true };
   }
 }
 
@@ -152,7 +229,7 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
  * Dispatch Web Push notification to a single specific device subscription
  */
 export async function sendPushToSubscription(sub, payload, metadata = {}) {
-  if (!vapidConfigured) {
+  if (!isVapidConfigured()) {
     if (!initVapid()) {
       return { success: false, reason: "VAPID_NOT_CONFIGURED" };
     }
@@ -188,18 +265,40 @@ export async function sendPushToSubscription(sub, payload, metadata = {}) {
       reminder: metadata.reminderId || null,
       task: metadata.taskId || null,
       channel: "push",
-      target: sub.endpoint.slice(0, 80) + "...",
-      status: "success",
+      target: sub.deviceName || "Browser Device",
+      status: "accepted",
       statusCode: response.statusCode || 201,
-      payloadSummary: payload.title || "Notification",
+      attempt: metadata.attempt || 1,
+      payloadSummary: payload.title || "Alarm",
     }).catch(() => {});
 
     return { success: true, statusCode: response.statusCode || 201 };
   } catch (err) {
-    const statusCode = err.statusCode || null;
-    if (statusCode === 404 || statusCode === 410) {
+    const classified = classifyPushError(err);
+    if (classified.category === "expired_subscription") {
       await PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
     }
-    return { success: false, error: err.message, statusCode };
+
+    await DeliveryLog.create({
+      owner: sub.owner,
+      reminder: metadata.reminderId || null,
+      task: metadata.taskId || null,
+      channel: "push",
+      target: sub.deviceName || "Browser Device",
+      status: classified.isRetryable ? "failed_retryable" : "failed",
+      statusCode: classified.statusCode,
+      errorCategory: classified.category,
+      error: classified.reason,
+      attempt: metadata.attempt || 1,
+      payloadSummary: payload.title || "Alarm",
+    }).catch(() => {});
+
+    return {
+      success: false,
+      error: classified.reason,
+      errorCategory: classified.category,
+      isRetryable: classified.isRetryable,
+      statusCode: classified.statusCode,
+    };
   }
 }

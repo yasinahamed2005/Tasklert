@@ -29,11 +29,20 @@ const deliveryLogSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["success", "failed", "unsubscribed"],
+      enum: ["accepted", "success", "failed", "failed_retryable", "unsubscribed"],
       required: true,
+      index: true,
     },
     statusCode: {
       type: Number,
+      default: null,
+    },
+    attempt: {
+      type: Number,
+      default: 1,
+    },
+    errorCategory: {
+      type: String,
       default: null,
     },
     error: {

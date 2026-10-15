@@ -3,8 +3,9 @@ import { BellRing, Volume2, VolumeX, Clock, Flag, CheckCircle, ArrowRight, X } f
 import { soundManager } from "../utils/soundManager";
 import { useModalAccessibility } from "../utils/scrollLock";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = API_BASE_URL;
 
 const SNOOZE_OPTIONS = [5, 10, 15, 30];
 
@@ -13,6 +14,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [selectedSnooze, setSelectedSnooze] = useState(5);
   const [loadingAction, setLoadingAction] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useModalAccessibility({
     isOpen: Boolean(alarm),
@@ -51,7 +53,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
 
   const handleDismiss = async () => {
     setLoadingAction(true);
-    soundManager.stop();
+    setErrorMessage(null);
     try {
       const token = localStorage.getItem("token");
       if (token && alarm.alarmId) {
@@ -61,18 +63,23 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
+      soundManager.stop();
       onActionCompleted?.();
+      onClose();
     } catch (err) {
       console.error("Error dismissing alarm:", err);
+      const msg =
+        err.response?.data?.message ||
+        "Failed to dismiss alarm on server. Please try again.";
+      setErrorMessage(msg);
     } finally {
       setLoadingAction(false);
-      onClose();
     }
   };
 
   const handleSnooze = async () => {
     setLoadingAction(true);
-    soundManager.stop();
+    setErrorMessage(null);
     try {
       const token = localStorage.getItem("token");
       if (token && alarm.alarmId) {
@@ -82,13 +89,23 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
+      soundManager.stop();
       onActionCompleted?.();
+      onClose();
     } catch (err) {
       console.error("Error snoozing alarm:", err);
+      const msg =
+        err.response?.data?.message ||
+        "Failed to snooze alarm on server. Please try again.";
+      setErrorMessage(msg);
     } finally {
       setLoadingAction(false);
-      onClose();
     }
+  };
+
+  const handleForceClose = () => {
+    soundManager.stop();
+    onClose();
   };
 
   const priorityColors = {
@@ -104,7 +121,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overscroll-none overflow-hidden animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          handleDismiss();
+          handleForceClose();
         }
       }}
     >
@@ -145,9 +162,9 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
               {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />}
             </button>
             <button
-              onClick={handleDismiss}
+              onClick={handleForceClose}
               className="rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition cursor-pointer"
-              title="Dismiss"
+              title="Close Alarm"
               aria-label="Close Alarm"
             >
               <X className="h-4 w-4" />
@@ -176,6 +193,20 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
             <p className="text-sm text-[#AAB8CF] leading-relaxed bg-[#19243A]/70 border border-[#34445F]/60 p-3 rounded-xl">
               {alarm.body}
             </p>
+          )}
+
+          {errorMessage && (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-3 text-xs text-rose-300">
+              <p className="font-semibold mb-1">⚠️ Error syncing with server:</p>
+              <p className="mb-2">{errorMessage}</p>
+              <button
+                type="button"
+                onClick={handleForceClose}
+                className="underline hover:text-white font-medium cursor-pointer"
+              >
+                Close alarm locally anyway
+              </button>
+            </div>
           )}
         </div>
 
@@ -211,7 +242,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
               className="flex items-center justify-center gap-2 rounded-xl border border-[#34445F] bg-[#19243A] hover:bg-[#222F49] px-4 py-3 text-sm font-semibold text-[#F8FAFC] transition cursor-pointer disabled:opacity-50"
             >
               <Clock className="h-4 w-4 text-[#8B2CF5]" />
-              Snooze ({selectedSnooze}m)
+              {loadingAction ? "Snoozing..." : `Snooze (${selectedSnooze}m)`}
             </button>
 
             <button
@@ -221,7 +252,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
               className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#8B2CF5]/30 hover:brightness-110 active:scale-[0.99] transition cursor-pointer disabled:opacity-50"
             >
               <CheckCircle className="h-4 w-4" />
-              Dismiss Alarm
+              {loadingAction ? "Dismissing..." : "Dismiss Alarm"}
             </button>
           </div>
         </div>

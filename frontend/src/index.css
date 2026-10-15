@@ -6,25 +6,14 @@
    ========================= */
 
 :root {
-  --app-header-height: 4.5rem;
-  --primary: #a855f7; /* default purple */
-  --primary-50: color-mix(in srgb, var(--primary) 12%, white);
-  --primary-100: color-mix(in srgb, var(--primary) 20%, white);
-  --primary-200: color-mix(in srgb, var(--primary) 35%, white);
-  --primary-400: color-mix(in srgb, var(--primary) 72%, white);
-  --primary-500: var(--primary);
-  --primary-600: color-mix(in srgb, var(--primary) 86%, black);
-  --primary-700: color-mix(in srgb, var(--primary) 70%, black);
-  --avatar-bg: color-mix(in srgb, var(--primary) 24%, white);
-  --avatar-border: color-mix(in srgb, var(--primary) 40%, white);
-  --avatar-text: color-mix(in srgb, var(--primary) 48%, black);
-  --app-bg-soft: color-mix(in srgb, var(--primary) 9%, white);
-  --app-bg-softer: color-mix(in srgb, var(--primary) 5%, white);
-  --surface-1: color-mix(in srgb, var(--primary) 7%, white);
-  --surface-2: color-mix(in srgb, var(--primary) 11%, white);
-  --surface-border: color-mix(in srgb, var(--primary) 24%, white);
-  --text-strong: color-mix(in srgb, var(--primary) 58%, black);
-  --text-muted: color-mix(in srgb, var(--primary) 42%, black);
+  --app-header-height: 3.75rem; /* 60px on mobile */
+  --primary: #a855f7; /* default purple/lavender */
+}
+
+@media (min-width: 768px) {
+  :root {
+    --app-header-height: 4.5rem; /* 72px on desktop */
+  }
 }
 
 body {
@@ -44,6 +33,25 @@ html {
   scrollbar-gutter: stable;
   max-width: 100vw;
   overflow-x: hidden;
+}
+
+/* Interactive cursor defaults */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+summary,
+input[type="submit"]:not(:disabled),
+input[type="button"]:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
 }
 
 /* Modal background lock & scroll isolation */
@@ -110,7 +118,7 @@ body.modal-scroll-locked {
   }
 }
 
-/* Theme color classes */
+/* Theme color classes matching Tasklert Accent Themes */
 .theme-blue {
   --primary: #1e88e5;
 }
@@ -133,6 +141,123 @@ body.modal-scroll-locked {
 
 .theme-pink {
   --primary: #c026d3;
+}
+
+/* Dynamic theme variables recomputed whenever active theme class applies */
+:root,
+.theme-blue,
+.theme-peach,
+.theme-green,
+.theme-lavender,
+.theme-dark,
+.theme-pink {
+  --primary-50: color-mix(in srgb, var(--primary) 12%, white);
+  --primary-100: color-mix(in srgb, var(--primary) 20%, white);
+  --primary-200: color-mix(in srgb, var(--primary) 35%, white);
+  --primary-400: color-mix(in srgb, var(--primary) 72%, white);
+  --primary-500: var(--primary);
+  --primary-600: color-mix(in srgb, var(--primary) 86%, black);
+  --primary-700: color-mix(in srgb, var(--primary) 70%, black);
+  --avatar-bg: color-mix(in srgb, var(--primary) 24%, white);
+  --avatar-border: color-mix(in srgb, var(--primary) 40%, white);
+  --avatar-text: color-mix(in srgb, var(--primary) 48%, black);
+  --app-bg-soft: color-mix(in srgb, var(--primary) 9%, white);
+  --app-bg-softer: color-mix(in srgb, var(--primary) 5%, white);
+  --surface-1: color-mix(in srgb, var(--primary) 7%, white);
+  --surface-2: color-mix(in srgb, var(--primary) 11%, white);
+  --surface-border: color-mix(in srgb, var(--primary) 24%, white);
+  --text-strong: color-mix(in srgb, var(--primary) 58%, black);
+  --text-muted: color-mix(in srgb, var(--primary) 42%, black);
+
+  /* Calendar Dynamic Surface Tokens */
+  --calendar-cell-bg: #ffffff;
+  --calendar-cell-alt: color-mix(in srgb, var(--primary) 4.5%, white);
+  --calendar-cell-hover: color-mix(in srgb, var(--primary) 9%, white);
+  --calendar-cell-selected: color-mix(in srgb, var(--primary) 14%, white);
+  --calendar-cell-selected-border: var(--primary);
+  --calendar-cell-selected-ring: color-mix(in srgb, var(--primary) 32%, transparent);
+  --calendar-cell-outside: color-mix(in srgb, var(--primary) 2%, #fafafa);
+  --calendar-cell-outside-alt: color-mix(in srgb, var(--primary) 4.5%, #f4f4f5);
+  --calendar-border: color-mix(in srgb, var(--primary) 18%, white);
+  --calendar-header-bg: color-mix(in srgb, var(--primary) 7.5%, white);
+  --calendar-header-text: color-mix(in srgb, var(--primary) 72%, black);
+  --calendar-today-badge-bg: var(--primary);
+  --calendar-today-badge-text: #ffffff;
+  --calendar-today-pill-bg: color-mix(in srgb, var(--primary) 18%, white);
+  --calendar-today-pill-text: color-mix(in srgb, var(--primary) 75%, black);
+}
+
+/* Accessible high-contrast text overrides for light accent themes */
+.theme-green {
+  --calendar-today-badge-text: #14532d;
+  --calendar-today-pill-text: #14532d;
+}
+
+.theme-peach {
+  --calendar-today-badge-text: #431407;
+  --calendar-today-pill-text: #431407;
+}
+
+/* Reusable Calendar Dynamic Surface Classes */
+.calendar-cell-base {
+  background-color: var(--calendar-cell-bg) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-cell-alt {
+  background-color: var(--calendar-cell-alt) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-cell-outside {
+  background-color: var(--calendar-cell-outside) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-cell-outside-alt {
+  background-color: var(--calendar-cell-outside-alt) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-cell-selected {
+  background-color: var(--calendar-cell-selected) !important;
+  box-shadow: inset 0 0 0 2px var(--calendar-cell-selected-border), 0 0 0 1px var(--calendar-cell-selected-ring) !important;
+  z-index: 10;
+}
+
+.calendar-cell-interactive:hover {
+  background-color: var(--calendar-cell-hover) !important;
+}
+
+.calendar-cell-interactive:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--calendar-cell-selected-border), 0 0 0 3px var(--calendar-cell-selected-ring) !important;
+  z-index: 20;
+}
+
+.calendar-today-badge {
+  background-color: var(--calendar-today-badge-bg) !important;
+  color: var(--calendar-today-badge-text) !important;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.calendar-selected-badge {
+  background-color: color-mix(in srgb, var(--primary) 22%, white) !important;
+  color: color-mix(in srgb, var(--primary) 75%, black) !important;
+  font-weight: 800;
+}
+
+.calendar-today-pill {
+  background-color: var(--calendar-today-pill-bg) !important;
+  color: var(--calendar-today-pill-text) !important;
+  font-weight: 800;
+}
+
+.calendar-header-surface {
+  background-color: var(--calendar-header-bg) !important;
+  color: var(--calendar-header-text) !important;
+  border-color: var(--calendar-border) !important;
 }
 
 /* Global theme mapping for existing Tailwind purple/fuchsia utility classes */
@@ -336,6 +461,131 @@ body.modal-scroll-locked {
   cursor: not-allowed !important;
 }
 
+/* =========================================================
+   THEME-AWARE FOCUS TIMER & PROGRESS BAR SYSTEM
+   ========================================================= */
+
+/* Focus Timer Start & Resume Button (Theme-Reactive across all 6 themes) */
+.btn-focus-start {
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 78%, black)
+  ) !important;
+  color: #ffffff !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 65%, black) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 32%, transparent) !important;
+  transition: all 0.2s ease;
+}
+
+.btn-focus-start:hover {
+  filter: brightness(1.08) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 42%, transparent) !important;
+}
+
+.btn-focus-start:active {
+  transform: scale(0.99);
+}
+
+.btn-focus-start:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Accessible high-contrast theme overrides for Focus CTA buttons */
+.theme-green .btn-focus-start {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  border-color: #14532d !important;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.theme-peach .btn-focus-start {
+  background: linear-gradient(135deg, #c27830, #9a5314) !important;
+  border-color: #783d0c !important;
+  box-shadow: 0 4px 16px rgba(194, 120, 48, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.theme-blue .btn-focus-start {
+  background: linear-gradient(135deg, #1e88e5, #1565c0) !important;
+  border-color: #0d47a1 !important;
+  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.38) !important;
+  color: #ffffff !important;
+}
+
+/* Productivity & Task Progress Bars (Theme-Aware across all 6 themes) */
+.theme-progress-track {
+  background-color: color-mix(in srgb, var(--primary) 18%, #f1f5f9) !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, #cbd5e1) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.theme-progress-fill {
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 80%, black)
+  ) !important;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.theme-green .theme-progress-fill {
+  background: linear-gradient(90deg, #22c55e, #15803d) !important;
+  box-shadow: 0 1px 4px rgba(22, 163, 74, 0.4) !important;
+}
+
+.theme-peach .theme-progress-fill {
+  background: linear-gradient(90deg, #d97706, #9a3412) !important;
+  box-shadow: 0 1px 4px rgba(217, 119, 6, 0.4) !important;
+}
+
+.theme-blue .theme-progress-fill {
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8) !important;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4) !important;
+}
+
+.theme-pink .theme-progress-fill {
+  background: linear-gradient(90deg, #e11d48, #be185d) !important;
+  box-shadow: 0 1px 4px rgba(225, 29, 72, 0.4) !important;
+}
+
+.theme-lavender .theme-progress-fill {
+  background: linear-gradient(90deg, #a855f7, #6d28d9) !important;
+  box-shadow: 0 1px 4px rgba(147, 51, 234, 0.4) !important;
+}
+
+.theme-dark .theme-progress-fill {
+  background: linear-gradient(90deg, #475569, #0f172a) !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.4) !important;
+}
+
+/* Dial track styling in FocusTimer */
+.stroke-purple-100 {
+  stroke: color-mix(in srgb, var(--primary) 18%, white) !important;
+}
+
+/* Sidebar Active Nav Link (Light Theme Tint across all 6 themes) */
+.sidebar-link-active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 16%, white),
+    color-mix(in srgb, var(--primary) 6%, white)
+  ) !important;
+  border-left: 4px solid var(--primary) !important;
+  color: color-mix(in srgb, var(--primary) 70%, black) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+.sidebar-link-active svg {
+  color: var(--primary) !important;
+}
+
+.sidebar-link-active span {
+  color: color-mix(in srgb, var(--primary) 70%, black) !important;
+}
+
 /* Notifications */
 .notif-badge {
   position: absolute;
@@ -354,7 +604,8 @@ body.modal-scroll-locked {
   position: absolute;
   top: 48px;
   right: 0;
-  width: 320px;
+  width: min(320px, calc(100vw - 2rem));
+  max-width: 320px;
   background: var(--surface-1);
   border: 1px solid var(--surface-border);
   border-radius: 16px;
@@ -491,4 +742,11 @@ body.modal-scroll-locked {
 .alert-empty {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* On mobile screens, suppress overdue toast notification popups so they don't cover the screen */
+@media (max-width: 767px) {
+  .Toastify__toast--info {
+    display: none !important;
+  }
 }

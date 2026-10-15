@@ -33,7 +33,10 @@ reminderRouter.route("/:id")
   .put(authMiddleware, updateReminder)
   .delete(authMiddleware, deleteReminder);
 
-reminderRouter.patch("/:id/toggle", authMiddleware, toggleReminder);
+reminderRouter.route("/:id/toggle")
+  .patch(authMiddleware, toggleReminder)
+  .put(authMiddleware, toggleReminder)
+  .post(authMiddleware, toggleReminder);
 reminderRouter.post("/:id/snooze", authMiddleware, snoozeReminder);
 reminderRouter.post("/:id/dismiss", authMiddleware, dismissReminder);
 

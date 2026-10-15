@@ -1,18 +1,63 @@
 import React, { useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { BACK_BUTTON, personalFields, securityFields } from "../assets/dummy";
-import { ChevronLeft, UserCircle, Save, Shield, LogOut, Lock, KeyRound, CheckCircle, Mail, User } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  UserCircle,
+  Save,
+  Shield,
+  LogOut,
+  Lock,
+  KeyRound,
+  CheckCircle,
+  Mail,
+  User,
+  Palette,
+  Check,
+  Laptop,
+  Bell,
+  HelpCircle,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import DeviceNotificationSettings from "./DeviceNotificationSettings";
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { API_BASE_URL } from "../config/api";
+const API_URL = API_BASE_URL;
+
+const THEMES = [
+  { name: "theme-blue", label: "Ocean Blue", color: "#1e88e5" },
+  { name: "theme-peach", label: "Warm Peach", color: "#d4a373" },
+  { name: "theme-green", label: "Emerald Green", color: "#a3d977" },
+  { name: "theme-lavender", label: "Lavender Purple", color: "#a78bfa" },
+  { name: "theme-dark", label: "Charcoal Dark", color: "#1f2937" },
+  { name: "theme-pink", label: "Vibrant Fuchsia", color: "#c026d3" },
+];
 
 const Profile = ({ setCurrentUser, onLogout }) => {
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem("theme") || "theme-lavender");
+  const [activeSection, setActiveSection] = useState("all"); // 'all' | 'account' | 'security' | 'themes'
   const navigate = useNavigate();
+
+  const applyTheme = (theme) => {
+    document.documentElement.classList.remove(
+      "theme-blue",
+      "theme-peach",
+      "theme-green",
+      "theme-lavender",
+      "theme-dark",
+      "theme-pink"
+    );
+    document.documentElement.classList.add(theme);
+    localStorage.setItem("theme", theme);
+    setActiveTheme(theme);
+    window.dispatchEvent(new CustomEvent("themechange", { detail: theme }));
+    toast.success("Accent theme applied!");
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -101,35 +146,178 @@ const Profile = ({ setCurrentUser, onLogout }) => {
           Back to Dashboard
         </button>
 
-        {/* Header Profile Card */}
-        <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-purple-100 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-lg shadow-purple-500/25">
-              {profile.name ? profile.name[0].toUpperCase() : "U"}
+        {/* Header Profile Card - Mobile Centered Style matching Screen 12 */}
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 p-6 shadow-sm flex flex-col items-center text-center">
+          <div className="relative mb-3">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-xl shadow-purple-500/25">
+              {profile.name ? profile.name[0].toUpperCase() : "N"}
             </div>
-            <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full" title="Active Account" />
+            <span className="absolute bottom-0 right-0 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full" title="Active Account" />
           </div>
 
-          <div className="text-center sm:text-left space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
-              {profile.name || "Account Profile"}
-            </h1>
-            <p className="text-slate-500 text-sm flex items-center justify-center sm:justify-start gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-purple-500" />
-              {profile.email || "Manage your profile and security preferences"}
-            </p>
-            <div className="pt-1 flex items-center justify-center sm:justify-start gap-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-                <CheckCircle className="w-3 h-3" /> Verified Member
-              </span>
-            </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
+            {profile.name || "Naveen"}
+          </h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+            {profile.email || "naveen@example.com"}
+          </p>
+          <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+            <CheckCircle className="w-3 h-3" /> Verified Member
           </div>
         </div>
+
+        {/* MOBILE IOS GROUPED NAVIGATION LIST MATCHING SCREEN 12 */}
+        <div className="sm:hidden rounded-3xl border border-purple-100 bg-white shadow-sm overflow-hidden divide-y divide-purple-50">
+          {/* 1. Account Settings */}
+          <button
+            type="button"
+            onClick={() => setActiveSection(activeSection === "account" ? "all" : "account")}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <User className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Account Settings</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 2. Notification Preferences */}
+          <button
+            type="button"
+            onClick={() => navigate("/settings")}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <Bell className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Notification Preferences</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 3. Theme & Appearance */}
+          <button
+            type="button"
+            onClick={() => setActiveSection(activeSection === "themes" ? "all" : "themes")}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <Palette className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Theme & Appearance</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 4. Connected Devices */}
+          <button
+            type="button"
+            onClick={() => navigate("/settings")}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <Laptop className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Connected Devices</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 5. Security */}
+          <button
+            type="button"
+            onClick={() => setActiveSection(activeSection === "security" ? "all" : "security")}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <Shield className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Security</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 6. Help & Support */}
+          <button
+            type="button"
+            onClick={() => {
+              toast.info("Tasklert Support: Check documentation or contact support@tasklert.com");
+            }}
+            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-bold text-gray-800">Help & Support</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* 7. Sign Out */}
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full flex items-center justify-between p-4 hover:bg-rose-50/50 transition cursor-pointer text-rose-600 font-bold"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                <LogOut className="w-4 h-4" />
+              </div>
+              <span className="text-sm">Sign Out</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-rose-400" />
+          </button>
+        </div>
+
+        {/* Accent Theme Selection */}
+        <section className={`bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 shadow-sm p-5 sm:p-6 space-y-3.5 transition-all duration-300 ${
+          activeSection === "themes" ? "block animate-fadeIn" : "hidden sm:block"
+        }`}>
+          <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
+            <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+              <Palette className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800">Accent Theme</h2>
+              <p className="text-xs text-slate-500">Choose your favorite accent color across all pages and calendar cells</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3">
+            {THEMES.map((t) => {
+              const isSelected = activeTheme === t.name;
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  onClick={() => applyTheme(t.name)}
+                  className={`h-11 sm:h-12 rounded-xl cursor-pointer border-2 transition-all shadow-xs flex items-center justify-center relative active:scale-95 ${
+                    isSelected ? "border-purple-600 ring-2 ring-purple-300 scale-102" : "border-transparent hover:scale-102"
+                  }`}
+                  style={{ backgroundColor: t.color }}
+                  title={t.label}
+                  aria-label={`Switch to ${t.label}`}
+                >
+                  {isSelected && <Check className="w-5 h-5 text-white drop-shadow-md" />}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         {/* Profile & Security Grid */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* Personal Information */}
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 shadow-sm p-6 space-y-5 transition-all duration-300 hover:shadow-md">
+          <section className={`bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 shadow-sm p-6 space-y-5 transition-all duration-300 ${
+            activeSection === "account" ? "block animate-fadeIn" : "hidden sm:block"
+          }`}>
             <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
               <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
                 <UserCircle className="w-5 h-5" />

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
+import AuthCode from "../models/authCodeModel.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 
@@ -19,6 +20,9 @@ const getFrontendUrl = (req) => {
       } catch (e) {}
     }
   }
+  if (process.env.NODE_ENV === "production") {
+    return "https://tasklert-delta.vercel.app";
+  }
   return (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
 };
 
@@ -32,6 +36,9 @@ const getBackendUrl = (req) => {
     if (host && !host.includes("localhost")) {
       return `${proto}://${host}`;
     }
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://tasklert-production.up.railway.app";
   }
   return (process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
 };
@@ -462,14 +469,22 @@ export async function handleOAuthCallback(req, res) {
     // 6. Establish application session via JWT token
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "24h" });
 
-    // 7. Redirect back to frontend with session credentials
+    // 7. Secure single-use handoff code (prevents JWT exposure in query parameters)
+    const handoffCode = crypto.randomBytes(32).toString("hex");
+    await AuthCode.create({
+      code: handoffCode,
+      token,
+      user: {
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar || "",
+        provider,
+      },
+    });
+
     const redirectUrl = new URL(`${frontendUrl}/login`);
-    redirectUrl.searchParams.set("oauth_success", "true");
-    redirectUrl.searchParams.set("token", token);
-    redirectUrl.searchParams.set("userId", String(user._id));
-    redirectUrl.searchParams.set("name", user.name);
-    redirectUrl.searchParams.set("email", user.email);
-    if (user.avatar) redirectUrl.searchParams.set("avatar", user.avatar);
+    redirectUrl.searchParams.set("oauth_code", handoffCode);
     redirectUrl.searchParams.set("provider", provider);
 
     return res.redirect(redirectUrl.toString());
@@ -478,5 +493,35 @@ export async function handleOAuthCallback(req, res) {
     return res.redirect(
       `${frontendUrl}/login?error=${encodeURIComponent("Server database error while finalizing sign-in.")}`
     );
+  }
+}
+
+/**
+ * POST /api/auth/exchange
+ * Atomically exchanges a short-lived single-use authorization code for session JWT.
+ */
+export async function exchangeOAuthCode(req, res) {
+  try {
+    const { code } = req.body;
+    if (!code || typeof code !== "string") {
+      return res.status(400).json({ success: false, message: "Authorization code is required." });
+    }
+
+    const record = await AuthCode.findOneAndDelete({ code: code.trim() });
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        message: "Authorization code has expired or was already used. Please sign in again.",
+      });
+    }
+
+    res.json({
+      success: true,
+      token: record.token,
+      user: record.user,
+    });
+  } catch (err) {
+    console.error("Exchange OAuth code error:", err);
+    res.status(500).json({ success: false, message: "Failed to exchange authorization code." });
   }
 }

@@ -1,4 +1,5 @@
 import PushSubscription from "../models/pushSubscriptionModel.js";
+import DeliveryLog from "../models/deliveryLogModel.js";
 import {
   getPublicVapidKey,
   isVapidConfigured,
@@ -35,10 +36,24 @@ export const subscribeDevice = async (req, res) => {
       userAgent,
     } = req.body;
 
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    if (!endpoint || typeof endpoint !== "string" || !endpoint.startsWith("https://")) {
       return res.status(400).json({
         success: false,
-        message: "Invalid push subscription object. Endpoint and keys are required.",
+        message: "Invalid push subscription endpoint. Must be a secure HTTPS URL.",
+      });
+    }
+
+    if (
+      !keys?.p256dh ||
+      typeof keys.p256dh !== "string" ||
+      !keys.p256dh.trim() ||
+      !keys?.auth ||
+      typeof keys.auth !== "string" ||
+      !keys.auth.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid push subscription keys. p256dh and auth are required non-empty strings.",
       });
     }
 
@@ -298,6 +313,22 @@ export const sendTestNotification = async (req, res) => {
       message: `Test notification sent to ${result.sentCount} of ${userDevices} registered device(s).`,
       result,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/notifications/delivery-logs
+export const getDeliveryLogs = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const logs = await DeliveryLog.find({ owner: userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("channel target status statusCode errorCategory error payloadSummary createdAt attempt")
+      .populate("task", "title");
+
+    res.json({ success: true, logs });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
