@@ -34,8 +34,13 @@ export const FocusTimerPage = () => {
 
   // Settings
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem("tasklert_focus_settings");
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    try {
+      const saved = localStorage.getItem("tasklert_focus_settings");
+      return saved && saved !== "undefined" ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    } catch (e) {
+      console.warn("Invalid focus settings in localStorage, resetting to defaults:", e);
+      return DEFAULT_SETTINGS;
+    }
   });
   const [showSettings, setShowSettings] = useState(false);
 
@@ -115,20 +120,23 @@ export const FocusTimerPage = () => {
   const syncLiveRemaining = useCallback((session) => {
     if (!session) return;
     const now = Date.now();
-    let elapsed = session.accumulatedSeconds || 0;
+    let elapsed = Number(session.accumulatedSeconds) || 0;
     if (session.status === "running") {
-      const delta = Math.max(0, Math.floor((now - new Date(session.lastResumedAt).getTime()) / 1000));
+      const resumedTime = session.lastResumedAt ? new Date(session.lastResumedAt).getTime() : now;
+      const validResumedTime = isNaN(resumedTime) ? now : resumedTime;
+      const delta = Math.max(0, Math.floor((now - validResumedTime) / 1000));
       elapsed += delta;
     }
-    const remaining = Math.max(0, session.plannedDuration - elapsed);
-    setRemainingSeconds(remaining);
+    const planned = Number(session.plannedDuration) || (settings.focusDuration * 60);
+    const remaining = Math.max(0, planned - elapsed);
+    setRemainingSeconds(isFinite(remaining) ? remaining : planned);
     setIsRunning(session.status === "running");
     setIsPaused(session.status === "paused");
     setSessionType(session.sessionType || "focus");
     if (session.task?._id || session.task) {
       setSelectedTaskId(session.task._id || session.task);
     }
-  }, []);
+  }, [settings.focusDuration]);
 
   // Fetch active session from server on mount
   const checkActiveSession = useCallback(async () => {
@@ -293,8 +301,10 @@ export const FocusTimerPage = () => {
       );
 
       if (data.success) {
-        // Play gentle chime
-        soundManager.preview("chime", 80);
+        // Play gentle chime (safely guarded against mobile autoplay policy)
+        try {
+          soundManager.preview("chime", 80);
+        } catch (_) {}
 
         toast.success(
           sessionType === "focus"
@@ -384,8 +394,9 @@ export const FocusTimerPage = () => {
 
   // Format time MM:SS
   const formatTime = (totalSec) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
+    const sec = isFinite(totalSec) ? Math.max(0, Math.floor(totalSec)) : 0;
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
@@ -397,9 +408,10 @@ export const FocusTimerPage = () => {
     return settings.longBreakDuration * 60;
   }, [activeSession, sessionType, settings]);
 
+  const safeRemaining = isFinite(remainingSeconds) ? remainingSeconds : totalPlannedSec;
   const progressPercent = Math.min(
     100,
-    Math.max(0, Math.round(((totalPlannedSec - remainingSeconds) / totalPlannedSec) * 100))
+    Math.max(0, Math.round(((totalPlannedSec - safeRemaining) / (totalPlannedSec || 1)) * 100))
   );
 
   return (

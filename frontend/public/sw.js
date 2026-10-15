@@ -1,5 +1,5 @@
-// Tasklert Web Push & PWA Service Worker
-const CACHE_NAME = "tasklert-v1";
+// Tasklert Web Push & PWA Service Worker (v2)
+const CACHE_NAME = "tasklert-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -13,6 +13,13 @@ self.addEventListener("activate", (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+// Clean message listener for manual cache purge or ping
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // 1. PUSH EVENT: Receive server Web Push notification

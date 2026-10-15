@@ -36,6 +36,7 @@ import {
   Legend,
 } from "recharts";
 import { API_BASE_URL } from "../config/api";
+import PageTransitionLoader from "../components/PageTransitionLoader";
 
 const PRIORITY_COLORS = {
   High: "#ef4444",   // Red
@@ -268,14 +269,9 @@ export const AnalyticsPage = () => {
         </div>
       )}
 
-      {/* Loading Skeleton */}
+      {/* Loading Transition */}
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center gap-3 bg-white/60 rounded-2xl border border-purple-100">
-          <RefreshCw className="w-8 h-8 text-purple-500 animate-spin" />
-          <p className="text-xs sm:text-sm font-semibold text-gray-600">
-            Computing productivity aggregates and historical trends...
-          </p>
-        </div>
+        <PageTransitionLoader message="Computing productivity aggregates and historical trends..." />
       ) : error ? (
         <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-sm flex items-center justify-between">
           <p>{error}</p>

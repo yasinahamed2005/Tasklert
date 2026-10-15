@@ -260,3 +260,45 @@ export async function sendTestToSpecificDevice(deviceMongoId) {
   );
   return data;
 }
+
+/**
+ * Safe cross-platform browser notification dispatcher.
+ * Handles Android Chrome (which forbids `new Notification()` in window context and requires `registration.showNotification()`)
+ * as well as desktop browsers, with full error encapsulation so it never throws or crashes caller components.
+ */
+export async function showBrowserNotification(title, options = {}) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    // 1. Prefer Service Worker registration (mandatory for Android Chrome)
+    if ("serviceWorker" in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && typeof reg.showNotification === "function") {
+          return await reg.showNotification(title, {
+            icon: "/tasklert-icon.svg",
+            badge: "/tasklert-icon.svg",
+            ...options,
+          });
+        }
+      } catch (swErr) {
+        console.warn("ServiceWorker showNotification failed, trying fallback:", swErr);
+      }
+    }
+
+    // 2. Desktop fallback: new Notification()
+    try {
+      return new Notification(title, {
+        icon: "/tasklert-icon.svg",
+        ...options,
+      });
+    } catch (notifErr) {
+      // Android Chrome will throw "TypeError: Failed to construct 'Notification': Illegal constructor"
+      console.warn("Desktop Notification constructor blocked on this device:", notifErr);
+    }
+  } catch (err) {
+    console.warn("Could not dispatch browser notification:", err);
+  }
+}
+

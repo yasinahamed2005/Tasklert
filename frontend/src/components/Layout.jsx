@@ -1,15 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import { Outlet, useLocation } from "react-router-dom";
 import axios from "axios";
-import { TrendingUp, Circle, Clock, Zap } from "lucide-react";
+import { TrendingUp, Circle, Clock, Zap, AlertTriangle } from "lucide-react";
 import { toast } from "react-toastify";
 import AlertsPanel from "./AlertsPanel";
 import AlarmModal from "./AlarmModal";
 import MobileBottomNav from "./MobileBottomNav";
 import NotificationPermissionBanner from "./NotificationPermissionBanner";
 import { AppStartupFallback } from "./PageSkeletons";
+import PageTransitionLoader from "./PageTransitionLoader";
+import ErrorBoundary from "./ErrorBoundary";
+import { showBrowserNotification } from "../utils/pushManager";
 import { API_BASE_URL } from "../config/api";
 
 const API_BASE = API_BASE_URL;
@@ -41,9 +44,37 @@ const Layout = ({ onLogout, user }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeAlarm, setActiveAlarm] = useState(null);
 
-  // Reset scroll to top on page transition
+  const [isNavigating, setIsNavigating] = useState(false);
+  const prevPathRef = useRef(location.pathname);
+
+  // Reset scroll to top on page transition and manage clean minimal route transitions
   useEffect(() => {
     window.scrollTo(0, 0);
+
+    // If pathname didn't change (e.g. query param or hash change), do not trigger route transition
+    if (prevPathRef.current === location.pathname) {
+      return;
+    }
+
+    prevPathRef.current = location.pathname;
+
+    // Respect reduced-motion accessibility preference
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      setIsNavigating(false);
+      return;
+    }
+
+    setIsNavigating(true);
+    const timer = setTimeout(() => {
+      setIsNavigating(false);
+    }, 180);
+
+    return () => clearTimeout(timer);
   }, [location.pathname]);
 
   const fetchTasks = useCallback(async () => {
@@ -161,12 +192,13 @@ const Layout = ({ onLogout, user }) => {
 
     // Mobile-only suppression: do not display blocking overdue toast popups on mobile screens (<768px)
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    const canNotify = typeof window !== "undefined" && "Notification" in window;
 
     notifications.forEach((item) => {
       if (item.read) return;
       const key = `tasklert-notif-${item._id}`;
-      if (localStorage.getItem(key)) return;
+      try {
+        if (localStorage.getItem(key)) return;
+      } catch (_) {}
 
       // Display banner toast on desktop/website only (suppressed on mobile)
       if (!isMobile) {
@@ -177,14 +209,14 @@ const Layout = ({ onLogout, user }) => {
         });
       }
 
-      // Only dispatch native browser notification if user already explicitly granted permission
-      if (canNotify && Notification.permission === "granted") {
-        new Notification(item.title || "Task Update", {
-          body: item.message,
-        });
-      }
+      // Safe cross-platform browser notification (Android Chrome + Desktop compatible)
+      showBrowserNotification(item.title || "Task Update", {
+        body: item.message,
+      });
 
-      localStorage.setItem(key, "1");
+      try {
+        localStorage.setItem(key, "1");
+      } catch (_) {}
     });
   }, [notifications]);
 
@@ -374,16 +406,22 @@ const Layout = ({ onLogout, user }) => {
   if (loading)
     return <AppStartupFallback label="Loading Tasklert Workspace..." />;
 
-  // ERROR
-  if (error)
+  // ERROR (Only block dashboard/tasks when tasks are critical and unavailable)
+  const isTaskCriticalPage = ["/", "/pending", "/Complete"].includes(location.pathname);
+  if (error && tasks.length === 0 && isTaskCriticalPage)
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 max-w-md">
-          <p className="font-medium mb-2">Error loading tasks</p>
-          <p className="text-sm">{error}</p>
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-rose-100 shadow-sm max-w-md w-full text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-800 text-base">Could not load tasks</h3>
+            <p className="text-xs text-gray-500 mt-1">{error}</p>
+          </div>
           <button
             onClick={fetchTasks}
-            className="mt-4 py-2 px-4 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+            className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
           >
             Try Again
           </button>
@@ -403,14 +441,22 @@ const Layout = ({ onLogout, user }) => {
       />
       <Sidebar user={user} tasks={tasks} />
       <div className="w-full min-w-0 ml-0 md:ml-20 lg:ml-64 xl:ml-64 pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300">
-        {isFullWidthPage ? (
-          <div className="w-full min-w-0">
-            <Outlet context={outletContext} />
+        {isNavigating ? (
+          <div className="w-full min-w-0 flex items-center justify-center min-h-[55vh] py-16">
+            <PageTransitionLoader message="Navigating to page..." />
+          </div>
+        ) : isFullWidthPage ? (
+          <div className="w-full min-w-0 animate-page-enter">
+            <ErrorBoundary>
+              <Outlet context={outletContext} />
+            </ErrorBoundary>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0 max-w-full">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0 max-w-full animate-page-enter">
             <div className="xl:col-span-2 space-y-3 sm:space-y-4 min-w-0 w-full max-w-full">
-              <Outlet context={outletContext} />
+              <ErrorBoundary>
+                <Outlet context={outletContext} />
+              </ErrorBoundary>
             </div>
 
             <div className="hidden xl:block xl:col-span-1 space-y-4 sm:space-y-6 min-w-0">

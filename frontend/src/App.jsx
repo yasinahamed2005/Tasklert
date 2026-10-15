@@ -4,15 +4,8 @@ import Layout from "./components/Layout";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
 import AuthShell from "./components/AuthShell";
-import {
-  AppStartupFallback,
-  DashboardSkeleton,
-  TaskListSkeleton,
-  CalendarSkeleton,
-  AnalyticsSkeleton,
-  FocusTimerSkeleton,
-  AlarmsSkeleton,
-} from "./components/PageSkeletons";
+import { AppStartupFallback } from "./components/PageSkeletons";
+import PageTransitionLoader from "./components/PageTransitionLoader";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -20,10 +13,16 @@ const lazyWithRetry = (factory) =>
     try {
       return await factory();
     } catch (err) {
-      console.warn("Chunk load failed, attempting single reload...", err);
+      console.warn("Chunk load failed, checking network/deployment...", err);
       const sessionKey = "chunk_retry_" + window.location.pathname;
       if (!sessionStorage.getItem(sessionKey)) {
         sessionStorage.setItem(sessionKey, "1");
+        if ("caches" in window) {
+          try {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          } catch (_) {}
+        }
         window.location.reload();
         return new Promise(() => {});
       }
@@ -65,25 +64,33 @@ const App = () => {
   }, []);
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("auth_session") === "test") {
-      const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODA2YmIwYjliNGQ2NTlhM2E4ZTE0MSIsImlhdCI6MTc5MTk4NDE1OCwiZXhwIjoxNzkyMDcwNTU4fQ.hI179zIkRQlud1QEns7NK_ofXjIQFvVKJqC8DzMhR0s";
-      localStorage.setItem("token", token);
-      localStorage.setItem("userId", "69806bb0b9b4d659a3a8e141");
-      const user = { name: "yaseen", email: "yaseen@gmail.com" };
-      localStorage.setItem("currentUser", JSON.stringify(user));
-      return user;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("auth_session") === "test") {
+        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODA2YmIwYjliNGQ2NTlhM2E4ZTE0MSIsImlhdCI6MTc5MTk4NDE1OCwiZXhwIjoxNzkyMDcwNTU4fQ.hI179zIkRQlud1QEns7NK_ofXjIQFvVKJqC8DzMhR0s";
+        localStorage.setItem("token", token);
+        localStorage.setItem("userId", "69806bb0b9b4d659a3a8e141");
+        const user = { name: "yaseen", email: "yaseen@gmail.com" };
+        localStorage.setItem("currentUser", JSON.stringify(user));
+        return user;
+      }
+      const stored = localStorage.getItem("currentUser");
+      return stored && stored !== "undefined" ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.warn("Failed to parse stored currentUser, clearing:", e);
+      try { localStorage.removeItem("currentUser"); } catch (_) {}
+      return null;
     }
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
   });
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("currentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("currentUser");
-    }
+    try {
+      if (currentUser) {
+        localStorage.setItem("currentUser", JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem("currentUser");
+      }
+    } catch (_) {}
   }, [currentUser]);
 
   const handleAuthSubmit = (data) => {
@@ -104,12 +111,6 @@ const App = () => {
     setCurrentUser(null);
     navigate("/login", { replace: true });
   };
-
-  const ProtectedLayout = () => (
-    <Layout user={currentUser} onLogout={handleLogout}>
-      <Outlet />
-    </Layout>
-  );
 
   return (
     <>
@@ -174,12 +175,20 @@ const App = () => {
 
       {/* Protected Routes */}
       <Route
-        element={currentUser ? <ProtectedLayout /> : <Navigate to="/welcome" replace />}
+        element={
+          currentUser ? (
+            <Layout user={currentUser} onLogout={handleLogout}>
+              <Outlet />
+            </Layout>
+          ) : (
+            <Navigate to="/welcome" replace />
+          )
+        }
       >
         <Route
           path="/"
           element={
-            <Suspense fallback={<DashboardSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading dashboard..." />}>
               <Dashboard />
             </Suspense>
           }
@@ -187,7 +196,7 @@ const App = () => {
         <Route
           path="/pending"
           element={
-            <Suspense fallback={<TaskListSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading pending tasks..." />}>
               <Pendingpage />
             </Suspense>
           }
@@ -195,7 +204,7 @@ const App = () => {
         <Route
           path="/Complete"
           element={
-            <Suspense fallback={<TaskListSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading completed tasks..." />}>
               <CompletePage />
             </Suspense>
           }
@@ -203,7 +212,7 @@ const App = () => {
         <Route
           path="/profile"
           element={
-            <Suspense fallback={<DashboardSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading profile..." />}>
               <Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />
             </Suspense>
           }
@@ -211,7 +220,7 @@ const App = () => {
         <Route
           path="/messages"
           element={
-            <Suspense fallback={<DashboardSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading message center..." />}>
               <MessageCenter />
             </Suspense>
           }
@@ -219,7 +228,7 @@ const App = () => {
         <Route
           path="/settings"
           element={
-            <Suspense fallback={<AlarmsSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading settings..." />}>
               <AlarmSettingsPage />
             </Suspense>
           }
@@ -227,7 +236,7 @@ const App = () => {
         <Route
           path="/alarms"
           element={
-            <Suspense fallback={<AlarmsSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading alarms..." />}>
               <AlarmsPage />
             </Suspense>
           }
@@ -235,7 +244,7 @@ const App = () => {
         <Route
           path="/calendar"
           element={
-            <Suspense fallback={<CalendarSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading calendar..." />}>
               <CalendarPage />
             </Suspense>
           }
@@ -243,7 +252,7 @@ const App = () => {
         <Route
           path="/analytics"
           element={
-            <Suspense fallback={<AnalyticsSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading analytics..." />}>
               <AnalyticsPage />
             </Suspense>
           }
@@ -251,7 +260,7 @@ const App = () => {
         <Route
           path="/focus"
           element={
-            <Suspense fallback={<FocusTimerSkeleton />}>
+            <Suspense fallback={<PageTransitionLoader message="Loading focus timer..." />}>
               <FocusTimerPage />
             </Suspense>
           }

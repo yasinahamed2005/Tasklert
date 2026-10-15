@@ -24,6 +24,8 @@ import {
 import { soundManager } from "../utils/soundManager";
 import AlarmModal from "../components/AlarmModal";
 import { API_BASE_URL } from "../config/api";
+import PageTransitionLoader from "../components/PageTransitionLoader";
+import { showBrowserNotification } from "../utils/pushManager";
 
 const API_BASE = `${API_BASE_URL}/api/reminders`;
 
@@ -278,19 +280,18 @@ export const AlarmsPage = () => {
             scheduledAt: alarm.scheduledAt,
           });
 
-          // Device vibration if supported
+          // Device vibration if supported (guarded against browser permissions)
           if (typeof navigator !== "undefined" && navigator.vibrate) {
-            navigator.vibrate([400, 200, 400, 200, 600]);
+            try {
+              navigator.vibrate([400, 200, 400, 200, 600]);
+            } catch (_) {}
           }
 
-          // Browser notification if granted
-          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-            new Notification(`⏰ ${alarm.title || "Tasklert Alarm"}`, {
-              body: `Alarm is ringing now!`,
-              icon: "/tasklert-icon.svg",
-              requireInteraction: true,
-            });
-          }
+          // Safe cross-platform browser notification (Android Chrome + Desktop compatible)
+          showBrowserNotification(`⏰ ${alarm.title || "Tasklert Alarm"}`, {
+            body: `Alarm is ringing now!`,
+            requireInteraction: true,
+          });
         }
       });
     };
@@ -459,9 +460,7 @@ export const AlarmsPage = () => {
 
       {/* ALARMS LIST */}
       {loading ? (
-        <div className="py-12 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-600" />
-        </div>
+        <PageTransitionLoader message="Loading alarms..." minHeight="min-h-[35vh]" />
       ) : filteredAlarms.length === 0 ? (
         <div className="bg-white rounded-3xl border border-purple-100 p-8 sm:p-12 text-center shadow-xs space-y-3">
           <div className="w-14 h-14 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
