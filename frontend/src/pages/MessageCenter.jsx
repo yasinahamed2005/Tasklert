@@ -141,7 +141,7 @@ const MessageCenter = () => {
   const [isScheduling, setIsScheduling] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [userTimeZone, setUserTimeZone] = useState(
+  const [userTimeZone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   );
 
@@ -371,7 +371,7 @@ const MessageCenter = () => {
     setScheduledDate("");
     setScheduledTime("");
     setShowQuickEmojis(false);
-    setShowFullEmojiPicker(false);
+    setShowEmojiPicker(false);
   };
 
   // Populate Composer with Existing Message / Draft
@@ -1686,13 +1686,26 @@ const MessageCenter = () => {
                           {item.attachments.length} file{item.attachments.length > 1 ? "s" : ""}:
                         </span>
                         {item.attachments.map((att, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 font-medium"
-                          >
-                            <Paperclip className="w-2.5 h-2.5" />
-                            <span className="max-w-[110px] truncate">{att.filename}</span>
-                          </span>
+                          att.path ? (
+                            <a
+                              key={idx}
+                              href={resolveAttachmentUrl(att.path)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 hover:underline border border-purple-100 font-medium"
+                            >
+                              <Paperclip className="w-2.5 h-2.5" />
+                              <span className="max-w-[110px] truncate">{att.filename}</span>
+                            </a>
+                          ) : (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 font-medium"
+                            >
+                              <Paperclip className="w-2.5 h-2.5" />
+                              <span className="max-w-[110px] truncate">{att.filename}</span>
+                            </span>
+                          )
                         ))}
                       </div>
                     )}

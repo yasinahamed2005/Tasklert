@@ -12,41 +12,18 @@ export const getNotifications = async (req, res) => {
       .limit(50)
       .populate("task", "title dueDate priority completed");
 
-    // 1. Identify stale notifications where task was deleted or completed
-    const staleNotifications = notifications
-      .filter((notification) => !notification.task || notification.task.completed)
-      .map((notification) => notification._id);
-
-    if (staleNotifications.length > 0) {
-      await Notification.deleteMany({
-        owner: req.user.id,
-        _id: { $in: staleNotifications },
-      });
-    }
-
-    // 2. Filter to active task notifications and deduplicate by logical event (task + kind)
+    // Filter to active task notifications and deduplicate by logical event for clean presentation without deleting data on GET
     const seenEventKeys = new Set();
-    const redundantIds = [];
     const visibleNotifications = [];
 
     for (const notif of notifications) {
       if (!notif.task || notif.task.completed) continue;
       const taskId = String(notif.task._id || notif.task);
       const eventKey = `${taskId}_${notif.kind}`;
-      if (seenEventKeys.has(eventKey)) {
-        // Redundant historical duplicate: mark for background cleanup
-        redundantIds.push(notif._id);
-      } else {
+      if (!seenEventKeys.has(eventKey)) {
         seenEventKeys.add(eventKey);
         visibleNotifications.push(notif);
       }
-    }
-
-    if (redundantIds.length > 0) {
-      await Notification.deleteMany({
-        owner: req.user.id,
-        _id: { $in: redundantIds },
-      }).catch(() => {});
     }
 
     const unreadCount = await Notification.countDocuments({

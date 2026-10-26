@@ -57,7 +57,7 @@ const SOUND_OPTIONS = [
 
 export const DeviceNotificationSettings = () => {
   const [permission, setPermission] = useState(getNotificationPermission());
-  const [supported, setSupported] = useState(isPushSupported());
+  const [supported] = useState(isPushSupported());
   const [devices, setDevices] = useState([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [subscribing, setSubscribing] = useState(false);

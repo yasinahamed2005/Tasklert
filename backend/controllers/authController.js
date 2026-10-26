@@ -2,28 +2,51 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import AuthCode from "../models/authCodeModel.js";
+import { getJwtSecret } from "../config/jwt.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
+const ALLOWED_FRONTEND_DOMAINS = [
+  "tasklert-delta.vercel.app",
+  "localhost",
+  "127.0.0.1",
+];
+
+const isAllowedFrontendUrl = (urlStr) => {
+  if (!urlStr || typeof urlStr !== "string") return false;
+  try {
+    const u = new URL(urlStr);
+    if (
+      ALLOWED_FRONTEND_DOMAINS.includes(u.hostname) ||
+      u.hostname.endsWith(".vercel.app")
+    ) {
+      return true;
+    }
+    if (process.env.FRONTEND_URL) {
+      const allowed = new URL(process.env.FRONTEND_URL);
+      if (u.origin === allowed.origin) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
 
 const getFrontendUrl = (req) => {
-  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes("localhost")) {
+  if (process.env.FRONTEND_URL && isAllowedFrontendUrl(process.env.FRONTEND_URL)) {
     return process.env.FRONTEND_URL.replace(/\/$/, "");
   }
   if (req) {
     const origin = req.headers["origin"] || req.headers["referer"];
-    if (origin) {
+    if (origin && isAllowedFrontendUrl(origin)) {
       try {
         const u = new URL(origin);
-        if (!u.hostname.includes("localhost")) {
-          return `${u.protocol}//${u.host}`;
-        }
-      } catch (e) {}
+        return `${u.protocol}//${u.host}`;
+      } catch {}
     }
   }
   if (process.env.NODE_ENV === "production") {
     return "https://tasklert-delta.vercel.app";
   }
-  return (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+  return "http://localhost:5173";
 };
 
 const getBackendUrl = (req) => {
@@ -118,7 +141,7 @@ export async function initiateOAuth(req, res) {
       returnTo: frontendUrl,
       backendUrl: backendUrl,
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: "10m" }
   );
 
@@ -212,11 +235,11 @@ export async function handleOAuthCallback(req, res) {
   }
 
   try {
-    const decoded = jwt.verify(state, JWT_SECRET);
+    const decoded = jwt.verify(state, getJwtSecret());
     if (decoded.provider !== provider) {
       throw new Error("Provider mismatch in state parameter");
     }
-    if (decoded.returnTo) frontendUrl = decoded.returnTo;
+    if (decoded.returnTo && isAllowedFrontendUrl(decoded.returnTo)) frontendUrl = decoded.returnTo;
     if (decoded.backendUrl) backendUrl = decoded.backendUrl;
   } catch (stateErr) {
     console.error("State validation error:", stateErr.message);
@@ -467,7 +490,7 @@ export async function handleOAuthCallback(req, res) {
     }
 
     // 6. Establish application session via JWT token
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "24h" });
+    const token = jwt.sign({ id: user._id }, getJwtSecret(), { expiresIn: "24h" });
 
     // 7. Secure single-use handoff code (prevents JWT exposure in query parameters)
     const handoffCode = crypto.randomBytes(32).toString("hex");

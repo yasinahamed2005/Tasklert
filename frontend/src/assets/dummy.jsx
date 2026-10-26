@@ -18,7 +18,7 @@ import {
 
 // BACKEND TEST 
 // DUMMY DATA
-const backendDummy = [
+export const backendDummy = [
     {
         title: "Buy groceries",
         description: "Milk, bread, eggs, and spinach",
@@ -338,7 +338,7 @@ export const TI_CLASSES = {
     createdRow: "flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-400 whitespace-nowrap hidden sm:flex",
 }
 // APP.JSX
-const user = {
+export const dummyUser = {
   avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent('User')}&background=random`,
 };
 

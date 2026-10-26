@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { notify } from "../utils/toastManager";
-import { BACK_BUTTON, personalFields, securityFields } from "../assets/dummy";
+import { BACK_BUTTON } from "../assets/dummy";
 import {
   ChevronLeft,
   ChevronRight,

@@ -41,7 +41,6 @@ const Dashboard = () => {
   const { tasks = [], refreshTasks, user, loadingTasks } = useOutletContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedTask, setSelectTask] = useState(null);
-  const [detailTask, setDetailTask] = useState(null);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -216,7 +215,6 @@ const Dashboard = () => {
     );
   }, [tasks]);
 
-  const activeSortLabel = SORT_LABELS[sortBy] || "Newest first";
 
   const stats = useMemo(() => ({
     total: tasks.length,

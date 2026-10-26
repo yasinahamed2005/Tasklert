@@ -34,7 +34,7 @@ const StatCard = ({ title, value, icon }) => (
 
 const Layout = ({ onLogout, user }) => {
   const location = useLocation();
-  const isFullWidthPage = ["/settings", "/profile", "/messages", "/calendar", "/analytics", "/focus"].includes(location.pathname);
+  const isFullWidthPage = ["/settings", "/profile", "/messages", "/calendar", "/analytics", "/focus", "/alarms"].includes(location.pathname);
   const [tasks, setTasks] = useState(() => {
     try {
       const cached = sessionStorage.getItem("tasklert_cached_tasks");

@@ -437,7 +437,7 @@ export const AlarmsPage = () => {
             soundManager.stop();
             setActiveRingingAlarm(null);
           }}
-          onActionCompleted={(result) => {
+          onActionCompleted={() => {
             soundManager.stop();
             setActiveRingingAlarm(null);
             fetchAlarms();

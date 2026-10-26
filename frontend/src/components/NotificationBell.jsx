@@ -16,6 +16,7 @@ const NotificationBell = ({
   unreadCount = 0,
   onMarkRead,
   onClearAll,
+  onDelete,
 }) => {
   const [open, setOpen] = useState(false);
   const panelRef = useRef(null);

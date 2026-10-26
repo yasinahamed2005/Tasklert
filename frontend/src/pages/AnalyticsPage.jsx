@@ -144,7 +144,7 @@ export const AnalyticsPage = () => {
   };
 
   const summary = analyticsData?.summary || {};
-  const priorityBreakdown = analyticsData?.priorityBreakdown || {};
+  const priorityBreakdown = useMemo(() => analyticsData?.priorityBreakdown || {}, [analyticsData?.priorityBreakdown]);
   const timeline = analyticsData?.timeline || [];
 
   // Transform priority breakdown for Pie Chart

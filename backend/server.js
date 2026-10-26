@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { connectDB } from './config/db.js';
+import { getJwtSecret } from './config/jwt.js';
 import userRouter from './routes/userRoute.js';
 import taskRouter from './routes/taskRoute.js';
 import notificationRouter from './routes/notificationRoute.js';
@@ -19,6 +20,14 @@ import analyticsRouter from './routes/analyticsRoute.js';
 import { startReminderCron } from './cron/reminderCron.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Verify JWT secret configuration at startup
+try {
+  getJwtSecret();
+} catch (err) {
+  console.error("STARTUP ERROR:", err.message);
+  process.exit(1);
+}
 
 const app = express();
 const port = process.env.PORT || 5000;

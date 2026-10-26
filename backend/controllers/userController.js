@@ -5,14 +5,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendEmail } from '../utils/mailer.js';
+import { getJwtSecret } from '../config/jwt.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+// JWT_SECRET handled via getJwtSecret()
 const TOKEN_EXPIRES = '24h';
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
 
 const createToken = (userId) => 
-  jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRES })
+  jwt.sign({ id: userId }, getJwtSecret(), { expiresIn: TOKEN_EXPIRES })
 
 const generateOtp = () => crypto.randomInt(100000, 1000000).toString(); // always 6 digits
 
@@ -99,7 +100,9 @@ export async function requestSignupOtp(req, res) {
       emailErrorMessage = emailErr.message;
     }
 
-    console.log(`[TASKLERT OTP] Verification code for ${normalizedEmail}: ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[TASKLERT OTP] Verification code dispatched for ${normalizedEmail}`);
+    }
 
     if (emailSent) {
       res.json({
@@ -145,7 +148,20 @@ export async function verifySignupOtp(req, res) {
 
     const match = await bcrypt.compare(String(otp), record.codeHash);
     if (!match) {
-      return res.status(401).json({ success: false, message: "Incorrect verification code." });
+      record.attempts = (record.attempts || 0) + 1;
+      if (record.attempts >= 5) {
+        await EmailOtp.deleteOne({ _id: record._id });
+        return res.status(429).json({
+          success: false,
+          message: "Too many incorrect attempts. This verification code has been invalidated for security. Please request a new code.",
+        });
+      }
+      await record.save();
+      const remaining = 5 - record.attempts;
+      return res.status(401).json({
+        success: false,
+        message: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+      });
     }
 
     if (await User.findOne({ email: normalizedEmail })) {
@@ -330,7 +346,9 @@ export async function requestForgotPasswordOtp(req, res) {
       console.error("Forgot password email failed:", e.message);
     }
 
-    console.log(`[TASKLERT FORGOT PASS OTP] Code for ${normalizedEmail}: ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[TASKLERT FORGOT PASS OTP] Reset code dispatched for ${normalizedEmail}`);
+    }
 
     res.json({
       success: true,
@@ -368,7 +386,20 @@ export async function resetPasswordWithOtp(req, res) {
 
     const match = await bcrypt.compare(String(otp), record.codeHash);
     if (!match) {
-      return res.status(401).json({ success: false, message: "Incorrect reset code." });
+      record.attempts = (record.attempts || 0) + 1;
+      if (record.attempts >= 5) {
+        await EmailOtp.deleteOne({ _id: record._id });
+        return res.status(429).json({
+          success: false,
+          message: "Too many incorrect attempts. This reset code has been invalidated for security. Please request a new code.",
+        });
+      }
+      await record.save();
+      const remaining = 5 - record.attempts;
+      return res.status(401).json({
+        success: false,
+        message: `Incorrect reset code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+      });
     }
 
     const user = await User.findOne({ email: normalizedEmail });

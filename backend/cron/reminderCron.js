@@ -4,7 +4,7 @@ import Reminder from "../models/reminderModel.js";
 import User from "../models/userModel.js";
 import UserPreferences from "../models/userPreferencesModel.js";
 import DeliveryLog from "../models/deliveryLogModel.js";
-import { sendEmail, isEmailConfigured } from "../utils/mailer.js";
+import { sendEmail, isEmailConfigured, escapeHtml } from "../utils/mailer.js";
 import { sendPushToUser, isVapidConfigured } from "../services/pushService.js";
 import {
   isWithinQuietHours,
@@ -231,10 +231,10 @@ export const processScheduledAlarms = async (now = new Date()) => {
                     <span style="font-size: 24px; margin-right: 8px;">⏰</span>
                     <h2 style="color: #7e22ce; margin: 0;">Tasklert Scheduled Alarm</h2>
                   </div>
-                  <p style="color: #334155; font-size: 15px;">Hi <strong>${user.name || "User"}</strong>,</p>
+                  <p style="color: #334155; font-size: 15px;">Hi <strong>${escapeHtml(user.name || "User")}</strong>,</p>
                   <div style="background-color: #faf5ff; border-left: 4px solid #8b2cf5; padding: 14px; border-radius: 8px; margin: 16px 0;">
-                    <p style="margin: 0; color: #1e1b4b; font-size: 16px; font-weight: bold;">${claimed.title}</p>
-                    ${claimed.message ? `<p style="margin: 6px 0 0 0; color: #6b21a8; font-size: 13px;">${claimed.message}</p>` : ""}
+                    <p style="margin: 0; color: #1e1b4b; font-size: 16px; font-weight: bold;">${escapeHtml(claimed.title)}</p>
+                    ${claimed.message ? `<p style="margin: 6px 0 0 0; color: #6b21a8; font-size: 13px;">${escapeHtml(claimed.message)}</p>` : ""}
                     <p style="margin: 6px 0 0 0; color: #64748b; font-size: 12px;">Priority: <strong>${claimed.priority}</strong></p>
                   </div>
                   <div style="text-align: center; margin-top: 24px;">
@@ -403,7 +403,17 @@ export const processPriorityEmailAlerts = async (now = new Date()) => {
         const appUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
         const actionLink = `${appUrl}/pending`;
 
+        // Atomic distributed claim to prevent duplicate dispatches
+        const claimedTask = await Task.findOneAndUpdate(
+          { _id: task._id, sentPriorityAlerts: { $ne: rule.key } },
+          { $addToSet: { sentPriorityAlerts: rule.key } },
+          { new: true }
+        );
+        if (!claimedTask) continue;
+
         try {
+          const safeUserName = escapeHtml(user.name || "User");
+          const safeTitle = escapeHtml(task.title || "");
           await sendEmail({
             to: user.email,
             subject: rule.subject,
@@ -411,9 +421,9 @@ export const processPriorityEmailAlerts = async (now = new Date()) => {
             html: `
               <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e9d5ff; border-radius: 12px; background-color: #ffffff; max-width: 500px;">
                 <h2 style="color: #7e22ce; margin-top: 0;">Task Due Soon Alert ⏰</h2>
-                <p style="color: #334155; font-size: 15px;">Hi <strong>${user.name || "User"}</strong>,</p>
+                <p style="color: #334155; font-size: 15px;">Hi <strong>${safeUserName}</strong>,</p>
                 <p style="color: #334155; font-size: 14px; line-height: 1.5;">
-                  Your <strong>${task.priority} Priority</strong> task <strong>"${task.title}"</strong> is due on <strong>${dueString}</strong> (in ~${rule.hours} hours).
+                  Your <strong>${task.priority} Priority</strong> task <strong>"${safeTitle}"</strong> is due on <strong>${dueString}</strong> (in ~${rule.hours} hours).
                 </p>
                 <div style="margin-top: 25px; margin-bottom: 15px; text-align: center;">
                   <a href="${actionLink}" target="_blank" style="background: linear-gradient(135deg, #c026d3 0%, #7e22ce 100%); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 14px; display: inline-block;">
@@ -424,11 +434,6 @@ export const processPriorityEmailAlerts = async (now = new Date()) => {
               </div>
             `,
           });
-
-          await Task.updateOne(
-            { _id: task._id },
-            { $addToSet: { sentPriorityAlerts: rule.key } }
-          );
         } catch (err) {
           console.error(`Error sending ${rule.key} email for task ${task._id}:`, err.message);
         }
@@ -458,7 +463,17 @@ export const processSmartReminders = async (now = new Date()) => {
     const appUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
     const actionLink = `${appUrl}/pending`;
 
+    // Atomic distributed claim to prevent duplicate smart reminders
+    const claimedSmartTask = await Task.findOneAndUpdate(
+      { _id: task._id, sentPriorityAlerts: { $ne: "smart_reminder" } },
+      { $addToSet: { sentPriorityAlerts: "smart_reminder" } },
+      { new: true }
+    );
+    if (!claimedSmartTask) continue;
+
     try {
+      const safeUserName = escapeHtml(user.name || "User");
+      const safeTitle = escapeHtml(task.title || "");
       await sendEmail({
         to: user.email,
         subject: `Smart Reminder: ${task.title}`,
@@ -466,9 +481,9 @@ export const processSmartReminders = async (now = new Date()) => {
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e9d5ff; border-radius: 12px; background-color: #ffffff; max-width: 500px;">
             <h2 style="color: #7e22ce; margin-top: 0;">Smart Task Reminder ⏰</h2>
-            <p style="color: #334155; font-size: 15px;">Hi <strong>${user.name || "User"}</strong>,</p>
+            <p style="color: #334155; font-size: 15px;">Hi <strong>${safeUserName}</strong>,</p>
             <p style="color: #334155; font-size: 14px; line-height: 1.5;">
-              This is your requested Smart Reminder for: <strong>"${task.title}"</strong>
+              This is your requested Smart Reminder for: <strong>"${safeTitle}"</strong>
             </p>
             <p style="color: #475569; font-size: 14px;">Scheduled Time: <strong>${reminderTimeStr}</strong></p>
             <div style="margin-top: 25px; margin-bottom: 15px; text-align: center;">
@@ -480,11 +495,6 @@ export const processSmartReminders = async (now = new Date()) => {
           </div>
         `,
       });
-
-      await Task.updateOne(
-        { _id: task._id },
-        { $addToSet: { sentPriorityAlerts: "smart_reminder" } }
-      );
     } catch (err) {
       console.error(`Smart reminder email error for task ${task._id}:`, err.message);
     }

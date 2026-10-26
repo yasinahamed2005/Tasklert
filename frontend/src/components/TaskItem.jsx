@@ -14,7 +14,6 @@ const TaskItem = ({
   task,
   onRefresh,
   onLogout,
-  onEdit,
   onOpenDetail,
   showCompleteCheckbox = true,
   isSelectionMode = false,
@@ -76,7 +75,7 @@ const TaskItem = ({
                 await axios.post(`${API_BASE}/${task._id}/restore`, {}, { headers: getAuthHeaders() });
                 toast.success("Task restored!");
                 onRefresh?.();
-              } catch (restoreErr) {
+              } catch (_restoreErr) {
                 toast.error("Failed to restore task");
               }
             }}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   Timer,
   Play,
@@ -30,7 +30,6 @@ const DEFAULT_SETTINGS = {
 
 export const FocusTimerPage = () => {
   const location = useLocation();
-  const navigate = useNavigate();
 
   // Settings
   const [settings, setSettings] = useState(() => {
@@ -51,13 +50,14 @@ export const FocusTimerPage = () => {
   const [tasks, setTasks] = useState([]);
   const [history, setHistory] = useState([]);
   const [historySummary, setHistorySummary] = useState({ totalCompletedSessions: 0, totalFocusMinutes: 0, todayFocusMinutes: 0 });
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [cycleCount, setCycleCount] = useState(0);
 
   // Authoritative seconds remaining
   const [remainingSeconds, setRemainingSeconds] = useState(settings.focusDuration * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const handleAutoCompleteRef = useRef(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const timerIntervalRef = useRef(null);
@@ -187,7 +187,7 @@ export const FocusTimerPage = () => {
         setRemainingSeconds((prev) => {
           if (prev <= 1) {
             clearInterval(timerIntervalRef.current);
-            handleAutoComplete();
+            handleAutoCompleteRef.current?.();
             return 0;
           }
           return prev - 1;
@@ -341,7 +341,7 @@ export const FocusTimerPage = () => {
     }
   };
 
-  const handleAutoComplete = () => {
+  handleAutoCompleteRef.current = () => {
     handleComplete();
   };
 

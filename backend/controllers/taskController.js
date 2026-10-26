@@ -71,7 +71,11 @@ export const getNextDueDate = (dueDate, recurrence) => {
   } else if (recurrence.frequency === "weekly") {
     next.setDate(next.getDate() + 7 * interval);
   } else if (recurrence.frequency === "monthly") {
+    const originalDay = baseDate.getDate();
+    next.setDate(1);
     next.setMonth(next.getMonth() + interval);
+    const lastDayOfTarget = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    next.setDate(Math.min(originalDay, lastDayOfTarget));
   } else {
     return null;
   }

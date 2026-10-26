@@ -16,7 +16,6 @@ import {
   subWeeks,
   addDays,
   subDays,
-  parseISO,
 } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -36,7 +35,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import TaskModal from "../components/TaskModal";
-import { getPriorityBadgeColor, getPriorityColor } from "../assets/dummy";
+import { getPriorityBadgeColor } from "../assets/dummy";
 
 const isCompletedTask = (task) =>
   [true, 1, "yes"].includes(
@@ -58,7 +57,6 @@ const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState(null);
-  const [prefillDate, setPrefillDate] = useState("");
   const [showUnscheduled, setShowUnscheduled] = useState(false);
   const [, setThemeTick] = useState(0);
 
@@ -117,16 +115,14 @@ const CalendarPage = () => {
   // Open modal to create a task on a specific date
   const handleCreateOnDate = useCallback((date) => {
     const dateStr = format(date, "yyyy-MM-dd");
-    setPrefillDate(dateStr);
-    setTaskToEdit({ dueDate: dateStr });
+        setTaskToEdit({ dueDate: dateStr });
     setShowTaskModal(true);
   }, []);
 
   // Open modal to edit existing task
   const handleEditTask = useCallback((task, e) => {
     if (e) e.stopPropagation();
-    setPrefillDate("");
-    setTaskToEdit(task);
+        setTaskToEdit(task);
     setShowTaskModal(true);
   }, []);
 
@@ -187,8 +183,7 @@ const CalendarPage = () => {
           <button
             type="button"
             onClick={() => {
-              setPrefillDate(format(selectedDate || new Date(), "yyyy-MM-dd"));
-              setTaskToEdit(null);
+              setTaskToEdit({ dueDate: format(selectedDate || new Date(), "yyyy-MM-dd") });
               setShowTaskModal(true);
             }}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm shadow-sm transition active:scale-95 cursor-pointer shrink-0"
@@ -965,15 +960,13 @@ const CalendarPage = () => {
         onClose={() => {
           setShowTaskModal(false);
           setTaskToEdit(null);
-          setPrefillDate("");
-        }}
+                  }}
         taskToEdit={taskToEdit}
         onSave={() => {
           refreshTasks();
           setShowTaskModal(false);
           setTaskToEdit(null);
-          setPrefillDate("");
-        }}
+                  }}
       />
     </div>
   );

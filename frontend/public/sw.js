@@ -1,7 +1,7 @@
 // Tasklert Web Push & PWA Service Worker (v2)
 const CACHE_NAME = "tasklert-v2";
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", (_event) => {
   self.skipWaiting();
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { DEFAULT_TASK, baseControlClasses, priorityStyles } from '../assets/dummy';
+import { DEFAULT_TASK, baseControlClasses } from '../assets/dummy';
 import { PlusCircle, X, AlignLeft, Flag, Calendar, CheckCircle, Save, Paperclip, Link, FileText, Image, Video, Trash2, Upload, BellRing, Clock, Play, Square, Volume2, Globe, Shield, Sparkles, RotateCw, Folder, Tag, Bookmark, Plus } from 'lucide-react';
 import axios from 'axios';
 import { soundManager } from '../utils/soundManager';

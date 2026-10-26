@@ -328,6 +328,9 @@ export const sendViaWhatsApp = async ({ recipient, subject, message, reaction, f
  */
 export const sendViaEmail = async ({ to, subject, message, reaction, files = [] }) => {
   const mailSubject = subject?.trim() || "New message from Tasklert";
+  const safeSubject = escapeHtml(subject?.trim() || "");
+  const safeMessage = escapeHtml(message || "").replace(/\n/g, "<br/>");
+  const safeReaction = escapeHtml(reaction || "");
   const textContent = `${message || ""}${reaction ? `\n\nReaction: ${reaction}` : ""}`;
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e9d5ff; border-radius: 16px; background-color: #ffffff;">
@@ -335,11 +338,11 @@ export const sendViaEmail = async ({ to, subject, message, reaction, files = [] 
         <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px; line-height: 36px; text-align: center;">T</div>
         <span style="font-size: 18px; font-weight: bold; color: #4c1d95;">Tasklert QuickSend</span>
       </div>
-      ${subject ? `<h3 style="color: #1e1b4b; margin: 0 0 16px 0; font-size: 18px;">${subject.trim()}</h3>` : ""}
+      ${subject ? `<h3 style="color: #1e1b4b; margin: 0 0 16px 0; font-size: 18px;">${safeSubject}</h3>` : ""}
       <div style="background-color: #faf5ff; border-left: 4px solid #8b2cf5; padding: 16px; border-radius: 8px; color: #1f2937; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">
-        ${(message || "").replace(/\n/g, "<br/>")}
+        ${safeMessage}
       </div>
-      ${reaction ? `<div style="margin-top: 16px; font-size: 24px;">${reaction}</div>` : ""}
+      ${reaction ? `<div style="margin-top: 16px; font-size: 24px;">${safeReaction}</div>` : ""}
       <div style="margin-top: 24px; pt: 16px; border-top: 1px solid #f3e8ff; font-size: 12px; color: #9ca3af; text-align: center;">
         Sent via Tasklert QuickSend · Fast &amp; Reliable Task Messaging
       </div>

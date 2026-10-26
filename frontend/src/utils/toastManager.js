@@ -69,21 +69,20 @@ const dispatchToast = (type, message, options = {}) => {
     ...options,
   };
 
-  let toastRef = null;
   switch (type) {
     case "success":
-      toastRef = toast.success(message, toastOptions);
+      toast.success(message, toastOptions);
       break;
     case "error":
-      toastRef = toast.error(message, toastOptions);
+      toast.error(message, toastOptions);
       break;
     case "warning":
     case "warn":
-      toastRef = toast.warn(message, toastOptions);
+      toast.warn(message, toastOptions);
       break;
     case "info":
     default:
-      toastRef = toast.info(message, toastOptions);
+      toast.info(message, toastOptions);
       break;
   }
 

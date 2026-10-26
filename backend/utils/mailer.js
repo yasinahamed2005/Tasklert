@@ -1,3 +1,13 @@
+export const escapeHtml = (str) => {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 import nodemailer from "nodemailer";
 
 export const isEmailConfigured = () => {
@@ -143,7 +153,7 @@ const createTransporterInstance = () => {
     greetingTimeout: 8000,
     socketTimeout: 15000,
     family: 4,
-    tls: { rejectUnauthorized: false },
+    tls: { rejectUnauthorized: process.env.NODE_ENV === "production" },
   });
 };
 

@@ -293,7 +293,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
             type="checkbox"
             id="rememberMe"
             checked={rememberMe}
-            onChange={(e) => setRememberMe(!rememberMe)}
+            onChange={(e) => setRememberMe(e.target.checked)}
             className="h-4 w-4 rounded border-[#34445F] bg-[#19243A] accent-[#8B2CF5] text-[#8B2CF5] focus:ring-[#8B2CF5]/40 cursor-pointer"
           />
           <label htmlFor="rememberMe" className="ml-2 text-xs font-medium text-[#AAB8CF] cursor-pointer select-none">
