@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { LogIn, Mail, Lock, Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, ShieldAlert, X } from "lucide-react";
-import { toast } from "react-toastify";
+import { notify } from "../utils/toastManager";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SocialAuthButtons from "./SocialAuthButtons";
@@ -49,7 +49,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
     const error = params.get("error");
 
     if (error) {
-      toast.error(decodeURIComponent(error));
+      notify.error(decodeURIComponent(error));
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
@@ -69,14 +69,14 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
             onSubmit?.({ token: data.token, userId: data.user.id, ...data.user });
             const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
-            toast.success(`Welcome, ${data.user?.name || "User"}! Successfully signed in via ${providerLabel}.`);
+            notify.success(`Welcome, ${data.user?.name || "User"}! Successfully signed in via ${providerLabel}.`, { toastId: "oauth-welcome" });
             navigate("/", { replace: true });
           } else {
-            toast.error(data.message || "Failed to finalize authentication.");
+            notify.error(data.message || "Failed to finalize authentication.");
           }
         } catch (err) {
           console.error("OAuth code exchange error:", err);
-          toast.error(err.response?.data?.message || "Failed to exchange authorization code.");
+          notify.error(err.response?.data?.message || "Failed to exchange authorization code.");
         } finally {
           setLoading(false);
         }
@@ -100,14 +100,14 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
       onSubmit?.({ token, userId, ...userObj });
       const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
-      toast.success(`Welcome, ${name || "User"}! Successfully signed in via ${providerLabel}.`);
+      notify.success(`Welcome, ${name || "User"}! Successfully signed in via ${providerLabel}.`, { toastId: "oauth-welcome" });
 
       window.history.replaceState({}, document.title, "/");
-      setTimeout(() => navigate("/", { replace: true }), 300);
+      navigate("/", { replace: true });
       return;
     }
 
-    // Restore regular session if token already in localStorage
+    // Restore regular session silently if token already in localStorage
     const savedToken = localStorage.getItem("token");
     const savedUserId = localStorage.getItem("userId");
     if (savedToken) {
@@ -118,8 +118,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
           });
           if (data.success) {
             onSubmit?.({ token: savedToken, userId: savedUserId, ...data.user });
-            toast.success("Session restored. Redirecting...");
-            navigate("/");
+            navigate("/", { replace: true });
           } else {
             localStorage.clear();
           }
@@ -152,11 +151,11 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
       setFormData(INITIAL_FORM);
       onSubmit?.({ token: data.token, userId, ...data.user });
 
-      toast.success("Login successful! Redirecting...");
-      setTimeout(() => navigate("/"), 400);
+      notify.success(`Welcome back, ${data.user?.name || "User"}!`, { toastId: "login-welcome" });
+      navigate("/", { replace: true });
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Login failed";
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setLoading(false);
     }
@@ -197,7 +196,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
         otp: forgotOtp,
         newPassword,
       });
-      toast.success(data.message || "Password reset successfully!");
+      notify.success(data.message || "Password reset successfully!");
       setShowForgotModal(false);
       setForgotStep(1);
       setForgotEmail("");
@@ -214,7 +213,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
   };
 
   const handleSwitchMode = () => {
-    toast.dismiss();
+    notify.dismiss();
     onSwitchMode?.();
   };
 

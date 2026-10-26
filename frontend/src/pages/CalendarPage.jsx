@@ -167,7 +167,7 @@ const CalendarPage = () => {
     <div className="p-1.5 sm:p-2.5 md:p-3.5 min-w-0 w-full space-y-2.5 sm:space-y-3">
       {/* UNIFIED COMPACT HEADER & CONTROLS MATCHING SCREEN 5 */}
       <div 
-        className="bg-white/95 backdrop-blur-md rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 shadow-xs space-y-2.5"
+        className="bg-white rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 shadow-xs space-y-2.5"
         style={{ borderColor: "var(--calendar-border)" }}
       >
         {/* Top Row: Title on Left, Add Task on Right */}

@@ -6,6 +6,7 @@ import { ToastContainer } from "react-toastify";
 import AuthShell from "./components/AuthShell";
 import { AppStartupFallback } from "./components/PageSkeletons";
 import PageTransitionLoader from "./components/PageTransitionLoader";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -65,15 +66,6 @@ const App = () => {
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("auth_session") === "test") {
-        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODA2YmIwYjliNGQ2NTlhM2E4ZTE0MSIsImlhdCI6MTc5MTk4NDE1OCwiZXhwIjoxNzkyMDcwNTU4fQ.hI179zIkRQlud1QEns7NK_ofXjIQFvVKJqC8DzMhR0s";
-        localStorage.setItem("token", token);
-        localStorage.setItem("userId", "69806bb0b9b4d659a3a8e141");
-        const user = { name: "yaseen", email: "yaseen@gmail.com" };
-        localStorage.setItem("currentUser", JSON.stringify(user));
-        return user;
-      }
       const stored = localStorage.getItem("currentUser");
       return stored && stored !== "undefined" ? JSON.parse(stored) : null;
     } catch (e) {
@@ -112,17 +104,38 @@ const App = () => {
     navigate("/login", { replace: true });
   };
 
+  // Lightweight idle chunk preloading for primary task routes (excluding heavy analytics)
+  useEffect(() => {
+    if (currentUser) {
+      const preloadPrimaryChunks = () => {
+        import("./pages/PendingPage");
+        import("./pages/CompletePage");
+      };
+
+      if ("requestIdleCallback" in window) {
+        const id = window.requestIdleCallback(preloadPrimaryChunks, { timeout: 5000 });
+        return () => window.cancelIdleCallback?.(id);
+      } else {
+        const id = setTimeout(preloadPrimaryChunks, 3000);
+        return () => clearTimeout(id);
+      }
+    }
+  }, [currentUser]);
+
   return (
     <>
       <ToastContainer
         position="top-right"
         newestOnTop
-        limit={2}
+        limit={3}
+        autoClose={4000}
         closeOnClick
+        pauseOnHover
         pauseOnFocusLoss={false}
         theme="light"
       />
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
       {/* Landing (public marketing page) */}
       <Route
         path="/welcome"
@@ -173,98 +186,40 @@ const App = () => {
         }
       />
 
-      {/* Protected Routes */}
+      {/* Protected Routes — Layout stays stably mounted, instant navigation */}
       <Route
         element={
           currentUser ? (
             <Layout user={currentUser} onLogout={handleLogout}>
-              <Outlet />
+              <Suspense fallback={<PageTransitionLoader message="Loading..." />}>
+                <Outlet />
+              </Suspense>
             </Layout>
           ) : (
             <Navigate to="/welcome" replace />
           )
         }
       >
-        <Route
-          path="/"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading dashboard..." />}>
-              <Dashboard />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/pending"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading pending tasks..." />}>
-              <Pendingpage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/Complete"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading completed tasks..." />}>
-              <CompletePage />
-            </Suspense>
-          }
-        />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/pending" element={<Pendingpage />} />
+        <Route path="/complete" element={<CompletePage />} />
+        <Route path="/Complete" element={<Navigate to="/complete" replace />} />
         <Route
           path="/profile"
           element={
-            <Suspense fallback={<PageTransitionLoader message="Loading profile..." />}>
-              <Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />
-            </Suspense>
+            <Profile
+              user={currentUser}
+              setCurrentUser={setCurrentUser}
+              onLogout={handleLogout}
+            />
           }
         />
-        <Route
-          path="/messages"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading message center..." />}>
-              <MessageCenter />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading settings..." />}>
-              <AlarmSettingsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/alarms"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading alarms..." />}>
-              <AlarmsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/calendar"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading calendar..." />}>
-              <CalendarPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading analytics..." />}>
-              <AnalyticsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/focus"
-          element={
-            <Suspense fallback={<PageTransitionLoader message="Loading focus timer..." />}>
-              <FocusTimerPage />
-            </Suspense>
-          }
-        />
+        <Route path="/messages" element={<MessageCenter />} />
+        <Route path="/settings" element={<AlarmSettingsPage />} />
+        <Route path="/alarms" element={<AlarmsPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/focus" element={<FocusTimerPage />} />
       </Route>
 
       {/* Catch-all */}
@@ -273,7 +228,8 @@ const App = () => {
         element={<Navigate to={currentUser ? "/" : "/welcome"} replace />}
       />
       </Routes>
-    </>
+    </ErrorBoundary>
+  </>
   );
 };
 

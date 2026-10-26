@@ -1,6 +1,8 @@
 import Reminder from "../models/reminderModel.js";
 import Task from "../models/taskModel.js";
+import Notification from "../models/notificationModel.js";
 import UserPreferences from "../models/userPreferencesModel.js";
+import { normalizeRecurrence, getNextDueDate } from "./taskController.js";
 import {
   isValidTimeZone,
   sanitizeTimeZone,
@@ -360,7 +362,7 @@ export const snoozeReminder = async (req, res) => {
   }
 };
 
-// DISMISS REMINDER (Handles recurring wall-clock recurrence & completed tasks)
+// DISMISS REMINDER (Handles task completion, recurring wall-clock recurrence & idempotency)
 export const dismissReminder = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -370,10 +372,61 @@ export const dismissReminder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Reminder not found" });
     }
 
-    // Check if task is active and repeat is enabled
-    const taskCompleted = !reminder.task || isCompleted(reminder.task.completed);
+    // 1. If reminder is linked to a task, mark the task as Completed in MongoDB
+    let taskCompleted = false;
+    let targetTaskId = null;
+    const linkedTaskId = reminder.task?._id || reminder.task;
 
-    if (!taskCompleted && reminder.repeat && reminder.repeat !== "never") {
+    if (linkedTaskId) {
+      targetTaskId = linkedTaskId;
+      const task = await Task.findOne({ _id: linkedTaskId, owner: userId, isDeleted: { $ne: true } });
+
+      if (task) {
+        const wasCompleted = isCompleted(task.completed);
+        if (!wasCompleted) {
+          task.completed = true;
+          task.completedAt = new Date();
+
+          // Recurring task handling: Spawn next instance if recurring
+          const recurrence = normalizeRecurrence(task.recurrence || {}, task.recurrence);
+          const shouldCreateNext = recurrence.frequency !== "none" && !task.recurrenceSpawned;
+
+          if (shouldCreateNext) {
+            const nextDueDate = getNextDueDate(task.dueDate, recurrence);
+            if (nextDueDate) {
+              await Task.create({
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                dueDate: nextDueDate,
+                owner: task.owner,
+                completed: false,
+                completedAt: null,
+                subtasks: (task.subtasks || []).map((item) => ({ title: item.title, completed: false })),
+                reminderEnabled: false,
+                reminderAt: null,
+                recurrence: { ...recurrence, endAlertsSent: [] },
+                recurrenceSpawned: false,
+                project: task.project?._id || task.project || null,
+                tags: task.tags || [],
+              });
+              task.recurrenceSpawned = true;
+            }
+          }
+
+          // Clean up pending notifications for this task
+          await Notification.deleteMany({ owner: userId, task: task._id });
+          await task.save();
+          taskCompleted = true;
+        } else {
+          // Already completed, idempotent success
+          taskCompleted = true;
+        }
+      }
+    }
+
+    // 2. Handle Alarm / Reminder status (Recurring vs One-time)
+    if (reminder.repeat && reminder.repeat !== "never") {
       const userTz = sanitizeTimeZone(reminder.timeZone, "UTC");
       const nextOccurrence = getNextWallClockOccurrence(reminder.scheduledAt, reminder.repeat, userTz);
 
@@ -390,14 +443,19 @@ export const dismissReminder = async (req, res) => {
 
         return res.json({
           success: true,
-          message: `Alarm dismissed. Next recurring alarm scheduled for ${nextOccurrence.toLocaleString()}.`,
+          message: targetTaskId
+            ? `Alarm dismissed and task marked completed. Next recurring alarm scheduled for ${nextOccurrence.toLocaleString()}.`
+            : `Alarm dismissed. Next recurring alarm scheduled for ${nextOccurrence.toLocaleString()}.`,
           reminder,
+          taskCompleted,
+          taskId: targetTaskId,
         });
       }
     }
 
-    // Non-repeating or task completed: mark dismissed
+    // Non-repeating alarm: mark dismissed and disable
     reminder.status = "dismissed";
+    reminder.alarmEnabled = false;
     reminder.isClaimed = false;
     reminder.claimedAt = null;
     reminder.snoozedUntil = null;
@@ -406,8 +464,10 @@ export const dismissReminder = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Alarm dismissed.",
+      message: targetTaskId ? "Alarm dismissed and linked task marked completed." : "Alarm dismissed.",
       reminder,
+      taskCompleted,
+      taskId: targetTaskId,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

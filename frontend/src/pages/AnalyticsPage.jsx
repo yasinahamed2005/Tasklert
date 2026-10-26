@@ -159,7 +159,7 @@ export const AnalyticsPage = () => {
   return (
     <div className="p-2 sm:p-4 md:p-6 min-w-0 w-full space-y-6">
       {/* Top Header & Range Controls */}
-      <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 p-3.5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+      <div className="bg-white rounded-2xl border border-purple-100 p-3.5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center justify-between w-full md:w-auto">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="p-2 sm:p-3 rounded-2xl bg-purple-100/80 text-purple-600 shrink-0">

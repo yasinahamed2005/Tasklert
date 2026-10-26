@@ -417,7 +417,7 @@ export const FocusTimerPage = () => {
   return (
     <div className="p-2 sm:p-4 md:p-6 min-w-0 w-full space-y-6">
       {/* Top Banner */}
-      <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-purple-100 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-purple-100/80 text-purple-600 shrink-0">
             <Timer className="w-6 h-6" />
@@ -614,7 +614,7 @@ export const FocusTimerPage = () => {
                 type="button"
                 onClick={isRunning ? handlePause : isPaused ? handleResume : handleStart}
                 disabled={actionLoading}
-                className="w-16 h-16 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-xl shadow-purple-600/30 flex items-center justify-center transition active:scale-95 cursor-pointer disabled:opacity-50"
+                className="w-16 h-16 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md flex items-center justify-center transition active:scale-95 cursor-pointer disabled:opacity-50"
                 aria-label={isRunning ? "Pause" : "Start"}
               >
                 {isRunning ? (

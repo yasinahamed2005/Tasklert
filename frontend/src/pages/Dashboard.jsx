@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { HEADER, WRAPPER, ADD_BUTTON, ICON_WRAPPER,STAT_CARD,STATS,STATS_GRID,VALUE_CLASS, LABEL_CLASS, FILTER_WRAPPER } from '../assets/dummy';
 import { HomeIcon, Plus, Filter, CalendarIcon, Search, X, BellRing, Clock, ArrowRight, Volume2, Folder, Tag, CheckSquare, Square, Trash2, CheckCircle2, RotateCcw, Sparkles, Timer, AlertTriangle, Send, BarChart3, AlarmClock } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
@@ -6,8 +6,8 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { FILTER_LABELS, SELECT_CLASSES, FILTER_OPTIONS,TABS_WRAPPER,TAB_BASE,TAB_ACTIVE,TAB_INACTIVE,EMPTY_STATE, SORT_OPTIONS, sortTasks  } from '../assets/dummy';
 import TaskItem from '../components/TaskItem';
-import TaskModal from '../components/TaskModal';
-import TaskDetailModal from '../components/TaskDetailModal';
+const TaskModal = lazy(() => import('../components/TaskModal'));
+import { DashboardSkeleton } from '../components/PageSkeletons';
 import { API_BASE_URL } from '../config/api';
 
 const isCompletedTask = (task) =>
@@ -38,7 +38,7 @@ const SORT_LABELS = {
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const Dashboard = () => {
-  const {tasks, refreshTasks, user}=useOutletContext();
+  const { tasks = [], refreshTasks, user, loadingTasks } = useOutletContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedTask, setSelectTask] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
@@ -353,6 +353,10 @@ const Dashboard = () => {
     setSelectTask(null);
   }, [refreshTasks]);
 
+  if (loadingTasks && (!tasks || tasks.length === 0)) {
+    return <DashboardSkeleton />;
+  }
+
   return (
     <div className={WRAPPER}>
       {/* DESKTOP HEADER */}
@@ -552,7 +556,7 @@ const Dashboard = () => {
           <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-950 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-purple-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5 min-w-0">
               <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-400/30 text-fuchsia-300 shrink-0">
-                <BellRing className="w-6 h-6 animate-bounce" />
+                <BellRing className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -603,7 +607,7 @@ const Dashboard = () => {
             </div>
           </div>
         ) : (
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-purple-100 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-2xl border border-purple-100 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-50 text-purple-600 shrink-0">
                 <Clock className="w-4 h-4" />
@@ -624,7 +628,7 @@ const Dashboard = () => {
       </div>
 
       {/* TODAY'S PLAN & PROGRESS (Feature E - Desktop Version) */}
-      <section className="hidden md:block bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 p-4 sm:p-5 shadow-sm mb-6 transition-all hover:shadow-md">
+      <section className="hidden md:block bg-white rounded-2xl border border-purple-100 p-4 sm:p-5 shadow-xs mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.2em] text-purple-600 font-bold flex items-center gap-1.5">
@@ -770,7 +774,7 @@ const Dashboard = () => {
         </div>
 
         {/* ORDER YOUR LIST & FILTERS */}
-        <section className='bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 shadow-sm p-3.5 sm:p-5 transition-all duration-300 hover:shadow-md w-full min-w-0 max-w-full overflow-hidden'>
+        <section className='bg-white rounded-2xl border border-purple-100 shadow-xs p-3.5 sm:p-5 w-full min-w-0 max-w-full overflow-hidden'>
     <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4'>
       <div className='min-w-0'>
         <p className='text-xs uppercase tracking-[0.2em] text-purple-600 font-bold flex items-center gap-1.5'>
@@ -1114,10 +1118,19 @@ const Dashboard = () => {
 </div>
 
      {/* MODAL */}
-<TaskModal isOpen={showModal}
-onClose={() => { setShowModal(false); setSelectTask(null) }}
-taskToEdit={selectedTask}
-onSave={handleTaskSave} />
+      {showModal && (
+        <Suspense fallback={null}>
+          <TaskModal
+            isOpen={showModal}
+            onClose={() => {
+              setShowModal(false);
+              setSelectTask(null);
+            }}
+            taskToEdit={selectedTask}
+            onSave={handleTaskSave}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

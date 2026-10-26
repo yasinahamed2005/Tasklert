@@ -61,3 +61,6 @@ desktop.ini
 *.sln
 *.sw?
 *.bak
+
+# Scratch and temporary testing files
+scratch/

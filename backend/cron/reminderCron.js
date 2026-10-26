@@ -12,6 +12,8 @@ import {
   getNextWallClockOccurrence,
   sanitizeTimeZone,
 } from "../utils/timeZone.js";
+import { processScheduledMessages } from "./messageScheduler.js";
+
 
 const startOfDay = (date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -507,13 +509,15 @@ export const runCronCycle = async () => {
     // 1. Process Exact-Time Scheduled Alarms & Multi-Device Web Push
     await processScheduledAlarms(now);
 
-    // 2. In-app notifications for due today / overdue
+    // 2. In-app notifications for due today / overdue (Strictly idempotent by task & due date)
     const dueTodayTasks = await Task.find({
       dueDate: { $gte: todayStart, $lte: todayEnd },
       completed: false,
+      isDeleted: { $ne: true },
     }).limit(50);
 
     for (const task of dueTodayTasks) {
+      if (isCompleted(task.completed)) continue;
       await createNotification({
         owner: task.owner,
         task: task._id,
@@ -527,22 +531,30 @@ export const runCronCycle = async () => {
     const overdueTasks = await Task.find({
       dueDate: { $lt: todayStart },
       completed: false,
+      isDeleted: { $ne: true },
     }).limit(50);
 
     for (const task of overdueTasks) {
+      if (isCompleted(task.completed)) continue;
+      // Anchor overdue notifications to the task's due date start so it is strictly idempotent
+      // and never generates duplicate records for the same overdue task day after day
+      const taskDueDay = startOfDay(new Date(task.dueDate));
       await createNotification({
         owner: task.owner,
         task: task._id,
         kind: "overdue",
         title: "Overdue Task",
         message: `Task "${task.title}" is overdue since ${new Date(task.dueDate).toLocaleDateString()}.`,
-        scheduledFor: todayStart,
+        scheduledFor: taskDueDay,
       });
     }
 
     // 3. Priority Email Schedule & Legacy Smart Reminders
     await processPriorityEmailAlerts(now);
     await processSmartReminders(now);
+
+    // 4. QuickSend Scheduled Message Delivery Engine
+    await processScheduledMessages(now);
   } catch (err) {
     console.error("Reminder scheduler cycle error:", err.message);
   } finally {

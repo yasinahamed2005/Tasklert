@@ -1,22 +1,20 @@
 import {
-    User, Mail, Home,
+    User, Mail, Home, Home as HomeIcon,
     ListChecks,
-    CheckCircle2, Lock, Home as HomeIcon, Flame,
+    CheckCircle2, Lock, Flame,
     SortDesc, SortAsc, Award,
     Edit2,
     Trash2,
     Copy,
-    MoreVertical,
     Clock,
     Calendar,
     Send,
     Type,
-    Search,
     Bell,
     BarChart3,
     Timer,
     AlarmClock,
-} from "lucide-react"
+} from "lucide-react";
 
 // BACKEND TEST 
 // DUMMY DATA
@@ -126,10 +124,10 @@ export const menuItems = [
 ]
 
 export const SIDEBAR_CLASSES = {
-    desktop: "hidden md:flex flex-col fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white/90 backdrop-blur-sm border-r border-purple-100 shadow-sm z-20 transition-all duration-300",
-    mobileButton: "fixed md:hidden top-[calc(var(--app-header-height)+0.75rem)] left-4 z-40 bg-purple-600 text-white p-2.5 rounded-full shadow-lg hover:bg-purple-700 transition active:scale-95 cursor-pointer",
-    mobileDrawerBackdrop: "fixed inset-0 bg-black/40 backdrop-blur-sm",
-    mobileDrawer: "absolute top-0 left-0 w-64 h-full bg-white/90 backdrop-blur-md border-r border-purple-100 shadow-lg z-50 p-4 flex flex-col space-y-6",
+    desktop: "hidden md:flex flex-col fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white border-r border-purple-100 shadow-xs z-20 transition-all duration-300",
+    mobileButton: "fixed md:hidden top-[calc(var(--app-header-height)+0.75rem)] left-4 z-40 bg-purple-600 text-white p-2.5 rounded-full shadow-md hover:bg-purple-700 transition active:scale-95 cursor-pointer",
+    mobileDrawerBackdrop: "fixed inset-0 bg-black/40",
+    mobileDrawer: "absolute top-0 left-0 w-64 h-full bg-white border-r border-purple-100 shadow-xl z-50 p-4 flex flex-col space-y-6",
 }
 
 export const LINK_CLASSES = {

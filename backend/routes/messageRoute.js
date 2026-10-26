@@ -2,8 +2,14 @@ import express from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/auth.js";
 import {
+  cancelScheduledMessage,
+  createTemplate,
   deleteMessage,
+  deleteTemplate,
   getMessages,
+  getProviders,
+  getTemplates,
+  retryMessage,
   sendMessage,
 } from "../controllers/messageController.js";
 
@@ -14,6 +20,15 @@ const upload = multer({
 
 const messageRouter = express.Router();
 
+// Provider readiness status
+messageRouter.get("/providers", authMiddleware, getProviders);
+
+// Templates
+messageRouter.get("/templates", authMiddleware, getTemplates);
+messageRouter.post("/templates", authMiddleware, createTemplate);
+messageRouter.delete("/templates/:id", authMiddleware, deleteTemplate);
+
+// Messages list & send
 messageRouter.get("/", authMiddleware, getMessages);
 messageRouter.post(
   "/",
@@ -28,6 +43,10 @@ messageRouter.post(
   },
   sendMessage
 );
+
+// Actions on individual messages
+messageRouter.post("/:id/cancel", authMiddleware, cancelScheduledMessage);
+messageRouter.post("/:id/retry", authMiddleware, retryMessage);
 messageRouter.delete("/:id", authMiddleware, deleteMessage);
 
 export default messageRouter;

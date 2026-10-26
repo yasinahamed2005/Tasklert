@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, CheckCheck, Settings } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Bell, CheckCheck, Settings, X } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
@@ -46,41 +45,40 @@ const NotificationBell = ({
         )}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.18 }}
-            className="notif-panel"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-gray-800">
-                Notifications
-              </h4>
-              {notifications.length > 0 && (
-                <button
-                  onClick={() => onClearAll?.()}
-                  className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
-                >
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  Clear all
-                </button>
-              )}
-            </div>
+      {open && (
+        <div
+          className="notif-panel animate-fadeIn"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-800">
+              Notifications
+            </h4>
+            {notifications.length > 0 && (
+              <button
+                onClick={() => onClearAll?.()}
+                className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                Clear all
+              </button>
+            )}
+          </div>
 
-            {notifications.length === 0 ? (
-              <div className="text-xs text-gray-500 py-6 text-center">
-                No notifications yet
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {notifications.map((item) => (
+          {notifications.length === 0 ? (
+            <div className="text-xs text-gray-500 py-6 text-center">
+              No notifications yet
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {notifications.map((item) => (
+                <div
+                  key={item._id}
+                  className={`notif-item ${item.read ? "is-read" : ""} notif-kind-${item.kind || "reminder"} group relative flex items-start justify-between gap-2`}
+                >
                   <button
-                    key={item._id}
+                    type="button"
                     onClick={() => onMarkRead?.(item._id)}
-                    className={`notif-item ${item.read ? "is-read" : ""} notif-kind-${item.kind || "reminder"}`}
+                    className="flex-1 text-left cursor-pointer min-w-0"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="notif-title">{item.title}</span>
@@ -95,26 +93,40 @@ const NotificationBell = ({
                         : "Just now"}
                     </p>
                   </button>
-                ))}
-              </div>
-            )}
-
-            <div className="pt-2 mt-2 border-t border-purple-100 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  navigate("/settings");
-                }}
-                className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-700 font-semibold cursor-pointer"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Alarms & Device Settings
-              </button>
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(item._id);
+                      }}
+                      className="text-gray-300 hover:text-red-500 p-1 rounded-md transition opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                      title="Dismiss notification"
+                      aria-label="Dismiss notification"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+
+          <div className="pt-2 mt-2 border-t border-purple-100 flex items-center justify-between text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate("/settings");
+              }}
+              className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-700 font-semibold cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Alarms & Device Settings
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

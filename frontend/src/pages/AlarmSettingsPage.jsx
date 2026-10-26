@@ -36,7 +36,7 @@ const AlarmSettingsPage = () => {
         </div>
 
         {/* Page Title */}
-        <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 p-6 shadow-sm">
+        <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-purple-100/80 text-purple-600">
               <Bell className="w-6 h-6" />

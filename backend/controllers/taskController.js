@@ -2,7 +2,7 @@ import Task from "../models/taskModel.js";
 import Notification from "../models/notificationModel.js";
 import Reminder from "../models/reminderModel.js";
 
-const normalizeCompleted = (value) => {
+export const normalizeCompleted = (value) => {
   if (value === true || value === 1) return true;
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
@@ -11,7 +11,7 @@ const normalizeCompleted = (value) => {
   return false;
 };
 
-const normalizeSubtasks = (subtasks) => {
+export const normalizeSubtasks = (subtasks) => {
   if (!Array.isArray(subtasks)) return [];
   return subtasks
     .filter((item) => item && typeof item.title === "string" && item.title.trim())
@@ -21,7 +21,7 @@ const normalizeSubtasks = (subtasks) => {
     }));
 };
 
-const normalizeRecurrence = (recurrence, existingRecurrence) => {
+export const normalizeRecurrence = (recurrence, existingRecurrence) => {
   const frequency = recurrence?.frequency || "none";
   const safeFrequency = ["none", "daily", "weekly", "monthly"].includes(frequency)
     ? frequency
@@ -57,7 +57,7 @@ const normalizeRecurrence = (recurrence, existingRecurrence) => {
   };
 };
 
-const getNextDueDate = (dueDate, recurrence) => {
+export const getNextDueDate = (dueDate, recurrence) => {
   if (!recurrence || recurrence.frequency === "none") return null;
 
   const baseDate = dueDate ? new Date(dueDate) : new Date();
@@ -373,6 +373,7 @@ export const deleteTask = async (req, res) => {
 
     // Cancel active reminders so alarms do not fire for deleted tasks
     await Reminder.updateMany({ owner: req.user.id, task: task._id }, { alarmEnabled: false, status: "cancelled" });
+    await Notification.deleteMany({ owner: req.user.id, task: task._id });
 
     res.json({ success: true, message: "Task moved to trash", task });
   } catch (err) {
@@ -429,6 +430,7 @@ export const bulkTaskOperations = async (req, res) => {
       // Ensure any already completed tasks are also updated in result count
       const alreadyDone = await Task.updateMany({ ...filter, completed: true }, { completed: true });
       result = { modifiedCount: (result.modifiedCount || 0) + (alreadyDone.modifiedCount || 0) };
+      await Notification.deleteMany({ owner: req.user.id, task: { $in: taskIds } });
     } else if (action === "incomplete") {
       result = await Task.updateMany(filter, { completed: false, completedAt: null });
     } else if (action === "priority") {
@@ -444,6 +446,7 @@ export const bulkTaskOperations = async (req, res) => {
         { task: { $in: taskIds }, owner: req.user.id },
         { alarmEnabled: false, status: "cancelled" }
       );
+      await Notification.deleteMany({ owner: req.user.id, task: { $in: taskIds } });
     } else {
       return res.status(400).json({ success: false, message: `Unknown bulk action: ${action}` });
     }

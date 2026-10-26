@@ -41,7 +41,7 @@ const Sidebar = ({ user, tasks }) => {
       {/* DESKTOP SIDEBAR - Strictly hidden on phones (<768px), compact on tablet (md: 768px-1024px), full on desktop (lg: 1024px+) */}
       <aside
         aria-label="Sidebar Navigation"
-        className="hidden md:flex flex-col justify-between fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white/90 backdrop-blur-sm border-r border-purple-100 shadow-sm z-20 transition-all duration-300"
+        className="hidden md:flex flex-col justify-between fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto w-20 lg:w-64 bg-white border-r border-purple-100/80 shadow-xs z-20 transition-all duration-300"
       >
         <div>
           {/* User Info */}
@@ -90,7 +90,7 @@ const Sidebar = ({ user, tasks }) => {
 
               {/* Trophy Icon Container */}
               <div className='relative mx-auto mb-3 w-16 h-16 flex items-center justify-center'>
-                <div className='w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-purple-500 to-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-purple-500/25 transform group-hover:scale-105 transition-transform duration-300'>
+                <div className='w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-purple-500 to-fuchsia-500 flex items-center justify-center text-white shadow-sm transition-transform duration-300'>
                   <Trophy className='w-8 h-8 text-amber-300 drop-shadow-sm' />
                 </div>
                 <div className='absolute -bottom-1.5 w-12 h-2 bg-purple-300/50 rounded-full blur-[2px]' />
@@ -107,7 +107,7 @@ const Sidebar = ({ user, tasks }) => {
 
             {/* Compact Cup Icon for Icon-Only Sidebar (md screens) */}
             <div className='block lg:hidden text-center' title={`Keep it up, ${firstName}!`}>
-              <div className='w-10 h-10 mx-auto rounded-xl bg-gradient-to-tr from-purple-600 to-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-purple-500/20'>
+              <div className='w-10 h-10 mx-auto rounded-xl bg-gradient-to-tr from-purple-600 to-fuchsia-500 flex items-center justify-center text-white shadow-sm'>
                 <Trophy className='w-5 h-5 text-amber-300' />
               </div>
             </div>

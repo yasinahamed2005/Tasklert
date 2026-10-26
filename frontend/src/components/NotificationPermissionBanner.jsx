@@ -72,11 +72,11 @@ export const NotificationPermissionBanner = () => {
   return (
     <aside
       aria-label="Notification prompt"
-      className="fixed bottom-16 sm:bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-40 bg-white/95 backdrop-blur-md rounded-2xl border border-purple-200 shadow-xl shadow-purple-500/10 p-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4"
+      className="fixed bottom-16 sm:bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-40 bg-white rounded-2xl border border-purple-200/80 shadow-lg p-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4"
     >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0 text-purple-700">
-          <BellRing className="w-5 h-5 animate-bounce-slow" />
+          <BellRing className="w-5 h-5" />
         </div>
 
         <div className="flex-1 min-w-0">

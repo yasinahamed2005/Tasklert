@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { AlertTriangle, CalendarClock } from "lucide-react";
 import { isToday } from "date-fns";
 
@@ -30,22 +29,9 @@ const AlertsPanel = ({ tasks = [] }) => {
     return due < today;
   });
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0 },
-  };
-
   return (
-    <motion.div
-      initial="hidden"
-      animate="show"
-      transition={{ staggerChildren: 0.08 }}
-      className="space-y-3"
-    >
-      <motion.div
-        variants={cardVariants}
-        className="alert-card alert-card-today"
-      >
+    <div className="space-y-3">
+      <div className="alert-card alert-card-today">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="alert-title">Due Today</p>
@@ -66,10 +52,9 @@ const AlertsPanel = ({ tasks = [] }) => {
             ))
           )}
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        variants={cardVariants}
+      <div
         className="alert-card alert-card-overdue"
       >
         <div className="flex items-start justify-between gap-3">
@@ -92,8 +77,8 @@ const AlertsPanel = ({ tasks = [] }) => {
             ))
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

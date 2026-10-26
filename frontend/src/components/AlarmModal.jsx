@@ -1,12 +1,21 @@
-import React, { useEffect, useState, useRef } from "react";
-import { BellRing, Volume2, VolumeX, Clock, Flag, CheckCircle, ArrowRight, X } from "lucide-react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import {
+  BellRing,
+  Volume2,
+  VolumeX,
+  Clock,
+  Flag,
+  CheckCircle2,
+  X,
+  Sparkles,
+  CheckCheck,
+} from "lucide-react";
 import { soundManager } from "../utils/soundManager";
 import { useModalAccessibility } from "../utils/scrollLock";
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
 
 const API_BASE = API_BASE_URL;
-
 const SNOOZE_OPTIONS = [5, 10, 15, 30];
 
 const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
@@ -15,6 +24,13 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   const [selectedSnooze, setSelectedSnooze] = useState(5);
   const [loadingAction, setLoadingAction] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  // Live digital clock ticker for the ringing screen (Samsung Clock style)
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useModalAccessibility({
     isOpen: Boolean(alarm),
@@ -34,7 +50,6 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     soundManager.playAlarm(sound, isMuted ? 0 : volume);
 
     return () => {
-      // Guarantee sound stops when modal closes or unmounts
       soundManager.stop();
     };
   }, [alarm, isMuted]);
@@ -56,15 +71,34 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     setErrorMessage(null);
     try {
       const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // 1. If alarmId exists, call dismissReminder on backend
+      // (which now automatically marks the linked task completed in MongoDB!)
       if (token && alarm.alarmId) {
         await axios.post(
           `${API_BASE}/api/reminders/${alarm.alarmId}/dismiss`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
+          { completeLinkedTask: true },
+          { headers }
         );
       }
+
+      // 2. If taskId exists and alarmId was missing (e.g. foreground trigger),
+      // mark task completed directly
+      if (token && alarm.taskId && !alarm.alarmId) {
+        await axios.put(
+          `${API_BASE}/api/tasks/${alarm.taskId}`,
+          { completed: true },
+          { headers }
+        );
+      }
+
       soundManager.stop();
-      onActionCompleted?.();
+      onActionCompleted?.({
+        dismissed: true,
+        taskId: alarm.taskId,
+        alarmId: alarm.alarmId,
+      });
       onClose();
     } catch (err) {
       console.error("Error dismissing alarm:", err);
@@ -90,7 +124,12 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
         );
       }
       soundManager.stop();
-      onActionCompleted?.();
+      onActionCompleted?.({
+        snoozed: true,
+        taskId: alarm.taskId,
+        alarmId: alarm.alarmId,
+        durationMinutes: selectedSnooze,
+      });
       onClose();
     } catch (err) {
       console.error("Error snoozing alarm:", err);
@@ -109,25 +148,35 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   };
 
   const priorityColors = {
-    High: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-    Medium: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    Low: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    High: "bg-rose-500/20 text-rose-300 border-rose-500/40",
+    Medium: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+    Low: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
   };
-
   const priorityClass = priorityColors[alarm.priority] || priorityColors.Medium;
+
+  // Format time for Samsung Clock display
+  const hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  const timeFormatted = `${String(displayHours).padStart(2, "0")}:${minutes}`;
+
+  const isLinkedToTask = Boolean(alarm.taskId);
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overscroll-none overflow-hidden animate-fadeIn"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overscroll-none overflow-hidden animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleForceClose();
         }
       }}
     >
-      {/* Sound waves pulsing background effect */}
+      {/* Samsung Clock-inspired Concentric Sound Ripples */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
-        <div className="w-[420px] h-[420px] rounded-full bg-[#8B2CF5]/15 animate-ping opacity-75" />
+        <div className="w-[320px] sm:w-[460px] h-[320px] sm:h-[460px] rounded-full border border-[#8B2CF5]/20 animate-ping opacity-60" />
+        <div className="absolute w-[240px] sm:w-[360px] h-[240px] sm:h-[360px] rounded-full bg-[#8B2CF5]/10 animate-pulse" />
       </div>
 
       <div
@@ -135,35 +184,43 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="alarm-modal-title"
-        className="relative w-full max-w-lg max-h-[90vh] max-h-[90dvh] flex flex-col rounded-3xl border border-[#8B2CF5]/40 bg-[#111A2E] p-5 sm:p-7 shadow-2xl text-[#F8FAFC] overflow-hidden"
+        className="relative w-full max-w-lg max-h-[92vh] max-h-[92dvh] flex flex-col rounded-3xl border border-[#8B2CF5]/40 bg-[#0F172A] p-5 sm:p-7 shadow-2xl text-[#F8FAFC] overflow-hidden"
       >
-        {/* Top Header Badge (shrink-0) */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#34445F] shrink-0">
+        {/* Top Bar: Status Badge + Mute/Close Controls */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#8B2CF5] to-[#D946EF] text-white shadow-lg shadow-[#8B2CF5]/40 animate-bounce-slow">
-              <BellRing className="h-5 w-5 animate-pulse" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#8B2CF5] to-[#D946EF] text-white shadow-lg shadow-[#8B2CF5]/40 animate-bounce-slow">
+              <BellRing className="h-4.5 w-4.5 animate-pulse" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#D946EF]">
-                Tasklert Scheduled Alarm
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#D946EF]">
+                Tasklert Clock
               </span>
-              <p className="text-sm font-semibold text-[#F8FAFC]">Due Reminder Alert</p>
+              <p className="text-xs font-semibold text-slate-300">
+                {isLinkedToTask ? "Task Alarm Ringing" : "Alarm Ringing"}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Audio Mute / Unmute Toggle */}
             <button
+              type="button"
               onClick={toggleMute}
-              className="rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition cursor-pointer"
+              className="rounded-xl border border-slate-700 bg-slate-800/80 p-2 text-slate-300 hover:text-white transition cursor-pointer"
               title={isMuted ? "Unmute Alarm" : "Mute Sound"}
               aria-label={isMuted ? "Unmute Alarm" : "Mute Sound"}
             >
-              {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />}
+              {isMuted ? (
+                <VolumeX className="h-4 w-4 text-rose-400" />
+              ) : (
+                <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />
+              )}
             </button>
             <button
+              type="button"
               onClick={handleForceClose}
-              className="rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition cursor-pointer"
+              className="rounded-xl border border-slate-700 bg-slate-800/80 p-2 text-slate-300 hover:text-white transition cursor-pointer"
               title="Close Alarm"
               aria-label="Close Alarm"
             >
@@ -172,28 +229,61 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
           </div>
         </div>
 
-        {/* Task Title & Details (Scrollable if needed on small screens) */}
-        <div className="my-5 space-y-3 flex-1 min-h-0 overflow-y-auto overscroll-contain modal-content-scroll pr-1">
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${priorityClass}`}>
+        {/* Samsung Clock Big Digital Ringing Display */}
+        <div className="my-4 text-center shrink-0">
+          <div className="inline-flex items-baseline justify-center gap-2">
+            <span className="text-5xl sm:text-6xl font-extrabold font-mono tracking-tight text-white drop-shadow-md">
+              {timeFormatted}
+            </span>
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-xs font-mono text-purple-300 font-bold">
+                :{seconds}
+              </span>
+              <span className="text-sm font-extrabold text-purple-400">
+                {period}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${priorityClass}`}
+            >
               <Flag className="h-3 w-3" />
               {alarm.priority || "Medium"} Priority
             </span>
-            <span className="inline-flex items-center gap-1 text-xs text-[#AAB8CF]">
-              <Clock className="h-3.5 w-3.5 text-[#8B2CF5]" />
-              {alarm.scheduledAt ? new Date(alarm.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now"}
-            </span>
+            {isLinkedToTask && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/20 px-2.5 py-0.5 text-[11px] font-bold text-purple-200">
+                <CheckCheck className="h-3 w-3 text-purple-300" />
+                Linked to Task
+              </span>
+            )}
           </div>
+        </div>
 
-          <h2 id="alarm-modal-title" className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] leading-snug">
-            {alarm.title}
-          </h2>
+        {/* Alarm Title & Description (Scrollable container for small screens) */}
+        <div className="my-2 space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain modal-content-scroll pr-1">
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
+            <h2
+              id="alarm-modal-title"
+              className="text-xl sm:text-2xl font-extrabold text-white leading-snug break-words"
+            >
+              {alarm.title}
+            </h2>
 
-          {alarm.body && (
-            <p className="text-sm text-[#AAB8CF] leading-relaxed bg-[#19243A]/70 border border-[#34445F]/60 p-3 rounded-xl">
-              {alarm.body}
-            </p>
-          )}
+            {alarm.body && (
+              <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed break-words text-left bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                {alarm.body}
+              </p>
+            )}
+
+            {isLinkedToTask && (
+              <p className="mt-2 text-[11px] font-medium text-emerald-400 flex items-center justify-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                Dismissing will mark this task as Completed in MongoDB.
+              </p>
+            )}
+          </div>
 
           {errorMessage && (
             <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-3 text-xs text-rose-300">
@@ -210,21 +300,21 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
           )}
         </div>
 
-        {/* Snooze & Dismiss Controls (Stable shrink-0 Footer) */}
-        <div className="space-y-4 pt-3 border-t border-[#34445F]/60 shrink-0">
-          {/* Snooze Options */}
-          <div className="flex items-center justify-between rounded-xl border border-[#34445F] bg-[#19243A] p-2 text-xs">
-            <span className="text-[#AAB8CF] font-medium pl-2">Snooze duration:</span>
+        {/* Samsung Clock-inspired Controls (Stable shrink-0 Footer) */}
+        <div className="space-y-3 pt-3 border-t border-slate-800 shrink-0">
+          {/* Snooze Duration Selector */}
+          <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/90 p-2 text-xs">
+            <span className="text-slate-400 font-medium pl-2">Snooze time:</span>
             <div className="flex gap-1.5">
               {SNOOZE_OPTIONS.map((min) => (
                 <button
                   key={min}
                   type="button"
                   onClick={() => setSelectedSnooze(min)}
-                  className={`rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer ${
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
                     selectedSnooze === min
                       ? "bg-[#8B2CF5] text-white shadow-sm"
-                      : "text-[#AAB8CF] hover:text-white hover:bg-[#222F49]"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
                   }`}
                 >
                   {min}m
@@ -233,26 +323,32 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons: Snooze & Dismiss/Complete */}
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={handleSnooze}
               disabled={loadingAction}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[#34445F] bg-[#19243A] hover:bg-[#222F49] px-4 py-3 text-sm font-semibold text-[#F8FAFC] transition cursor-pointer disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700/80 px-4 py-3.5 text-xs sm:text-sm font-bold text-slate-200 transition active:scale-[0.99] cursor-pointer disabled:opacity-50"
             >
-              <Clock className="h-4 w-4 text-[#8B2CF5]" />
-              {loadingAction ? "Snoozing..." : `Snooze (${selectedSnooze}m)`}
+              <Clock className="h-4 w-4 text-purple-400" />
+              <span>{loadingAction ? "Snoozing..." : `Snooze (${selectedSnooze}m)`}</span>
             </button>
 
             <button
               type="button"
               onClick={handleDismiss}
               disabled={loadingAction}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#8B2CF5]/30 hover:brightness-110 active:scale-[0.99] transition cursor-pointer disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-[#8B2CF5]/40 hover:brightness-110 active:scale-[0.99] transition cursor-pointer disabled:opacity-50"
             >
-              <CheckCircle className="h-4 w-4" />
-              {loadingAction ? "Dismissing..." : "Dismiss Alarm"}
+              <CheckCircle2 className="h-4.5 w-4.5 text-white" />
+              <span>
+                {loadingAction
+                  ? "Completing..."
+                  : isLinkedToTask
+                  ? "Dismiss & Complete"
+                  : "Stop Alarm"}
+              </span>
             </button>
           </div>
         </div>

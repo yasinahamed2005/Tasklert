@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast, ToastContainer } from "react-toastify";
+import { notify } from "../utils/toastManager";
 import { BACK_BUTTON, personalFields, securityFields } from "../assets/dummy";
 import {
   ChevronLeft,
@@ -56,7 +56,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
     localStorage.setItem("theme", theme);
     setActiveTheme(theme);
     window.dispatchEvent(new CustomEvent("themechange", { detail: theme }));
-    toast.success("Accent theme applied!");
+    notify.success("Accent theme applied!", { toastId: "theme-applied" });
   };
 
   useEffect(() => {
@@ -70,9 +70,9 @@ const Profile = ({ setCurrentUser, onLogout }) => {
       .then(({ data }) => {
         if (data.success)
           setProfile({ name: data.user.name, email: data.user.email });
-        else toast.error(data.message);
+        else notify.error(data.message);
       })
-      .catch(() => toast.error("Unable to load profile information."));
+      .catch(() => notify.error("Unable to load profile information."));
   }, []);
 
   const saveProfile = async (e) => {
@@ -95,10 +95,10 @@ const Profile = ({ setCurrentUser, onLogout }) => {
             profile.name
           )}&background=random`,
         }));
-        toast.success("Profile updated successfully!");
-      } else toast.error(data.message);
+        notify.success("Profile updated successfully!");
+      } else notify.error(data.message);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Profile update failed");
+      notify.error(err.response?.data?.message || "Profile update failed");
     } finally {
       setSavingProfile(false);
     }
@@ -107,10 +107,10 @@ const Profile = ({ setCurrentUser, onLogout }) => {
   const changePassword = async (e) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
-      return toast.error("New password & confirmation do not match.");
+      return notify.error("New password & confirmation do not match.");
     }
     if (passwords.new.length < 8) {
-      return toast.error("New password must be at least 8 characters.");
+      return notify.error("New password must be at least 8 characters.");
     }
     setSavingPassword(true);
     try {
@@ -124,11 +124,11 @@ const Profile = ({ setCurrentUser, onLogout }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (data.success) {
-        toast.success("Password changed successfully!");
+        notify.success("Password changed successfully!");
         setPasswords({ current: "", new: "", confirm: "" });
-      } else toast.error(data.message);
+      } else notify.error(data.message);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Password change failed");
+      notify.error(err.response?.data?.message || "Password change failed");
     } finally {
       setSavingPassword(false);
     }
@@ -147,9 +147,9 @@ const Profile = ({ setCurrentUser, onLogout }) => {
         </button>
 
         {/* Header Profile Card - Mobile Centered Style matching Screen 12 */}
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 p-6 shadow-sm flex flex-col items-center text-center">
+        <div className="bg-white rounded-3xl border border-purple-100 p-6 shadow-xs flex flex-col items-center text-center">
           <div className="relative mb-3">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-xl shadow-purple-500/25">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-sm">
               {profile.name ? profile.name[0].toUpperCase() : "N"}
             </div>
             <span className="absolute bottom-0 right-0 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full" title="Active Account" />
@@ -247,7 +247,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
           <button
             type="button"
             onClick={() => {
-              toast.info("Tasklert Support: Check documentation or contact support@tasklert.com");
+              notify.info("Tasklert Support: Check documentation or contact support@tasklert.com");
             }}
             className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
           >
@@ -277,7 +277,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
         </div>
 
         {/* Accent Theme Selection */}
-        <section className={`bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 shadow-sm p-5 sm:p-6 space-y-3.5 transition-all duration-300 ${
+        <section className={`bg-white rounded-3xl border border-purple-100 shadow-xs p-5 sm:p-6 space-y-3.5 transition-all duration-300 ${
           activeSection === "themes" ? "block animate-fadeIn" : "hidden sm:block"
         }`}>
           <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
@@ -315,7 +315,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
         {/* Profile & Security Grid */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* Personal Information */}
-          <section className={`bg-white/90 backdrop-blur-md rounded-3xl border border-purple-100 shadow-sm p-6 space-y-5 transition-all duration-300 ${
+          <section className={`bg-white rounded-3xl border border-purple-100 shadow-xs p-6 space-y-5 transition-all duration-300 ${
             activeSection === "account" ? "block animate-fadeIn" : "hidden sm:block"
           }`}>
             <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
@@ -371,7 +371,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
           </section>
 
           {/* Security & Password */}
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100 shadow-sm p-6 space-y-5 flex flex-col justify-between transition-all duration-300 hover:shadow-md">
+          <section className="bg-white rounded-2xl border border-purple-100 shadow-xs p-6 space-y-5 flex flex-col justify-between transition-all duration-300">
             <div>
               <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100 mb-5">
                 <div className="p-2 rounded-lg bg-purple-50 text-purple-600">

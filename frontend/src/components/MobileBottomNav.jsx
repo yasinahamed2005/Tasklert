@@ -30,16 +30,16 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION BAR */}
       <nav
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-purple-100/80 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-purple-100/80 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. HOME */}
           <NavLink
             to="/"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold scale-105"
+                  ? "text-[color:var(--primary)] font-bold"
                   : "text-gray-500 hover:text-gray-800 font-medium"
               }`
             }
@@ -54,9 +54,9 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
           <button
             type="button"
             onClick={() => handleNav("/pending")}
-            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
               isTasksActive && !moreOpen
-                ? "text-[color:var(--primary)] font-bold scale-105"
+                ? "text-[color:var(--primary)] font-bold"
                 : "text-gray-500 hover:text-gray-800 font-medium"
             }`}
           >
@@ -75,9 +75,9 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
           <NavLink
             to="/calendar"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold scale-105"
+                  ? "text-[color:var(--primary)] font-bold"
                   : "text-gray-500 hover:text-gray-800 font-medium"
               }`
             }
@@ -92,9 +92,9 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
           <NavLink
             to="/focus"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold scale-105"
+                  ? "text-[color:var(--primary)] font-bold"
                   : "text-gray-500 hover:text-gray-800 font-medium"
               }`
             }
@@ -109,9 +109,9 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
           <button
             type="button"
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
               isMoreActive
-                ? "text-[color:var(--primary)] font-bold scale-105"
+                ? "text-[color:var(--primary)] font-bold"
                 : "text-gray-500 hover:text-gray-800 font-medium"
             }`}
           >

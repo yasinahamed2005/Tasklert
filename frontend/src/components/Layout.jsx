@@ -4,13 +4,11 @@ import Sidebar from "./Sidebar";
 import { Outlet, useLocation } from "react-router-dom";
 import axios from "axios";
 import { TrendingUp, Circle, Clock, Zap, AlertTriangle } from "lucide-react";
-import { toast } from "react-toastify";
+import { notify } from "../utils/toastManager";
 import AlertsPanel from "./AlertsPanel";
 import AlarmModal from "./AlarmModal";
 import MobileBottomNav from "./MobileBottomNav";
 import NotificationPermissionBanner from "./NotificationPermissionBanner";
-import { AppStartupFallback } from "./PageSkeletons";
-import PageTransitionLoader from "./PageTransitionLoader";
 import ErrorBoundary from "./ErrorBoundary";
 import { showBrowserNotification } from "../utils/pushManager";
 import { API_BASE_URL } from "../config/api";
@@ -37,48 +35,50 @@ const StatCard = ({ title, value, icon }) => (
 const Layout = ({ onLogout, user }) => {
   const location = useLocation();
   const isFullWidthPage = ["/settings", "/profile", "/messages", "/calendar", "/analytics", "/focus"].includes(location.pathname);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("tasklert_cached_tasks");
+      return cached ? JSON.parse(cached) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem("tasklert_cached_tasks");
+    } catch (_) {
+      return true;
+    }
+  });
   const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeAlarm, setActiveAlarm] = useState(null);
 
-  const [isNavigating, setIsNavigating] = useState(false);
-  const prevPathRef = useRef(location.pathname);
+  // Notification lifecycle & storm protection refs
+  const isInitialNotifFetchRef = useRef(true);
+  const knownNotificationIdsRef = useRef(new Set());
+  const currentUserIdRef = useRef(user?.id || user?._id || localStorage.getItem("userId") || "");
 
-  // Reset scroll to top on page transition and manage clean minimal route transitions
+  // Reset notification state on user logout or account switch to prevent data leakage
+  useEffect(() => {
+    const activeId = user?.id || user?._id || localStorage.getItem("userId") || "";
+    if (currentUserIdRef.current && currentUserIdRef.current !== activeId) {
+      knownNotificationIdsRef.current.clear();
+      isInitialNotifFetchRef.current = true;
+      setNotifications([]);
+      setUnreadCount(0);
+      notify.clear();
+    }
+    currentUserIdRef.current = activeId;
+  }, [user]);
+
+  // Reset scroll to top on page transition (instant, zero artificial delay)
   useEffect(() => {
     window.scrollTo(0, 0);
-
-    // If pathname didn't change (e.g. query param or hash change), do not trigger route transition
-    if (prevPathRef.current === location.pathname) {
-      return;
-    }
-
-    prevPathRef.current = location.pathname;
-
-    // Respect reduced-motion accessibility preference
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (prefersReducedMotion) {
-      setIsNavigating(false);
-      return;
-    }
-
-    setIsNavigating(true);
-    const timer = setTimeout(() => {
-      setIsNavigating(false);
-    }, 180);
-
-    return () => clearTimeout(timer);
   }, [location.pathname]);
 
   const fetchTasks = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem("token");
@@ -106,6 +106,9 @@ const Layout = ({ onLogout, user }) => {
         ? data.data
         : [];
       setTasks(arr);
+      try {
+        sessionStorage.setItem("tasklert_cached_tasks", JSON.stringify(arr));
+      } catch (_) {}
     } catch (err) {
       console.error(err);
       setError(err.message || "Could not load tasks.");
@@ -136,8 +139,50 @@ const Layout = ({ onLogout, user }) => {
         : [];
       setNotifications(list);
       setUnreadCount(Number(data?.unreadCount || 0));
+
+      // Quiet initial load: seed known IDs so historical notifications populate NotificationBell quietly
+      // without firing ANY toasts or browser notifications on login/startup/refresh
+      if (isInitialNotifFetchRef.current) {
+        list.forEach((item) => knownNotificationIdsRef.current.add(item._id));
+        isInitialNotifFetchRef.current = false;
+        return;
+      }
+
+      // Subsequent background polls: only alert on genuinely new unread notifications that arrived during active session
+      const newUnreadItems = list.filter(
+        (item) => !item.read && !knownNotificationIdsRef.current.has(item._id)
+      );
+
+      if (newUnreadItems.length > 0) {
+        newUnreadItems.forEach((item) => knownNotificationIdsRef.current.add(item._id));
+
+        if (newUnreadItems.length === 1) {
+          const single = newUnreadItems[0];
+          notify.info(`${single.title}: ${single.message}`, {
+            toastId: `notif-${single._id}`,
+            autoClose: 5000,
+          });
+          showBrowserNotification(single.title || "Task Update", {
+            body: single.message,
+          });
+        } else {
+          // Bounded burst alert: top priority notification + compact discreet summary
+          const top = newUnreadItems[0];
+          notify.info(`${top.title}: ${top.message}`, {
+            toastId: `notif-${top._id}`,
+            autoClose: 4000,
+          });
+          notify.info(
+            `You have ${newUnreadItems.length} new notifications. Check your notification center.`,
+            { toastId: "notif-burst-summary", autoClose: 4000 }
+          );
+          showBrowserNotification(`Tasklert (${newUnreadItems.length} new notifications)`, {
+            body: `${top.title}: ${top.message}`,
+          });
+        }
+      }
     } catch (err) {
-      console.error(err);
+      console.error("fetchNotifications error:", err.message);
       if (err.response?.status === 401) onLogout();
     }
   }, [onLogout]);
@@ -166,7 +211,25 @@ const Layout = ({ onLogout, user }) => {
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
-        console.error(err);
+        console.error("markNotificationRead error:", err);
+      }
+    },
+    []
+  );
+
+  const deleteSingleNotification = useCallback(
+    async (id) => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        await axios.delete(`${API_BASE}/api/notifications/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setNotifications((prev) => prev.filter((item) => item._id !== id));
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (err) {
+        console.error("deleteNotification error:", err);
       }
     },
     []
@@ -183,42 +246,9 @@ const Layout = ({ onLogout, user }) => {
       setNotifications([]);
       setUnreadCount(0);
     } catch (err) {
-      console.error(err);
+      console.error("clearAllNotifications error:", err);
     }
   }, []);
-
-  useEffect(() => {
-    if (!notifications.length) return;
-
-    // Mobile-only suppression: do not display blocking overdue toast popups on mobile screens (<768px)
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-
-    notifications.forEach((item) => {
-      if (item.read) return;
-      const key = `tasklert-notif-${item._id}`;
-      try {
-        if (localStorage.getItem(key)) return;
-      } catch (_) {}
-
-      // Display banner toast on desktop/website only (suppressed on mobile)
-      if (!isMobile) {
-        toast.info(item.message, {
-          autoClose: 7000,
-          pauseOnHover: true,
-          closeOnClick: true,
-        });
-      }
-
-      // Safe cross-platform browser notification (Android Chrome + Desktop compatible)
-      showBrowserNotification(item.title || "Task Update", {
-        body: item.message,
-      });
-
-      try {
-        localStorage.setItem(key, "1");
-      } catch (_) {}
-    });
-  }, [notifications]);
 
   const isTaskCompleted = useCallback((task) => {
     const value = task?.completed;
@@ -268,7 +298,7 @@ const Layout = ({ onLogout, user }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
               )
               .then(() => {
-                toast.info("Alarm dismissed.");
+                notify.info("Alarm dismissed & task marked completed.");
                 fetchTasks();
                 fetchNotifications();
               })
@@ -281,7 +311,7 @@ const Layout = ({ onLogout, user }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
               )
               .then(() => {
-                toast.info("Alarm snoozed for 5 minutes.");
+                notify.info("Alarm snoozed for 5 minutes.");
                 fetchTasks();
                 fetchNotifications();
               })
@@ -318,7 +348,7 @@ const Layout = ({ onLogout, user }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         )
         .then(() => {
-          toast.info("Alarm dismissed.");
+          notify.info("Alarm dismissed & task marked completed.");
           fetchTasks();
           fetchNotifications();
         })
@@ -331,7 +361,7 @@ const Layout = ({ onLogout, user }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         )
         .then(() => {
-          toast.info("Alarm snoozed for 5 minutes.");
+          notify.info("Alarm snoozed for 5 minutes.");
           fetchTasks();
           fetchNotifications();
         })
@@ -398,13 +428,9 @@ const Layout = ({ onLogout, user }) => {
 
 
   const outletContext = useMemo(
-    () => ({ tasks, refreshTasks: fetchTasks, user }),
-    [tasks, fetchTasks, user]
+    () => ({ tasks, refreshTasks: fetchTasks, user, loadingTasks: loading }),
+    [tasks, fetchTasks, user, loading]
   );
-
-  // INITIAL APP LOAD
-  if (loading)
-    return <AppStartupFallback label="Loading Tasklert Workspace..." />;
 
   // ERROR (Only block dashboard/tasks when tasks are critical and unavailable)
   const isTaskCriticalPage = ["/", "/pending", "/Complete"].includes(location.pathname);
@@ -438,14 +464,11 @@ const Layout = ({ onLogout, user }) => {
         unreadCount={unreadCount}
         onMarkNotificationRead={markNotificationRead}
         onClearAllNotifications={clearAllNotifications}
+        onDeleteNotification={deleteSingleNotification}
       />
       <Sidebar user={user} tasks={tasks} />
-      <div className="w-full min-w-0 ml-0 md:ml-20 lg:ml-64 xl:ml-64 pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300">
-        {isNavigating ? (
-          <div className="w-full min-w-0 flex items-center justify-center min-h-[55vh] py-16">
-            <PageTransitionLoader message="Navigating to page..." />
-          </div>
-        ) : isFullWidthPage ? (
+      <div className="min-w-0 ml-0 md:ml-20 lg:ml-64 xl:ml-64 pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300">
+        {isFullWidthPage ? (
           <div className="w-full min-w-0 animate-page-enter">
             <ErrorBoundary>
               <Outlet context={outletContext} />
@@ -586,7 +609,16 @@ const Layout = ({ onLogout, user }) => {
         <AlarmModal
           alarm={activeAlarm}
           onClose={() => setActiveAlarm(null)}
-          onActionCompleted={() => {
+          onActionCompleted={(result) => {
+            if (result?.dismissed && result?.taskId) {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  String(t._id || t.id) === String(result.taskId)
+                    ? { ...t, completed: true, completedAt: new Date().toISOString() }
+                    : t
+                )
+              );
+            }
             fetchTasks();
             fetchNotifications();
           }}

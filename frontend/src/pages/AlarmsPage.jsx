@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate, useOutletContext } from "react-router-dom";
@@ -11,21 +12,24 @@ import {
   Square,
   Trash2,
   Volume2,
+  VolumeX,
+  Volume1,
   RotateCw,
   Calendar,
   Sparkles,
   ArrowLeft,
   X,
   CheckCircle2,
-  Sliders,
-  Radio,
+  CheckCheck,
   Settings,
+  ListTodo,
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
 import AlarmModal from "../components/AlarmModal";
 import { API_BASE_URL } from "../config/api";
 import PageTransitionLoader from "../components/PageTransitionLoader";
 import { showBrowserNotification } from "../utils/pushManager";
+import { useModalAccessibility } from "../utils/scrollLock";
 
 const API_BASE = `${API_BASE_URL}/api/reminders`;
 
@@ -37,18 +41,27 @@ const SOUND_OPTIONS = [
   { id: "soft", label: "Soft Reminder (Mellow)" },
 ];
 
-const REPEAT_OPTIONS = [
-  { id: "never", label: "Once (Ring One Time)" },
-  { id: "daily", label: "Daily (Every Day)" },
-  { id: "weekly", label: "Weekly (Once a Week)" },
+const WEEKDAYS = [
+  { id: 0, label: "S", name: "Sun" },
+  { id: 1, label: "M", name: "Mon" },
+  { id: 2, label: "T", name: "Tue" },
+  { id: 3, label: "W", name: "Wed" },
+  { id: 4, label: "T", name: "Thu" },
+  { id: 5, label: "F", name: "Fri" },
+  { id: 6, label: "S", name: "Sat" },
 ];
 
 export const AlarmsPage = () => {
   const navigate = useNavigate();
   const outletContext = useOutletContext?.() || {};
-  const { refreshTasks } = outletContext;
+  const { refreshTasks, tasks = [] } = outletContext;
 
-  // Live real-time clock state
+  // Filter pending tasks that can be linked to alarms
+  const pendingTasks = useMemo(() => {
+    return tasks.filter((t) => !t.completed);
+  }, [tasks]);
+
+  // Live real-time clock state (Samsung Clock style)
   const [currentTime, setCurrentTime] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -68,14 +81,44 @@ export const AlarmsPage = () => {
   const defaultMinute = String((new Date().getMinutes() + 5) % 60).padStart(2, "0");
   const [alarmTime, setAlarmTime] = useState(`${defaultHour}:${defaultMinute}`);
   const [alarmTitle, setAlarmTitle] = useState("Morning Wakeup");
+  const [linkedTaskId, setLinkedTaskId] = useState("");
   const [alarmSound, setAlarmSound] = useState("digital");
   const [alarmVolume, setAlarmVolume] = useState(85);
-  const [alarmRepeat, setAlarmRepeat] = useState("never");
+  const [alarmRepeat, setAlarmRepeat] = useState("never"); // 'never' | 'daily' | 'weekly'
+  const [selectedDays, setSelectedDays] = useState(new Set([new Date().getDay()]));
   const [alarmSnooze, setAlarmSnooze] = useState(5);
   const [savingAlarm, setSavingAlarm] = useState(false);
 
+  // Modal accessibility & body scroll lock
+  const addModalRef = useRef(null);
+  const handleCloseAddModal = useCallback(() => {
+    soundManager.stop();
+    setPreviewingSound(null);
+    setShowAddModal(false);
+  }, []);
+
+  useModalAccessibility({
+    isOpen: showAddModal,
+    onClose: handleCloseAddModal,
+    modalRef: addModalRef,
+  });
+
+  // Unambiguous 12-hour format display helper
+  const formatted12Hour = useMemo(() => {
+    const [hStr, mStr] = (alarmTime || "07:00").split(":");
+    const h = Number(hStr) || 0;
+    const m = mStr || "00";
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return {
+      period,
+      time12: `${String(h12).padStart(2, "0")}:${m} ${period}`,
+    };
+  }, [alarmTime]);
+
   // Ref to track alarms that have fired today to avoid double-triggering within the same minute
   const firedTrackerRef = useRef(new Set());
+
 
   // Fetch all user alarms
   const fetchAlarms = useCallback(async () => {
@@ -119,7 +162,6 @@ export const AlarmsPage = () => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } catch (patchErr) {
-        // Fallback to PUT if PATCH is ever restricted by network/proxy
         res = await axios.put(
           `${API_BASE}/${alarmId}/toggle`,
           {},
@@ -167,13 +209,14 @@ export const AlarmsPage = () => {
     }
   };
 
-  // TEST RING ALARM (Immediate verification)
+  // TEST RING ALARM (Immediate verification with task completion support)
   const handleTestRing = (alarm) => {
     soundManager.stop();
     setActiveRingingAlarm({
       alarmId: alarm._id,
+      taskId: alarm.task?._id || alarm.task,
       title: `⏰ TEST RING: ${alarm.title || "Alarm"}`,
-      body: `Testing alarm sound (${alarm.sound || "digital"}). Tap Dismiss or Snooze to stop.`,
+      body: `Testing alarm sound (${alarm.sound || "digital"}). Tap Dismiss & Complete to test full flow.`,
       sound: alarm.sound || "digital",
       volume: alarm.volume || 85,
       priority: alarm.priority || "High",
@@ -181,16 +224,44 @@ export const AlarmsPage = () => {
     });
   };
 
+  const previewTimerRef = useRef(null);
+
   // PREVIEW SOUND
   const handlePreviewSound = (soundId) => {
+    soundManager.stop();
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+
     if (previewingSound === soundId) {
-      soundManager.stop();
       setPreviewingSound(null);
     } else {
       setPreviewingSound(soundId);
       soundManager.preview(soundId, alarmVolume);
-      setTimeout(() => setPreviewingSound(null), 2500);
+      previewTimerRef.current = setTimeout(() => {
+        setPreviewingSound(null);
+      }, 2500);
     }
+  };
+
+
+  // Toggle Day in Repeat Selector
+  const handleToggleDay = (dayId) => {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayId)) {
+        if (next.size > 1) next.delete(dayId); // Keep at least one
+      } else {
+        next.add(dayId);
+      }
+      // Update repeat mode based on selection
+      if (next.size === 7) {
+        setAlarmRepeat("daily");
+      } else if (next.size === 1) {
+        setAlarmRepeat("weekly");
+      } else {
+        setAlarmRepeat("weekly");
+      }
+      return next;
+    });
   };
 
   // CREATE / SAVE NEW ALARM
@@ -225,6 +296,10 @@ export const AlarmsPage = () => {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       };
 
+      if (linkedTaskId) {
+        payload.taskId = linkedTaskId;
+      }
+
       const { data } = await axios.post(API_BASE, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -234,6 +309,7 @@ export const AlarmsPage = () => {
           `Alarm set for ${targetDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}! ⏰`
         );
         setShowAddModal(false);
+        setLinkedTaskId("");
         fetchAlarms();
         refreshTasks?.();
       }
@@ -269,9 +345,10 @@ export const AlarmsPage = () => {
         if ((isTimeMatch || isWithinWindow) && !firedTrackerRef.current.has(minuteKey)) {
           firedTrackerRef.current.add(minuteKey);
 
-          // Trigger ringing alarm modal and sound
+          // Trigger ringing alarm modal with taskId passed for completion
           setActiveRingingAlarm({
             alarmId: alarm._id,
+            taskId: alarm.task?._id || alarm.task,
             title: `⏰ ${alarm.title || "Alarm"}`,
             body: alarm.message || `Alarm set for ${alarmDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} is ringing!`,
             sound: alarm.sound || "digital",
@@ -280,14 +357,14 @@ export const AlarmsPage = () => {
             scheduledAt: alarm.scheduledAt,
           });
 
-          // Device vibration if supported (guarded against browser permissions)
+          // Device vibration if supported
           if (typeof navigator !== "undefined" && navigator.vibrate) {
             try {
               navigator.vibrate([400, 200, 400, 200, 600]);
             } catch (_) {}
           }
 
-          // Safe cross-platform browser notification (Android Chrome + Desktop compatible)
+          // Safe cross-platform browser notification
           showBrowserNotification(`⏰ ${alarm.title || "Tasklert Alarm"}`, {
             body: `Alarm is ringing now!`,
             requireInteraction: true,
@@ -300,7 +377,7 @@ export const AlarmsPage = () => {
     return () => clearInterval(interval);
   }, [alarms]);
 
-  // Next upcoming alarm calculation
+  // Next upcoming active alarm calculation
   const nextAlarm = useMemo(() => {
     const active = alarms
       .filter((a) => a.alarmEnabled)
@@ -314,6 +391,7 @@ export const AlarmsPage = () => {
     return active[0] || null;
   }, [alarms]);
 
+  // Samsung Clock-style Relative Countdown Helper
   const timeUntilNextAlarm = useMemo(() => {
     if (!nextAlarm) return null;
     const diffMs = nextAlarm.time - currentTime.getTime();
@@ -331,9 +409,27 @@ export const AlarmsPage = () => {
     return alarms;
   }, [alarms, filterMode]);
 
+  // Samsung Clock Day Active Checker
+  const isDayActive = (alarm, dayIndex) => {
+    if (alarm.repeat === "daily") return true;
+    if (alarm.repeat === "weekly") {
+      const scheduledDay = new Date(alarm.scheduledAt).getDay();
+      return scheduledDay === dayIndex;
+    }
+    return false;
+  };
+
+  // Clock header values
+  const clockHours = currentTime.getHours();
+  const clockMinutes = String(currentTime.getMinutes()).padStart(2, "0");
+  const clockSeconds = String(currentTime.getSeconds()).padStart(2, "0");
+  const clockPeriod = clockHours >= 12 ? "PM" : "AM";
+  const clockDisplayHours = clockHours % 12 || 12;
+  const clockFormatted = `${String(clockDisplayHours).padStart(2, "0")}:${clockMinutes}`;
+
   return (
     <div className="p-2 sm:p-4 md:p-6 min-w-0 w-full space-y-4 sm:space-y-6 max-w-4xl mx-auto">
-      {/* REAL-TIME ALARM MODAL (Rings with Sound, Snooze & Dismiss) */}
+      {/* REAL-TIME ALARM MODAL (Samsung Clock Ringing Screen) */}
       {activeRingingAlarm && (
         <AlarmModal
           alarm={activeRingingAlarm}
@@ -341,7 +437,7 @@ export const AlarmsPage = () => {
             soundManager.stop();
             setActiveRingingAlarm(null);
           }}
-          onActionCompleted={() => {
+          onActionCompleted={(result) => {
             soundManager.stop();
             setActiveRingingAlarm(null);
             fetchAlarms();
@@ -350,18 +446,18 @@ export const AlarmsPage = () => {
         />
       )}
 
-      {/* TOP HEADER & REAL-TIME DIGITAL CLOCK */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl border border-purple-100 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* TOP HEADER & CONTROLS */}
+      <div className="bg-white rounded-3xl border border-purple-100 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 shadow-xs shrink-0">
-            <AlarmClock className="w-6 h-6 animate-pulse" />
+            <AlarmClock className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
               Alarms &amp; Clock
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Exact-time alarms, daily schedules, Web Audio tones, and real-time ringing.
+              Exact-time alarms, daily schedules, Web Audio tones, and automatic task completion.
             </p>
           </div>
         </div>
@@ -388,11 +484,14 @@ export const AlarmsPage = () => {
         </div>
       </div>
 
-      {/* LIVE DIGITAL CLOCK DISPLAY CARD */}
-      <div className="bg-gradient-to-br from-purple-700 to-indigo-800 text-white rounded-3xl p-6 sm:p-8 shadow-md text-center relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+      {/* SAMSUNG CLOCK LIVE DIGITAL CLOCK & NEXT ALARM HERO CARD */}
+      <div className="bg-gradient-to-br from-[#7C3AED] via-[#8B2CF5] to-[#4F46E5] text-white rounded-3xl p-6 sm:p-8 shadow-md text-center relative overflow-hidden">
+        {/* Subtle background ambient glow */}
+        <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-purple-400/20 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="text-xs sm:text-sm font-semibold text-purple-200 tracking-widest uppercase mb-1">
+        {/* Date line */}
+        <div className="text-xs sm:text-sm font-semibold text-purple-200 tracking-wider uppercase mb-1">
           {currentTime.toLocaleDateString([], {
             weekday: "long",
             month: "short",
@@ -401,27 +500,33 @@ export const AlarmsPage = () => {
           })}
         </div>
 
-        {/* Big Digital Clock */}
-        <div className="text-4xl sm:text-6xl font-extrabold tracking-tight font-mono py-1">
-          {currentTime.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })}
+        {/* Big Crisp Digital Time Display */}
+        <div className="flex items-baseline justify-center gap-2 py-1">
+          <span className="text-5xl sm:text-7xl font-extrabold tracking-tight font-mono drop-shadow-sm">
+            {clockFormatted}
+          </span>
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-xs sm:text-sm font-mono text-purple-200 font-bold">
+              :{clockSeconds}
+            </span>
+            <span className="text-sm sm:text-base font-extrabold text-purple-100">
+              {clockPeriod}
+            </span>
+          </div>
         </div>
 
-        {/* Next Alarm Pill */}
-        <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-purple-100 border border-white/20">
-          <Clock className="w-3.5 h-3.5" />
+        {/* Samsung Clock Smart Next Alarm Countdown Banner */}
+        <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs sm:text-sm font-semibold text-purple-100 border border-white/20 shadow-xs">
+          <Clock className="w-3.5 h-3.5 text-purple-200" />
           <span>
             {nextAlarm
-              ? `Next alarm: ${new Date(nextAlarm.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${timeUntilNextAlarm})`
-              : "No alarms active"}
+              ? `Next alarm ${timeUntilNextAlarm} (${new Date(nextAlarm.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`
+              : "All alarms are currently off"}
           </span>
         </div>
       </div>
 
-      {/* FILTER TABS & ALARM COUNT */}
+      {/* FILTER TABS & REFRESH */}
       <div className="flex items-center justify-between gap-3">
         <div className="inline-flex rounded-xl bg-purple-50/80 p-1 border border-purple-100">
           <button
@@ -458,7 +563,7 @@ export const AlarmsPage = () => {
         </button>
       </div>
 
-      {/* ALARMS LIST */}
+      {/* SAMSUNG CLOCK ALARMS LIST */}
       {loading ? (
         <PageTransitionLoader message="Loading alarms..." minHeight="min-h-[35vh]" />
       ) : filteredAlarms.length === 0 ? (
@@ -470,7 +575,7 @@ export const AlarmsPage = () => {
             {filterMode === "enabled" ? "No Active Alarms" : "No Alarms Created Yet"}
           </h3>
           <p className="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto">
-            Set an alarm with your favorite tone, repeat schedule, and wake up or stay on schedule in real-time.
+            Set an alarm with your favorite tone, repeat schedule, and link to a task so stopping the alarm automatically completes the task.
           </p>
           <button
             type="button"
@@ -491,20 +596,22 @@ export const AlarmsPage = () => {
             const displayHours = hours % 12 || 12;
             const timeStr = `${String(displayHours).padStart(2, "0")}:${minutes}`;
             const isEnabled = Boolean(alarm.alarmEnabled);
+            const isLinked = Boolean(alarm.task);
+            const taskTitle = alarm.task?.title || (typeof alarm.task === "object" ? alarm.task?.title : null);
 
             return (
               <div
                 key={alarm._id}
-                className={`bg-white rounded-2xl border transition-all duration-200 p-4 sm:p-5 shadow-xs flex items-center justify-between gap-4 ${
+                className={`bg-white rounded-2xl border transition-all duration-200 p-4 sm:p-5 shadow-xs flex items-center justify-between gap-3 sm:gap-4 ${
                   isEnabled
-                    ? "border-purple-200 shadow-sm"
-                    : "border-gray-200 opacity-60 bg-gray-50/50"
+                    ? "border-purple-200/90 shadow-xs"
+                    : "border-slate-200 opacity-60 bg-slate-50/40"
                 }`}
               >
-                {/* Left: Time, Title, Tags */}
+                {/* Left: Time, Title, Samsung Weekday Bubbles */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-gray-800 font-mono tracking-tight">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-800 font-mono tracking-tight">
                       {timeStr}
                     </span>
                     <span className="text-xs font-bold text-purple-600 uppercase">
@@ -512,27 +619,48 @@ export const AlarmsPage = () => {
                     </span>
                   </div>
 
-                  <p className="text-sm font-bold text-gray-700 mt-0.5 truncate">
-                    {alarm.title || "Alarm"}
-                  </p>
-
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-gray-500">
-                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-medium text-[11px]">
-                      🔔 {alarm.sound || "digital"}
-                    </span>
-                    {alarm.repeat && alarm.repeat !== "never" && (
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-medium text-[11px]">
-                        🔁 {alarm.repeat}
+                  {/* Alarm Title + Linked Task Badge */}
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <p className="text-sm font-bold text-slate-700 truncate">
+                      {alarm.title || "Alarm"}
+                    </p>
+                    {isLinked && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 text-[11px] font-semibold">
+                        <CheckCheck className="w-3 h-3 text-purple-600" />
+                        Linked to Task {taskTitle ? `(${taskTitle})` : ""}
                       </span>
                     )}
-                    <span className="text-gray-400 text-[11px]">
-                      {dateObj.toLocaleDateString([], { month: "short", day: "numeric" })}
+                  </div>
+
+                  {/* Samsung Clock Style 7-Day Repeat Bubbles */}
+                  <div className="flex items-center gap-1 mt-2">
+                    {WEEKDAYS.map((day) => {
+                      const active = isDayActive(alarm, day.id);
+                      return (
+                        <span
+                          key={day.id}
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold transition-colors ${
+                            active && isEnabled
+                              ? "bg-purple-600 text-white shadow-2xs"
+                              : active && !isEnabled
+                              ? "bg-slate-300 text-white"
+                              : "text-slate-400 bg-slate-100"
+                          }`}
+                          title={`${day.name} ${active ? "(Active)" : "(Inactive)"}`}
+                        >
+                          {day.label}
+                        </span>
+                      );
+                    })}
+
+                    <span className="text-slate-400 text-[11px] font-medium ml-2">
+                      🔔 {alarm.sound || "digital"}
                     </span>
                   </div>
                 </div>
 
-                {/* Right: Test Button, ON/OFF Toggle Switch & Delete */}
-                <div className="flex items-center gap-3 shrink-0">
+                {/* Right: Test Button, Samsung One UI Toggle Switch & Delete */}
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   {/* Test Ring Button */}
                   <button
                     type="button"
@@ -543,19 +671,19 @@ export const AlarmsPage = () => {
                     <Play className="w-4 h-4 fill-purple-600" />
                   </button>
 
-                  {/* MODERN SMARTPHONE ON / OFF TOGGLE SWITCH */}
+                  {/* SAMSUNG ONE UI PILL TOGGLE SWITCH */}
                   <button
                     type="button"
                     role="switch"
                     aria-checked={isEnabled}
                     onClick={() => handleToggleAlarm(alarm._id, isEnabled)}
-                    className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
-                      isEnabled ? "bg-purple-600" : "bg-gray-300"
+                    className={`w-12 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                      isEnabled ? "bg-purple-600" : "bg-slate-300"
                     }`}
                     title={isEnabled ? "Alarm is ON (Click to turn off)" : "Alarm is OFF (Click to turn on)"}
                   >
                     <div
-                      className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                      className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
                         isEnabled ? "translate-x-5" : "translate-x-0"
                       }`}
                     />
@@ -565,7 +693,7 @@ export const AlarmsPage = () => {
                   <button
                     type="button"
                     onClick={(e) => handleDeleteAlarm(alarm._id, e)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                     title="Delete Alarm"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -577,166 +705,297 @@ export const AlarmsPage = () => {
         </div>
       )}
 
-      {/* CREATE / SET NEW ALARM MODAL */}
-      {showAddModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAddModal(false);
-          }}
-        >
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full shadow-2xl border border-purple-100 p-5 sm:p-6 max-h-[92vh] overflow-y-auto animate-slideUp">
+      {/* SAMSUNG CLOCK INSPIRED SET NEW ALARM MODAL */}
+      {showAddModal &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="set-alarm-modal-title"
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-none animate-fadeIn"
+            onClick={handleCloseAddModal}
+          >
+          <div
+            ref={addModalRef}
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-purple-100 max-h-[min(90dvh,720px)] flex flex-col overflow-hidden animate-slideUp"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Grab Handle for Mobile */}
-            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 sm:hidden" />
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-2.5 sm:hidden" />
 
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-purple-100 text-purple-600">
+            {/* Modal Header (Fixed / Non-scrolling) */}
+            <div className="p-4 sm:px-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
                   <AlarmClock className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">Set New Alarm</h3>
+                <div>
+                  <h3 id="set-alarm-modal-title" className="text-base sm:text-lg font-bold text-slate-900">
+                    Set Alarm
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Configure time, repeat schedule &amp; optional linked task
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowAddModal(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                onClick={handleCloseAddModal}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAlarm} className="space-y-4">
-              {/* TIME PICKER INPUT */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Alarm Time <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={alarmTime}
-                  onChange={(e) => setAlarmTime(e.target.value)}
-                  className="w-full text-center text-3xl font-extrabold font-mono py-3 bg-purple-50/40 border border-purple-200 rounded-2xl text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
-                />
-              </div>
+            {/* Form wrapping scrollable content and fixed footer */}
+            <form onSubmit={handleSaveAlarm} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Modal Body */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 modal-content-scroll">
+                {/* Alarm Time Input with 12-hour AM/PM readout */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Alarm Time <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-3 bg-purple-50/40 border border-purple-200 rounded-2xl p-2.5 sm:p-3 focus-within:ring-2 focus-within:ring-purple-500 transition">
+                    <input
+                      type="time"
+                      required
+                      value={alarmTime}
+                      onChange={(e) => setAlarmTime(e.target.value)}
+                      className="flex-1 text-center text-3xl sm:text-4xl font-extrabold font-mono bg-transparent text-purple-950 focus:outline-none tracking-wider"
+                    />
+                    <div className="text-right border-l border-purple-200 pl-3 shrink-0">
+                      <span className="text-xs sm:text-sm font-extrabold text-purple-700 uppercase block font-mono">
+                        {formatted12Hour.period}
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-400 font-semibold block">
+                        {formatted12Hour.time12}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-              {/* ALARM LABEL / TITLE */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Alarm Label / Title
-                </label>
-                <input
-                  type="text"
-                  value={alarmTitle}
-                  onChange={(e) => setAlarmTitle(e.target.value)}
-                  placeholder="e.g. Morning Wakeup, Meeting, Gym..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-purple-100 bg-purple-50/20 text-xs sm:text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+                {/* Alarm Label / Title */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Alarm Label
+                  </label>
+                  <input
+                    type="text"
+                    value={alarmTitle}
+                    onChange={(e) => setAlarmTitle(e.target.value)}
+                    placeholder="e.g. Morning Wakeup, Deep Work, Workout..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-purple-100 bg-purple-50/20 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                  />
+                </div>
 
-              {/* REPEAT SCHEDULE */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Repeat Schedule
-                </label>
-                <select
-                  value={alarmRepeat}
-                  onChange={(e) => setAlarmRepeat(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-purple-100 bg-purple-50/20 text-xs sm:text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  {REPEAT_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* Link to Pending Task */}
+                {pendingTasks.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <ListTodo className="w-3.5 h-3.5 text-purple-600" />
+                        Link to Pending Task (Optional)
+                      </span>
+                      <span className="text-[11px] text-emerald-600 font-semibold">
+                        Auto-completes task on alarm dismiss
+                      </span>
+                    </label>
+                    <select
+                      value={linkedTaskId}
+                      onChange={(e) => setLinkedTaskId(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-purple-100 bg-purple-50/30 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer transition"
+                    >
+                      <option value="">None (Standalone General Alarm)</option>
+                      {pendingTasks.map((t) => (
+                        <option key={t._id || t.id} value={t._id || t.id}>
+                          📌 {t.title} {t.dueDate ? `(Due ${new Date(t.dueDate).toLocaleDateString()})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-              {/* ALARM SOUND PICKER WITH PREVIEW */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-gray-700">
+                {/* Repeat Schedule */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Repeat Schedule
+                    </label>
+                    <div className="flex gap-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAlarmRepeat("never");
+                          setSelectedDays(new Set([new Date().getDay()]));
+                        }}
+                        className={`px-2.5 py-0.5 rounded-lg font-semibold transition cursor-pointer ${
+                          alarmRepeat === "never"
+                            ? "bg-purple-600 text-white shadow-2xs"
+                            : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        Once
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAlarmRepeat("daily");
+                          setSelectedDays(new Set([0, 1, 2, 3, 4, 5, 6]));
+                        }}
+                        className={`px-2.5 py-0.5 rounded-lg font-semibold transition cursor-pointer ${
+                          alarmRepeat === "daily"
+                            ? "bg-purple-600 text-white shadow-2xs"
+                            : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        Every Day
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-1 pt-1">
+                    {WEEKDAYS.map((day) => {
+                      const isSelected = selectedDays.has(day.id);
+                      return (
+                        <button
+                          key={day.id}
+                          type="button"
+                          role="button"
+                          aria-pressed={isSelected}
+                          aria-label={`Repeat on ${day.name}`}
+                          onClick={() => handleToggleDay(day.id)}
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition cursor-pointer ${
+                            isSelected
+                              ? "bg-purple-600 text-white shadow-xs scale-105"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                          title={day.name}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Sound Tone Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Alarm Sound Tone
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => handlePreviewSound(alarmSound)}
-                    className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-semibold cursor-pointer"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-purple-600" />
-                    <span>{previewingSound === alarmSound ? "Playing..." : "Preview Sound"}</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {SOUND_OPTIONS.map((snd) => {
+                      const isSelected = alarmSound === snd.id;
+                      const isPreviewing = previewingSound === snd.id;
+
+                      return (
+                        <div
+                          key={snd.id}
+                          onClick={() => setAlarmSound(snd.id)}
+                          className={`px-3 py-2 rounded-xl border flex items-center justify-between cursor-pointer transition text-xs ${
+                            isSelected
+                              ? "border-purple-600 bg-purple-50/70 text-purple-900 shadow-2xs font-bold"
+                              : "border-slate-200 hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          <span className="truncate">{snd.label}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePreviewSound(snd.id);
+                            }}
+                            className={`p-1 rounded-lg text-purple-600 hover:bg-purple-100 transition cursor-pointer shrink-0 ${
+                              isPreviewing ? "bg-purple-200 animate-pulse" : ""
+                            }`}
+                            title="Preview tone"
+                          >
+                            {isPreviewing ? (
+                              <Square className="w-3 h-3 fill-purple-600" />
+                            ) : (
+                              <Play className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <select
-                  value={alarmSound}
-                  onChange={(e) => setAlarmSound(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-purple-100 bg-purple-50/20 text-xs sm:text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+
+                {/* Volume Slider */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span className="flex items-center gap-1.5">
+                      {alarmVolume === 0 ? (
+                        <VolumeX className="w-4 h-4 text-slate-400" />
+                      ) : alarmVolume < 50 ? (
+                        <Volume1 className="w-4 h-4 text-purple-600" />
+                      ) : (
+                        <Volume2 className="w-4 h-4 text-purple-600" />
+                      )}
+                      Alarm Volume
+                    </span>
+                    <span className="font-mono text-purple-600">{alarmVolume}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={alarmVolume}
+                    onChange={(e) => setAlarmVolume(Number(e.target.value))}
+                    className="w-full accent-purple-600 cursor-pointer"
+                  />
+                </div>
+
+                {/* Snooze Duration */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Snooze Duration
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[5, 10, 15, 30].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => setAlarmSnooze(mins)}
+                        className={`py-1.5 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                          alarmSnooze === mins
+                            ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Fixed Footer Actions (Always visible on laptops & mobile) */}
+              <div className="p-3.5 sm:px-6 bg-slate-50/90 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCloseAddModal}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition cursor-pointer"
                 >
-                  {SOUND_OPTIONS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* VOLUME SLIDER */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-bold text-gray-700 mb-1">
-                  <span className="flex items-center gap-1.5">
-                    <Volume2 className="w-4 h-4 text-purple-600" /> Alarm Volume
-                  </span>
-                  <span>{alarmVolume}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="20"
-                  max="100"
-                  value={alarmVolume}
-                  onChange={(e) => setAlarmVolume(Number(e.target.value))}
-                  className="w-full accent-purple-600"
-                />
-              </div>
-
-              {/* SNOOZE DURATION */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Snooze Duration (Minutes)
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[5, 10, 15, 30].map((mins) => (
-                    <button
-                      key={mins}
-                      type="button"
-                      onClick={() => setAlarmSnooze(mins)}
-                      className={`py-2 text-xs font-bold rounded-xl border transition cursor-pointer ${
-                        alarmSnooze === mins
-                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                          : "bg-white text-gray-700 border-purple-100 hover:bg-purple-50"
-                      }`}
-                    >
-                      {mins}m
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SUBMIT BUTTON */}
-              <div className="pt-2">
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={savingAlarm}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white font-bold text-sm rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <AlarmClock className="w-4 h-4" />
-                  <span>{savingAlarm ? "Scheduling..." : "Save Alarm"}</span>
+                  <span>{savingAlarm ? "Saving Alarm..." : "Save Alarm"}</span>
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

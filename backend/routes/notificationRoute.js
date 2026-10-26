@@ -2,6 +2,7 @@ import express from "express";
 import authMiddleware from "../middleware/auth.js";
 import {
   deleteAllNotifications,
+  deleteNotification,
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -37,6 +38,7 @@ notificationRouter.get("/delivery-logs", authMiddleware, getDeliveryLogs);
 notificationRouter.get("/", authMiddleware, getNotifications);
 notificationRouter.patch("/read-all", authMiddleware, markAllNotificationsRead);
 notificationRouter.delete("/", authMiddleware, deleteAllNotifications);
+notificationRouter.delete("/:id", authMiddleware, deleteNotification);
 notificationRouter.patch("/:id/read", authMiddleware, markNotificationRead);
 
 export default notificationRouter;
