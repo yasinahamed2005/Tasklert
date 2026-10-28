@@ -79,13 +79,13 @@ const smartUrgencySort = (a, b) => {
   return createdB - createdA;
 };
 
-const filterPendingTasks = (tasks, { query = '', quickFilter = 'all', priority = '', project = '', tag = '', hasAlarm = '' }) => {
+const filterPendingTasks = (tasks, { query = '', quickFilter = 'all', priority = '', project = '', tag = '', hasAlarm = '' }, now = new Date()) => {
   return tasks.filter((t) => {
     if (isTaskCompleted(t)) return false;
 
-    if (quickFilter === 'today' && !isTaskDueToday(t)) return false;
-    if (quickFilter === 'upcoming' && !isTaskUpcoming(t)) return false;
-    if (quickFilter === 'overdue' && !isTaskOverdue(t)) return false;
+    if (quickFilter === 'today' && !isTaskDueToday(t, now)) return false;
+    if (quickFilter === 'upcoming' && !isTaskUpcoming(t, now)) return false;
+    if (quickFilter === 'overdue' && !isTaskOverdue(t, now)) return false;
     if (quickFilter === 'no_date' && !isTaskNoDueDate(t)) return false;
 
     if (priority && (t.priority || '').toLowerCase() !== priority.toLowerCase()) return false;
@@ -199,19 +199,19 @@ describe('Pending Tasks Page Redesign Suite', () => {
   });
 
   test('Quick Filter Navigation: Filtering isolates subsets correctly', () => {
-    const overdueFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'overdue' });
+    const overdueFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'overdue' }, now);
     assert.equal(overdueFiltered.length, 2);
     assert.ok(overdueFiltered.every((t) => isTaskOverdue(t, now)));
 
-    const todayFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'today' });
+    const todayFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'today' }, now);
     assert.equal(todayFiltered.length, 2);
     assert.ok(todayFiltered.every((t) => isTaskDueToday(t, now)));
 
-    const upcomingFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'upcoming' });
+    const upcomingFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'upcoming' }, now);
     assert.equal(upcomingFiltered.length, 2);
     assert.ok(upcomingFiltered.every((t) => isTaskUpcoming(t, now)));
 
-    const noDateFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'no_date' });
+    const noDateFiltered = filterPendingTasks(sampleTasks, { quickFilter: 'no_date' }, now);
     assert.equal(noDateFiltered.length, 2);
     assert.ok(noDateFiltered.every((t) => isTaskNoDueDate(t)));
   });

@@ -94,6 +94,8 @@ export const processScheduledMessages = async (now = new Date()) => {
           message: claimed.message || "",
           reaction: claimed.reaction || "",
           files,
+          cc: claimed.cc || "",
+          bcc: claimed.bcc || "",
         });
 
         // Mark sent

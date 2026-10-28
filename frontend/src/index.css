@@ -221,6 +221,25 @@ body.modal-scroll-locked {
   --calendar-today-pill-text: #431407;
 }
 
+/* Dedicated dark-mode calendar surface tokens */
+.theme-dark {
+  --calendar-cell-bg: #1e293b;
+  --calendar-cell-alt: #172033;
+  --calendar-cell-hover: #293548;
+  --calendar-cell-selected: #1e3a5f;
+  --calendar-cell-selected-border: #60a5fa;
+  --calendar-cell-selected-ring: rgba(96, 165, 250, 0.35);
+  --calendar-cell-outside: #0f172a;
+  --calendar-cell-outside-alt: #090e1a;
+  --calendar-border: #334155;
+  --calendar-header-bg: #0f172a;
+  --calendar-header-text: #f1f5f9;
+  --calendar-today-badge-bg: #3b82f6;
+  --calendar-today-badge-text: #ffffff;
+  --calendar-today-pill-bg: #1e3a5f;
+  --calendar-today-pill-text: #93c5fd;
+}
+
 /* Reusable Calendar Dynamic Surface Classes */
 .calendar-cell-base {
   background-color: var(--calendar-cell-bg) !important;

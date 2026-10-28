@@ -122,6 +122,12 @@ const Layout = ({ onLogout, user }) => {
 
   // Notification lifecycle & storm protection refs
   const isInitialNotifFetchRef = useRef(true);
+  const isFetchingNotifRef = useRef(false);
+  const lastNotifFetchTimeRef = useRef(0);
+  const onLogoutRef = useRef(onLogout);
+  useEffect(() => {
+    onLogoutRef.current = onLogout;
+  }, [onLogout]);
   const knownNotificationIdsRef = useRef(new Set());
   const currentUserIdRef = useRef(user?.id || user?._id || localStorage.getItem("userId") || "");
 
@@ -152,7 +158,7 @@ const Layout = ({ onLogout, user }) => {
       if (!token) {
         console.warn("No token found -> Redirecting to login");
         setLoading(false);
-        onLogout();
+        onLogoutRef.current?.();
         return;
       }
 
@@ -177,17 +183,25 @@ const Layout = ({ onLogout, user }) => {
     } catch (err) {
       console.error(err);
       setError(err.message || "Could not load tasks.");
-      if (err.response?.status === 401) onLogout();
+      if (err.response?.status === 401) onLogoutRef.current?.();
     } finally {
       setLoading(false);
     }
-  }, [onLogout]);
+  }, []);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
   const fetchNotifications = useCallback(async () => {
+    // Throttle: avoid redundant requests within 15 seconds or while another request is in-flight
+    const now = Date.now();
+    if (isFetchingNotifRef.current || now - lastNotifFetchTimeRef.current < 15000) {
+      return;
+    }
+    isFetchingNotifRef.current = true;
+    lastNotifFetchTimeRef.current = now;
+
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -248,9 +262,15 @@ const Layout = ({ onLogout, user }) => {
       }
     } catch (err) {
       console.error("fetchNotifications error:", err.message);
-      if (err.response?.status === 401) onLogout();
+      // On 429 Rate Limit error, back off for 60 seconds
+      if (err.response?.status === 429) {
+        lastNotifFetchTimeRef.current = Date.now() + 60000;
+      }
+      if (err.response?.status === 401) onLogoutRef.current?.();
+    } finally {
+      isFetchingNotifRef.current = false;
     }
-  }, [onLogout]);
+  }, []);
 
   useEffect(() => {
     fetchNotifications();

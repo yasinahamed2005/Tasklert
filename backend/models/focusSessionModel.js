@@ -54,6 +54,20 @@ const focusSessionSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    targetEndAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    pushDispatched: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    sound: {
+      type: String,
+      default: "chime",
+    },
     clientNotes: {
       type: String,
       default: "",

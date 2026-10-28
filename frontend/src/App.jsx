@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense, lazy } from "react";
+import React, { useEffect, useState, Suspense, lazy, useCallback } from "react";
 import { Outlet, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import "react-toastify/dist/ReactToastify.css";
@@ -99,11 +99,11 @@ const App = () => {
     navigate("/", { replace: true });
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
     setCurrentUser(null);
     navigate("/login", { replace: true });
-  };
+  }, [navigate]);
 
   // Lightweight idle chunk preloading for primary task routes (excluding heavy analytics)
   useEffect(() => {
@@ -218,6 +218,7 @@ const App = () => {
           }
         />
         <Route path="/messages" element={<MessageCenter />} />
+        <Route path="/quicksend" element={<Navigate to="/messages" replace />} />
         <Route
           path="/settings"
           element={

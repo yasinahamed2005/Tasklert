@@ -8,7 +8,7 @@ const getUserId = (req) => req.user?.id || req.user?._id;
 export const startSession = async (req, res) => {
   try {
     const userId = getUserId(req);
-    const { taskId, sessionType = "focus", plannedDuration = 1500, clientNotes } = req.body;
+    const { taskId, sessionType = "focus", plannedDuration = 1500, clientNotes, sound = "chime" } = req.body;
 
     const validTypes = ["focus", "short_break", "long_break"];
     if (!validTypes.includes(sessionType)) {
@@ -47,6 +47,7 @@ export const startSession = async (req, res) => {
     );
 
     const now = new Date();
+    const targetEndAt = new Date(now.getTime() + durationNum * 1000);
     const session = new FocusSession({
       owner: userId,
       task: linkedTaskId,
@@ -56,6 +57,9 @@ export const startSession = async (req, res) => {
       accumulatedSeconds: 0,
       startedAt: now,
       lastResumedAt: now,
+      targetEndAt,
+      pushDispatched: false,
+      sound: typeof sound === "string" ? sound : "chime",
       status: "running",
       clientNotes: typeof clientNotes === "string" ? clientNotes.slice(0, 500) : "",
     });
@@ -138,6 +142,7 @@ export const pauseSession = async (req, res) => {
     session.actualElapsedSeconds = session.accumulatedSeconds;
     session.status = "paused";
     session.lastResumedAt = new Date(now);
+    session.targetEndAt = null;
 
     await session.save();
     res.json({ success: true, session });
@@ -162,6 +167,9 @@ export const resumeSession = async (req, res) => {
 
     session.status = "running";
     session.lastResumedAt = new Date();
+    const remainingSec = Math.max(0, session.plannedDuration - (session.accumulatedSeconds || 0));
+    session.targetEndAt = new Date(Date.now() + remainingSec * 1000);
+    session.pushDispatched = false;
 
     await session.save();
     res.json({ success: true, session });
@@ -202,6 +210,8 @@ export const completeSession = async (req, res) => {
     session.actualElapsedSeconds = boundedElapsed;
     session.status = "completed";
     session.endedAt = new Date(now);
+    session.targetEndAt = null;
+    session.pushDispatched = true;
 
     await session.save();
     if (session.task) {
@@ -226,6 +236,7 @@ export const cancelSession = async (req, res) => {
 
     session.status = "cancelled";
     session.endedAt = new Date();
+    session.targetEndAt = null;
     await session.save();
 
     res.json({ success: true, session, message: "Focus session cancelled." });

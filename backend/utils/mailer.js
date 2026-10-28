@@ -34,7 +34,7 @@ export const isSmtpConfigured = () => {
 // -------------------------------------------------------------
 // 1. HTTPS Email API: Resend (Port 443 — NEVER BLOCKED BY CLOUD HOSTS)
 // -------------------------------------------------------------
-const sendViaResend = async ({ to, subject, text, html, attachments }) => {
+const sendViaResend = async ({ to, subject, text, html, attachments, cc, bcc }) => {
   const apiKey = process.env.RESEND_API_KEY.trim();
   const rawFrom = (process.env.RESEND_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || "").trim();
   const from = rawFrom.includes("@") && !rawFrom.includes("gmail.com")
@@ -78,7 +78,7 @@ const sendViaResend = async ({ to, subject, text, html, attachments }) => {
 // -------------------------------------------------------------
 // 2. HTTPS Email API: Brevo / Sendinblue (Port 443 — Port 443 HTTPS)
 // -------------------------------------------------------------
-const sendViaBrevo = async ({ to, subject, text, html, attachments }) => {
+const sendViaBrevo = async ({ to, subject, text, html, attachments, cc, bcc }) => {
   const apiKey = process.env.BREVO_API_KEY.trim();
   const rawFrom = (process.env.BREVO_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || "admin@tasklert.com").trim();
 
@@ -172,15 +172,15 @@ const getFromAddress = () => {
 // -------------------------------------------------------------
 // Unified Dispatch Engine
 // -------------------------------------------------------------
-export const sendEmail = async ({ to, subject, text, html, attachments }) => {
+export const sendEmail = async ({ to, subject, text, html, attachments, cc, bcc }) => {
   // Strategy A: If BREVO_API_KEY is present, deliver via Brevo (supports sending to any recipient without domain verification)
   if (process.env.BREVO_API_KEY) {
-    return await sendViaBrevo({ to, subject, text, html, attachments });
+    return await sendViaBrevo({ to, subject, text, html, attachments, cc, bcc });
   }
 
   // Strategy B: If RESEND_API_KEY is present, deliver via Resend HTTPS REST API
   if (process.env.RESEND_API_KEY) {
-    return await sendViaResend({ to, subject, text, html, attachments });
+    return await sendViaResend({ to, subject, text, html, attachments, cc, bcc });
   }
 
   // Strategy C: Direct SMTP connection via Nodemailer

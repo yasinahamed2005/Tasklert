@@ -28,6 +28,27 @@ const messageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    contact: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Contact",
+      default: null,
+      index: true,
+    },
+    direction: {
+      type: String,
+      enum: ["outgoing", "incoming"],
+      default: "outgoing",
+    },
+    cc: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    bcc: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     subject: {
       type: String,
       default: "",

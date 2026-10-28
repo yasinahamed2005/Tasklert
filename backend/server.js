@@ -11,6 +11,7 @@ import userRouter from './routes/userRoute.js';
 import taskRouter from './routes/taskRoute.js';
 import notificationRouter from './routes/notificationRoute.js';
 import messageRouter from './routes/messageRoute.js';
+import contactRouter from './routes/contactRoute.js';
 import authRouter from './routes/authRoute.js';
 import reminderRouter from './routes/reminderRoute.js';
 import projectRouter from './routes/projectRoute.js';
@@ -79,7 +80,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 600, // 600 requests per 15 minutes per IP
+  max: process.env.NODE_ENV === "production" ? 1500 : 3000, // Generous ceiling preventing premature 429 throttling
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests. Please slow down." },
@@ -111,6 +112,7 @@ app.use("/api/templates", templateRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/reminders", reminderRouter);
 app.use("/api/messages", messageRouter);
+app.use("/api/contacts", contactRouter);
 app.use("/api/focus", focusRouter);
 app.use("/api/analytics", analyticsRouter);
 

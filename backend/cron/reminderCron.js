@@ -1,6 +1,7 @@
 import Task from "../models/taskModel.js";
 import Notification from "../models/notificationModel.js";
 import Reminder from "../models/reminderModel.js";
+import FocusSession from "../models/focusSessionModel.js";
 import User from "../models/userModel.js";
 import UserPreferences from "../models/userPreferencesModel.js";
 import DeliveryLog from "../models/deliveryLogModel.js";
@@ -569,6 +570,64 @@ export const runCronCycle = async () => {
     console.error("Reminder scheduler cycle error:", err.message);
   } finally {
     isCronRunning = false;
+  }
+};
+
+/**
+ * 5. PROCESS DUE FOCUS SESSIONS & DISPATCH SERVER-SIDE WEB PUSH
+ */
+export const processScheduledFocusSessions = async (now = new Date()) => {
+  try {
+    const dueFocus = await FocusSession.find({
+      status: "running",
+      targetEndAt: { $ne: null, $lte: now },
+      pushDispatched: false,
+    }).limit(25).populate("task", "title");
+
+    for (const session of dueFocus) {
+      const updated = await FocusSession.findOneAndUpdate(
+        { _id: session._id, pushDispatched: false, status: "running" },
+        { pushDispatched: true },
+        { new: true }
+      );
+      if (!updated) continue;
+
+      const isFocus = session.sessionType === "focus";
+      const title = isFocus ? "🎯 Focus Session Complete!" : "☕ Break Over!";
+      const body = isFocus
+        ? (session.task?.title ? `Completed focus sprint on "${session.task.title}". Time for a break!` : "Great work! Your focus session is complete. Take a break!")
+        : "Recharge complete! Ready to start your next focus session?";
+
+      await sendPushToUser(session.owner, {
+        title,
+        body,
+        icon: "/tasklert-icon.svg",
+        badge: "/favicon.png",
+        url: "/focus",
+        tag: `focus-session-${session._id}`,
+        sound: session.sound || "chime",
+        vibrate: [300, 150, 300, 150, 400],
+        actions: [
+          { action: "open", title: "👉 View Timer" },
+          { action: "dismiss", title: "✕ Dismiss" }
+        ]
+      }, {
+        priority: "High",
+        attempt: 1
+      });
+
+      await Notification.create({
+        owner: session.owner,
+        task: session.task?._id || session.task || null,
+        kind: "alarm",
+        title,
+        message: body,
+        scheduledFor: now,
+        read: false
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("processScheduledFocusSessions error:", err.message);
   }
 };
 

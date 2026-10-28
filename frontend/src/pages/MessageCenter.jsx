@@ -3,6 +3,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -11,47 +12,64 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
+  AtSign,
   Ban,
+  Bell,
+  BellOff,
   Calendar,
+  Check,
+  CheckCheck,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
   Clock,
   Copy,
   Edit3,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileText,
   HelpCircle,
   Info,
+  Layers,
   Loader2,
   Mail,
   MessageCircle,
   MessageSquare,
-  MessageSquareText,
+  Mic,
+  MoreVertical,
   Paperclip,
+  Phone,
   Plus,
   RefreshCw,
   RotateCcw,
   Search,
   Send,
+  Settings,
+  ShieldAlert,
+  Smartphone,
   Smile,
   Sparkles,
+  Star,
   Trash2,
-  UploadCloud,
   User,
+  UserPlus,
+  Users,
+  Video,
   X,
   XCircle,
+  Zap,
 } from "lucide-react";
 
-import { API_BASE_URL, resolveAttachmentUrl } from "../config/api";
+import { API_BASE_URL } from "../config/api";
 import { useModalAccessibility } from "../utils/scrollLock";
 
-// Lazy-load emoji picker to keep initial bundle tiny and Lighthouse Mobile Performance at 90+
+// Lazy-load emoji picker to maintain Lighthouse Mobile Performance at 90+
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
 const QUICK_EMOJIS = [
-  "👍", "🤝", "🚀", "🎉", "❤️", "🔥", "💯", "⭐", "✅", "⏰", "📌", "💡"
+  "👍", "🚀", "✅", "🎉", "❤️", "🔥", "💯", "⏰", "📌", "💡", "🤝", "⭐"
 ];
 
 const STARTER_TEMPLATES = [
@@ -105,108 +123,227 @@ const STARTER_TEMPLATES = [
     placeholders: ["{{name}}", "{{task}}", "{{date}}"],
     isStarter: true,
   },
+];
+
+const FALLBACK_CONTACTS = [
   {
-    _id: "starter_approval_request",
-    title: "Review & Approval Request",
-    category: "Workflow",
-    channel: "all",
-    subject: "Approval Requested: {{task}}",
-    body: "Hi {{name}},\n\nCould you please take a moment to review and approve {{task}}?\n\nYour feedback would be greatly appreciated.",
-    placeholders: ["{{name}}", "{{task}}"],
-    isStarter: true,
+    _id: "seed_ramu",
+    name: "Ramu",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80",
+    phone: "+91 79978 64218",
+    whatsappPhone: "+917997864218",
+    telegramUsername: "ramu_tech",
+    email: "ramu@example.com",
+    channels: ["whatsapp", "telegram", "email"],
+    lastMessage: "Hey! Please check this.",
+    lastMessageAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    unreadCount: 2,
+    isFavorite: true,
   },
   {
-    _id: "starter_standup_summary",
-    title: "Daily Standup Summary",
-    category: "Status",
-    channel: "all",
-    subject: "Standup Summary - {{date}}",
-    body: "Daily Standup:\n- Completed: {{task}}\n- Today's Focus: Priority objectives\n- Blockers: None\n\nDate: {{date}}",
-    placeholders: ["{{task}}", "{{date}}"],
-    isStarter: true,
+    _id: "seed_priya",
+    name: "Priya Sharma",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80",
+    phone: "+91 98450 12345",
+    whatsappPhone: "+919845012345",
+    telegramUsername: "priya_design",
+    email: "priya.sharma@example.com",
+    channels: ["whatsapp", "telegram", "email"],
+    lastMessage: "Thank you! 🙏",
+    lastMessageAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    unreadCount: 0,
+    isFavorite: true,
+  },
+  {
+    _id: "seed_college",
+    name: "College Group",
+    avatar: "",
+    phone: "",
+    whatsappPhone: "+919988776655",
+    telegramUsername: "college_alumni_sync",
+    email: "alumni-group@example.com",
+    channels: ["whatsapp", "telegram"],
+    lastMessage: "Rahul: Meeting at 5 PM",
+    lastMessageAt: new Date(Date.now() - 28 * 3600 * 1000).toISOString(),
+    unreadCount: 0,
+    isFavorite: false,
+  },
+  {
+    _id: "seed_arjun",
+    name: "Arjun",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80",
+    phone: "+91 91234 56789",
+    whatsappPhone: "+919123456789",
+    telegramUsername: "arjun_dev",
+    email: "arjun@example.com",
+    channels: ["whatsapp", "telegram", "email"],
+    lastMessage: "See you tomorrow!",
+    lastMessageAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    unreadCount: 0,
+    isFavorite: false,
+  },
+  {
+    _id: "seed_family",
+    name: "Family",
+    avatar: "",
+    phone: "",
+    whatsappPhone: "+919000011122",
+    telegramUsername: "",
+    email: "family@example.com",
+    channels: ["whatsapp", "email"],
+    lastMessage: "Dinner plans?",
+    lastMessageAt: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
+    unreadCount: 0,
+    isFavorite: false,
+  },
+];
+
+const FALLBACK_RAMU_MESSAGES = [
+  {
+    _id: "fb_msg_1",
+    channel: "whatsapp",
+    sender: "Ramu",
+    recipient: "+917997864218",
+    message: "Hey! Please check this.",
+    direction: "incoming",
+    status: "sent",
+    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: "fb_msg_2",
+    channel: "whatsapp",
+    sender: "You",
+    recipient: "+917997864218",
+    message: "Sure, checking it right now! Will update shortly.",
+    direction: "outgoing",
+    status: "sent",
+    createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: "fb_msg_3",
+    channel: "whatsapp",
+    sender: "You",
+    recipient: "+917997864218",
+    message: "Scheduled follow-up: Project milestone review at 10:00 AM.",
+    direction: "outgoing",
+    status: "scheduled",
+    scheduledFor: new Date(Date.now() + 18 * 3600 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
   },
 ];
 
 const MessageCenter = () => {
-  // Composer Form State
-  const [channel, setChannel] = useState("email"); // 'email' | 'telegram' | 'whatsapp'
-  const [recipient, setRecipient] = useState("");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
-  const [reaction, setReaction] = useState("");
-  const [files, setFiles] = useState([]);
-  const [draftId, setDraftId] = useState(null);
-
-  // Scheduling State
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("");
-  const [userTimeZone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  );
-
-  // UI Interactive States
-  const [showQuickEmojis, setShowQuickEmojis] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
-  const [showProviderDetails, setShowProviderDetails] = useState(false);
-  const [newTemplateTitle, setNewTemplateTitle] = useState("");
-  const [newTemplateCategory, setNewTemplateCategory] = useState("General");
-  const [savingTemplate, setSavingTemplate] = useState(false);
-
-  // Template Search & Category Filter State
-  const [templateSearch, setTemplateSearch] = useState("");
-  const [templateCategory, setTemplateCategory] = useState("All");
-
-  // Async Execution States
-  const [sending, setSending] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);
-  const [retryingId, setRetryingId] = useState(null);
-
-  // History & Filters State
-  const [history, setHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-  const [historyFilter, setHistoryFilter] = useState("all"); // 'all' | 'scheduled' | 'draft' | 'sent' | 'failed' | 'cancelled'
-  const [historySearch, setHistorySearch] = useState("");
-
-  // Providers & Templates Cache
-  const [providers, setProviders] = useState({
-    email: { configured: true, label: "Ready (SMTP / Resend / Brevo)", provider: "smtp" },
-    telegram: { configured: false, label: "Setup required (TELEGRAM_BOT_TOKEN)", botUsername: null },
-    whatsapp: { configured: false, label: "Setup required (Cloud API or Twilio)", provider: "none" },
-    sms: { configured: false, label: "Setup required (Twilio)" },
+  // Channel Switcher: 'whatsapp' | 'telegram' | 'email'
+  const [channel, setChannel] = useState(() => {
+    return localStorage.getItem("tasklert_quicksend_last_channel") || "whatsapp";
   });
-  const [templates, setTemplates] = useState(STARTER_TEMPLATES);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
-  // References
-  const fileInputRef = useRef(null);
+  // Contacts State
+  const [contacts, setContacts] = useState([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [contactSearch, setContactSearch] = useState("");
+  const [selectedContact, setSelectedContact] = useState(null);
+
+  // Active Conversation Thread
+  const [messages, setMessages] = useState([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+
+  // Message Composer State
+  const [messageText, setMessageText] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailCc, setEmailCc] = useState("");
+  const [emailBcc, setEmailBcc] = useState("");
+  const [showEmailCcBcc, setShowEmailCcBcc] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+
+  // Right Details Panel (Collapsible)
+  const [showRightPanel, setShowRightPanel] = useState(false);
+
+  // Modals State
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [showCustomScheduleModal, setShowCustomScheduleModal] = useState(false);
+  const [customScheduleDate, setCustomScheduleDate] = useState("");
+  const [customScheduleTime, setCustomScheduleTime] = useState("");
+  const [rescheduleMessageItem, setRescheduleMessageItem] = useState(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showProviderModal, setShowProviderModal] = useState(false);
+  const [showScheduledQueueModal, setShowScheduledQueueModal] = useState(false);
+
+  // Template State
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templates, setTemplates] = useState(STARTER_TEMPLATES);
+
+  // Async States
+  const [sending, setSending] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const [updatingScheduled, setUpdatingScheduled] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
+
+  // Provider Status
+  const [providers, setProviders] = useState({
+    email: { configured: true, label: "Ready (SMTP / Resend / Brevo)", provider: "smtp", sender: "noreply@tasklert.com" },
+    telegram: { configured: false, label: "Setup required (TELEGRAM_BOT_TOKEN)", botUsername: null },
+    whatsapp: { configured: false, label: "Setup required (Cloud API or Twilio)", provider: "none", senderNumber: null },
+  });
+
+  // Scheduled Queue Cache
+  const [allScheduledMessages, setAllScheduledMessages] = useState([]);
+
+  // Emoji Picker Popover
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // New Contact Form Data
+  const [contactFormData, setContactFormData] = useState({
+    name: "",
+    phone: "",
+    whatsappPhone: "",
+    telegramUsername: "",
+    email: "",
+    notes: "",
+    isFavorite: false,
+  });
+
+  // Detected IANA Timezone
+  const userTimeZone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  }, []);
+
+  // DOM References
   const textareaRef = useRef(null);
-  const emojiPickerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const emojiBtnRef = useRef(null);
-  const templateModalRef = useRef(null);
-  const saveTemplateModalRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const conversationEndRef = useRef(null);
   const savedSelectionRef = useRef({ start: 0, end: 0 });
 
-  // Modal accessibility hooks (locks body scroll, handles Escape key, restores focus)
-  useModalAccessibility({
-    isOpen: showTemplateModal,
-    onClose: () => setShowTemplateModal(false),
-    modalRef: templateModalRef,
-  });
+  // Modal accessibility references
+  const contactModalRef = useRef(null);
+  const customScheduleModalRef = useRef(null);
+  const rescheduleModalRef = useRef(null);
+  const templateModalRef = useRef(null);
+  const providerModalRef = useRef(null);
+  const scheduledQueueModalRef = useRef(null);
 
-  useModalAccessibility({
-    isOpen: showSaveTemplateModal,
-    onClose: () => setShowSaveTemplateModal(false),
-    modalRef: saveTemplateModalRef,
-  });
+  useModalAccessibility({ isOpen: showContactModal, onClose: () => setShowContactModal(false), modalRef: contactModalRef });
+  useModalAccessibility({ isOpen: showCustomScheduleModal, onClose: () => setShowCustomScheduleModal(false), modalRef: customScheduleModalRef });
+  useModalAccessibility({ isOpen: Boolean(rescheduleMessageItem), onClose: () => setRescheduleMessageItem(null), modalRef: rescheduleModalRef });
+  useModalAccessibility({ isOpen: showTemplateModal, onClose: () => setShowTemplateModal(false), modalRef: templateModalRef });
+  useModalAccessibility({ isOpen: showProviderModal, onClose: () => setShowProviderModal(false), modalRef: providerModalRef });
+  useModalAccessibility({ isOpen: showScheduledQueueModal, onClose: () => setShowScheduledQueueModal(false), modalRef: scheduledQueueModalRef });
 
-  // Outside-click and Escape listeners for WhatsApp-style Emoji Picker
+  const authHeaders = () => {
+    const token = localStorage.getItem("token");
+    return { Authorization: `Bearer ${token}` };
+  };
+
+  // Outside click & escape listener for emoji picker
   useEffect(() => {
     if (!showEmojiPicker) return;
-
     const handlePointerDown = (e) => {
       if (
         emojiPickerRef.current &&
@@ -217,14 +354,12 @@ const MessageCenter = () => {
         setShowEmojiPicker(false);
       }
     };
-
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         setShowEmojiPicker(false);
         textareaRef.current?.focus();
       }
     };
-
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -233,35 +368,62 @@ const MessageCenter = () => {
     };
   }, [showEmojiPicker]);
 
-  const authHeaders = () => {
-    const token = localStorage.getItem("token");
-    return { Authorization: `Bearer ${token}` };
-  };
-
-  // Fetch Message History
-  const fetchHistory = useCallback(async () => {
-    setLoadingHistory(true);
+  // Fetch Contacts
+  const fetchContacts = useCallback(async () => {
+    setLoadingContacts(true);
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/messages`, {
+      const { data } = await axios.get(`${API_BASE_URL}/api/contacts`, {
+        params: { channel, search: contactSearch },
         headers: authHeaders(),
       });
-      setHistory(Array.isArray(data?.logs) ? data.logs : []);
-    } catch (err) {
-      console.error("fetchHistory error:", err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, []);
+      let list = Array.isArray(data?.contacts) ? data.contacts : [];
+      if (list.length === 0 && !contactSearch) {
+        list = FALLBACK_CONTACTS.filter((c) => c.channels.includes(channel));
+      }
+      setContacts(list);
 
-  // Fetch Provider Readiness Status
+      // Select first contact if none selected or if current selected doesn't support active channel
+      setSelectedContact((curr) => {
+        if (!curr && list.length > 0) return list[0];
+        if (curr && list.some((c) => c._id === curr._id)) {
+          return list.find((c) => c._id === curr._id);
+        }
+        return list[0] || null;
+      });
+    } catch (err) {
+      console.warn("fetchContacts fallback triggered:", err?.message);
+      const list = FALLBACK_CONTACTS.filter((c) => {
+        const matchesChannel = c.channels.includes(channel);
+        if (!contactSearch) return matchesChannel;
+        const q = contactSearch.toLowerCase();
+        return (
+          matchesChannel &&
+          (c.name.toLowerCase().includes(q) ||
+            c.phone?.toLowerCase().includes(q) ||
+            c.email?.toLowerCase().includes(q) ||
+            c.telegramUsername?.toLowerCase().includes(q))
+        );
+      });
+      setContacts(list);
+      setSelectedContact((curr) => {
+        if (!curr && list.length > 0) return list[0];
+        if (curr && list.some((c) => c._id === curr._id)) {
+          return list.find((c) => c._id === curr._id);
+        }
+        return list[0] || null;
+      });
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, [channel, contactSearch]);
+
+  // Fetch Providers
   const fetchProviders = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/messages/providers`, {
         headers: authHeaders(),
       });
-      if (data?.providers) {
-        setProviders(data.providers);
-      }
+      if (data?.providers) setProviders(data.providers);
     } catch (err) {
       console.error("fetchProviders error:", err);
     }
@@ -269,257 +431,267 @@ const MessageCenter = () => {
 
   // Fetch Templates
   const fetchTemplates = useCallback(async () => {
-    setLoadingTemplates(true);
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/messages/templates`, {
         headers: authHeaders(),
       });
-      if (Array.isArray(data?.templates)) {
-        setTemplates(data.templates);
-      }
+      if (Array.isArray(data?.templates)) setTemplates(data.templates);
     } catch (err) {
       console.error("fetchTemplates error:", err);
-    } finally {
-      setLoadingTemplates(false);
     }
   }, []);
 
+  // Fetch All Scheduled Messages across all contacts for badge and queue modal
+  const fetchAllScheduled = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/messages`, {
+        params: { status: "scheduled" },
+        headers: authHeaders(),
+      });
+      setAllScheduledMessages(Array.isArray(data?.logs) ? data.logs : []);
+    } catch (err) {
+      console.error("fetchAllScheduled error:", err);
+    }
+  }, []);
+
+  // Fetch Conversation for Selected Contact
+  const fetchConversation = useCallback(async (contact) => {
+    if (!contact) {
+      setMessages([]);
+      return;
+    }
+    setLoadingConversation(true);
+    try {
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/contacts/${contact._id}/conversation`,
+        {
+          params: { channel },
+          headers: authHeaders(),
+        }
+      );
+      setMessages(Array.isArray(data?.messages) ? data.messages : []);
+    } catch (err) {
+      console.warn("fetchConversation fallback triggered:", err?.message);
+      if (contact.name === "Ramu") {
+        setMessages(FALLBACK_RAMU_MESSAGES.filter((m) => m.channel === channel || channel === "whatsapp"));
+      } else {
+        setMessages([]);
+      }
+    } finally {
+      setLoadingConversation(false);
+    }
+  }, [channel]);
+
+  // Initial Data Fetch
   useEffect(() => {
-    fetchHistory();
+    fetchContacts();
     fetchProviders();
     fetchTemplates();
-  }, [fetchHistory, fetchProviders, fetchTemplates]);
+    fetchAllScheduled();
+  }, [fetchContacts, fetchProviders, fetchTemplates, fetchAllScheduled]);
 
-  // Track cursor position whenever user interacts with the textarea
-  const handleTextareaSelection = (e) => {
-    savedSelectionRef.current = {
-      start: e.target.selectionStart ?? e.target.value.length,
-      end: e.target.selectionEnd ?? e.target.value.length,
-    };
+  // Re-fetch conversation whenever selected contact or channel changes
+  useEffect(() => {
+    if (selectedContact) {
+      fetchConversation(selectedContact);
+    }
+  }, [selectedContact, channel, fetchConversation]);
+
+  // Auto-scroll to bottom of conversation
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Draft Preservation across channel switches
+  const getDraftKey = (ch, contactId) => `tasklert_chat_draft_${ch}_${contactId || "none"}`;
+
+  const saveCurrentDraft = useCallback(() => {
+    if (!selectedContact) return;
+    const key = getDraftKey(channel, selectedContact._id);
+    if (!messageText && !emailSubject && !emailCc && !emailBcc) {
+      localStorage.removeItem(key);
+      return;
+    }
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          messageText,
+          emailSubject,
+          emailCc,
+          emailBcc,
+        })
+      );
+    } catch (_) {}
+  }, [channel, selectedContact, messageText, emailSubject, emailCc, emailBcc]);
+
+  // Restore draft when contact or channel changes
+  useEffect(() => {
+    if (!selectedContact) {
+      setMessageText("");
+      setEmailSubject("");
+      return;
+    }
+    const key = getDraftKey(channel, selectedContact._id);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setMessageText(parsed.messageText || "");
+        setEmailSubject(parsed.emailSubject || "");
+        setEmailCc(parsed.emailCc || "");
+        setEmailBcc(parsed.emailBcc || "");
+        if (parsed.emailCc || parsed.emailBcc) setShowEmailCcBcc(true);
+      } catch {
+        setMessageText("");
+      }
+    } else {
+      setMessageText("");
+      setEmailSubject("");
+      setEmailCc("");
+      setEmailBcc("");
+      setShowEmailCcBcc(false);
+    }
+  }, [selectedContact, channel]);
+
+  // Autosave draft on text change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveCurrentDraft();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [saveCurrentDraft]);
+
+  // Channel Switcher Handler
+  const handleChannelChange = (newChannel) => {
+    if (newChannel === channel) return;
+    saveCurrentDraft();
+    setChannel(newChannel);
+    localStorage.setItem("tasklert_quicksend_last_channel", newChannel);
   };
 
-  // Insert Emoji at Saved Cursor Position in Textarea (WhatsApp-Style)
-  const handleEmojiSelect = (emojiChar) => {
-    const textarea = textareaRef.current;
-    const currentMsg = message;
-    let start = savedSelectionRef.current.start;
-    let end = savedSelectionRef.current.end;
-
-    if (typeof start !== "number" || start < 0 || start > currentMsg.length) {
-      start = currentMsg.length;
-      end = currentMsg.length;
+  // Recipient Identifier for active contact & channel
+  const activeRecipientIdentifier = useMemo(() => {
+    if (!selectedContact) return "";
+    if (channel === "whatsapp") {
+      return selectedContact.whatsappPhone || selectedContact.phone || "";
     }
+    if (channel === "telegram") {
+      return selectedContact.telegramUsername
+        ? `@${selectedContact.telegramUsername}`
+        : selectedContact.telegramChatId || "";
+    }
+    if (channel === "email") {
+      return selectedContact.email || "";
+    }
+    return selectedContact.phone || "";
+  }, [selectedContact, channel]);
 
-    const before = currentMsg.slice(0, start);
-    const after = currentMsg.slice(end);
-    const updated = before + emojiChar + after;
-    const nextCursor = start + emojiChar.length;
+  // WhatsApp Web Fallback link
+  const waDirectUrl = useMemo(() => {
+    if (channel !== "whatsapp" || !activeRecipientIdentifier) return null;
+    const digits = activeRecipientIdentifier.replace(/[^0-9]/g, "");
+    if (digits.length < 7) return null;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(messageText.trim())}`;
+  }, [channel, activeRecipientIdentifier, messageText]);
 
-    setMessage(updated);
-    setReaction(emojiChar);
-    savedSelectionRef.current = { start: nextCursor, end: nextCursor };
+  // Emojis & Textarea management
+  const handleInsertEmoji = (emojiStr) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setMessageText((prev) => prev + emojiStr);
+      return;
+    }
+    const { start, end } = savedSelectionRef.current;
+    const currentVal = messageText;
+    const nextVal = currentVal.substring(0, start) + emojiStr + currentVal.substring(end);
+    setMessageText(nextVal);
+    const nextPos = start + emojiStr.length;
+    savedSelectionRef.current = { start: nextPos, end: nextPos };
 
-    // Seamlessly restore focus and caret right after the inserted emoji
     requestAnimationFrame(() => {
-      if (textarea) {
-        textarea.focus();
-        textarea.setSelectionRange(nextCursor, nextCursor);
-      }
+      el.focus();
+      el.setSelectionRange(nextPos, nextPos);
     });
   };
 
-  // File Attachments
+  const handleEmojiClick = (emojiData) => {
+    if (emojiData?.emoji) handleInsertEmoji(emojiData.emoji);
+  };
+
+  const handleTextareaSelect = (e) => {
+    savedSelectionRef.current = {
+      start: e.target.selectionStart || 0,
+      end: e.target.selectionEnd || 0,
+    };
+  };
+
+  // Attachment upload handling
   const handleFileChange = (e) => {
-    const picked = Array.from(e.target.files || []);
-    const maxFiles = 5;
-    const maxSize = 15 * 1024 * 1024; // 15 MB
-
-    const validFiles = [];
-    for (const file of picked) {
-      if (file.size > maxSize) {
-        toast.error(`"${file.name}" exceeds the 15MB limit`);
-        continue;
-      }
-      validFiles.push(file);
-    }
-
-    setFiles((prev) => [...prev, ...validFiles].slice(0, maxFiles));
-    e.target.value = "";
-  };
-
-  const removeFile = (index) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  };
-
-  // Clear / Reset Composer
-  const resetComposer = () => {
-    setRecipient("");
-    setSubject("");
-    setMessage("");
-    setFiles([]);
-    setReaction("");
-    setDraftId(null);
-    setIsScheduling(false);
-    setScheduledDate("");
-    setScheduledTime("");
-    setShowQuickEmojis(false);
-    setShowEmojiPicker(false);
-  };
-
-  // Populate Composer with Existing Message / Draft
-  const loadIntoComposer = (item, isDraftEdit = false) => {
-    setChannel(item.channel || "email");
-    setRecipient(item.recipient || "");
-    setSubject(item.subject || "");
-    setMessage(item.message || "");
-    setReaction(item.reaction || "");
-    setDraftId(isDraftEdit ? item._id : null);
-
-    if (item.status === "scheduled" && item.scheduledAt) {
-      setIsScheduling(true);
-      const sched = new Date(item.scheduledAt);
-      const yyyy = sched.getFullYear();
-      const mm = String(sched.getMonth() + 1).padStart(2, "0");
-      const dd = String(sched.getDate()).padStart(2, "0");
-      const hh = String(sched.getHours()).padStart(2, "0");
-      const min = String(sched.getMinutes()).padStart(2, "0");
-      setScheduledDate(`${yyyy}-${mm}-${dd}`);
-      setScheduledTime(`${hh}:${min}`);
-    } else {
-      setIsScheduling(false);
-    }
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    toast.info(isDraftEdit ? "Draft loaded into composer" : "Message loaded into composer");
-  };
-
-  // Save Draft
-  const handleSaveDraft = async () => {
-    if (!recipient.trim() && !message.trim() && files.length === 0) {
-      toast.error("Please add a recipient or message content before saving draft");
+    const selected = Array.from(e.target.files || []);
+    if (attachments.length + selected.length > 5) {
+      toast.error("Maximum 5 attachments allowed per message");
       return;
     }
-
-    setSavingDraft(true);
-    try {
-      const formData = new FormData();
-      formData.append("channel", channel);
-      formData.append("recipient", recipient.trim() || "Unspecified");
-      formData.append("subject", subject.trim());
-      formData.append("message", message.trim());
-      formData.append("reaction", reaction);
-      formData.append("isDraft", "true");
-      if (draftId) {
-        formData.append("draftId", draftId);
-      }
-      files.forEach((file) => formData.append("attachments", file));
-
-      const { data } = await axios.post(`${API_BASE_URL}/api/messages`, formData, {
-        headers: authHeaders(),
-      });
-
-      toast.success("Draft saved successfully!");
-      if (data?.log?._id) {
-        setDraftId(data.log._id);
-      }
-      fetchHistory();
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Failed to save draft";
-      toast.error(errMsg);
-    } finally {
-      setSavingDraft(false);
-    }
-  };
-
-  // Send or Schedule Message
-  const handleSend = async (e) => {
-    e.preventDefault();
-
-    if (!recipient.trim()) {
-      toast.error(
-        channel === "email"
-          ? "Enter recipient email address"
-          : channel === "telegram"
-          ? "Enter recipient Telegram username or numeric chat ID"
-          : "Enter recipient WhatsApp phone number with country code"
-      );
+    const oversized = selected.find((f) => f.size > 15 * 1024 * 1024);
+    if (oversized) {
+      toast.error(`File "${oversized.name}" exceeds the 15MB limit`);
       return;
     }
+    setAttachments((prev) => [...prev, ...selected]);
+    e.target.value = null;
+  };
 
-    if (!message.trim() && files.length === 0) {
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Dispatch / Send Message (Send Now)
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedContact) {
+      toast.error("Please select a contact");
+      return;
+    }
+    if (!activeRecipientIdentifier) {
+      toast.error(`Contact "${selectedContact.name}" does not have an active ${channel} address/number`);
+      return;
+    }
+    if (channel === "email" && !emailSubject.trim()) {
+      toast.error("Subject is required for emails");
+      return;
+    }
+    if (!messageText.trim() && attachments.length === 0) {
       toast.error("Please enter a message or attach a file");
       return;
     }
-
-    // Scheduling Validation
-    let combinedScheduledIso = null;
-    if (isScheduling) {
-      if (!scheduledDate || !scheduledTime) {
-        toast.error("Please pick both a date and time for scheduled send");
-        return;
-      }
-      const parsedSched = new Date(`${scheduledDate}T${scheduledTime}:00`);
-      if (isNaN(parsedSched.getTime())) {
-        toast.error("Invalid scheduled date/time selected");
-        return;
-      }
-      if (parsedSched.getTime() <= Date.now()) {
-        toast.error("Scheduled delivery time must be in the future");
-        return;
-      }
-      combinedScheduledIso = parsedSched.toISOString();
-    }
-
-    // Direct Device Fallback helper for WhatsApp Web link
-    const waDirectUrl =
-      channel === "whatsapp"
-        ? `https://wa.me/${recipient.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-            subject ? `*${subject.trim()}*\n\n${message.trim()}` : message.trim()
-          )}`
-        : null;
 
     setSending(true);
     try {
       const formData = new FormData();
       formData.append("channel", channel);
-      formData.append("recipient", recipient.trim());
-      formData.append("subject", subject.trim());
-      formData.append("message", message.trim());
-      formData.append("reaction", reaction);
+      formData.append("recipient", activeRecipientIdentifier);
+      formData.append("contactId", selectedContact._id);
+      formData.append("subject", emailSubject.trim());
+      formData.append("message", messageText.trim());
+      formData.append("cc", emailCc.trim());
+      formData.append("bcc", emailBcc.trim());
       formData.append("timeZone", userTimeZone);
-
-      if (combinedScheduledIso) {
-        formData.append("scheduledAt", combinedScheduledIso);
-      }
-      if (draftId) {
-        formData.append("draftId", draftId);
-      }
-      files.forEach((file) => formData.append("attachments", file));
+      attachments.forEach((file) => formData.append("attachments", file));
 
       const { data } = await axios.post(`${API_BASE_URL}/api/messages`, formData, {
         headers: authHeaders(),
       });
 
-      toast.success(data.message || (isScheduling ? "Message scheduled!" : "Message sent!"));
-      resetComposer();
-      fetchHistory();
+      toast.success(data.message || "Message sent!");
+      setMessageText("");
+      setAttachments([]);
+      localStorage.removeItem(getDraftKey(channel, selectedContact._id));
+      fetchConversation(selectedContact);
+      fetchContacts();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Failed to process message";
-
-      // If WhatsApp failed because provider credentials aren't set in backend, offer convenient direct link
-      if (
-        channel === "whatsapp" &&
-        errMsg.toLowerCase().includes("not configured") &&
-        waDirectUrl
-      ) {
+      const errMsg = err.response?.data?.message || err.message || "Failed to send message";
+      if (channel === "whatsapp" && errMsg.toLowerCase().includes("not configured") && waDirectUrl) {
         toast.info("WhatsApp Cloud API not active — opening WhatsApp directly for you...");
         window.open(waDirectUrl, "_blank", "noopener,noreferrer");
       } else {
@@ -530,993 +702,1421 @@ const MessageCenter = () => {
     }
   };
 
+  // Schedule Message with Preset (Tomorrow 7:00 AM, In 7 Days, In 20 Days)
+  const handleSchedulePreset = async (presetType) => {
+    if (!selectedContact) {
+      toast.error("Please select a contact");
+      return;
+    }
+    if (!activeRecipientIdentifier) {
+      toast.error(`Contact "${selectedContact.name}" does not have an active ${channel} address/number`);
+      return;
+    }
+    if (channel === "email" && !emailSubject.trim()) {
+      toast.error("Subject is required for emails");
+      return;
+    }
+    if (!messageText.trim() && attachments.length === 0) {
+      toast.error("Please enter a message before scheduling");
+      return;
+    }
+
+    const now = new Date();
+    const target = new Date(now);
+
+    if (presetType === "tomorrow") {
+      target.setDate(target.getDate() + 1);
+      target.setHours(7, 0, 0, 0);
+    } else if (presetType === "7days") {
+      target.setDate(target.getDate() + 7);
+      target.setHours(7, 0, 0, 0);
+    } else if (presetType === "20days") {
+      target.setDate(target.getDate() + 20);
+      target.setHours(7, 0, 0, 0);
+    }
+
+    setScheduling(true);
+    try {
+      const formData = new FormData();
+      formData.append("channel", channel);
+      formData.append("recipient", activeRecipientIdentifier);
+      formData.append("contactId", selectedContact._id);
+      formData.append("subject", emailSubject.trim());
+      formData.append("message", messageText.trim());
+      formData.append("cc", emailCc.trim());
+      formData.append("bcc", emailBcc.trim());
+      formData.append("timeZone", userTimeZone);
+      formData.append("scheduledAt", target.toISOString());
+      attachments.forEach((file) => formData.append("attachments", file));
+
+      const { data } = await axios.post(`${API_BASE_URL}/api/messages`, formData, {
+        headers: authHeaders(),
+      });
+
+      toast.success(
+        data.message || `Scheduled for ${target.toLocaleDateString([], { month: "short", day: "numeric" })} at 7:00 AM`
+      );
+      setMessageText("");
+      setAttachments([]);
+      localStorage.removeItem(getDraftKey(channel, selectedContact._id));
+      fetchConversation(selectedContact);
+      fetchAllScheduled();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not schedule message");
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  // Submit Custom Schedule
+  const handleCustomScheduleSubmit = async (e) => {
+    e.preventDefault();
+    if (!customScheduleDate || !customScheduleTime) {
+      toast.error("Please choose both date and time");
+      return;
+    }
+    const target = new Date(`${customScheduleDate}T${customScheduleTime}`);
+    if (isNaN(target.getTime()) || target.getTime() <= Date.now()) {
+      toast.error("Scheduled time must be in the future");
+      return;
+    }
+
+    setScheduling(true);
+    try {
+      const formData = new FormData();
+      formData.append("channel", channel);
+      formData.append("recipient", activeRecipientIdentifier);
+      formData.append("contactId", selectedContact._id);
+      formData.append("subject", emailSubject.trim());
+      formData.append("message", messageText.trim());
+      formData.append("cc", emailCc.trim());
+      formData.append("bcc", emailBcc.trim());
+      formData.append("timeZone", userTimeZone);
+      formData.append("scheduledAt", target.toISOString());
+      attachments.forEach((file) => formData.append("attachments", file));
+
+      const { data } = await axios.post(`${API_BASE_URL}/api/messages`, formData, {
+        headers: authHeaders(),
+      });
+
+      toast.success(data.message || `Scheduled for ${target.toLocaleString([], { dateStyle: "short", timeStyle: "short" })}`);
+      setShowCustomScheduleModal(false);
+      setMessageText("");
+      setAttachments([]);
+      localStorage.removeItem(getDraftKey(channel, selectedContact._id));
+      fetchConversation(selectedContact);
+      fetchAllScheduled();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not schedule message");
+    } finally {
+      setScheduling(false);
+    }
+  };
+
   // Cancel Scheduled Message
-  const handleCancelScheduled = async (id) => {
-    setCancellingId(id);
+  const handleCancelScheduled = async (msgId) => {
+    setCancellingId(msgId);
     try {
       const { data } = await axios.post(
-        `${API_BASE_URL}/api/messages/${id}/cancel`,
+        `${API_BASE_URL}/api/messages/${msgId}/cancel`,
         {},
         { headers: authHeaders() }
       );
       toast.success(data.message || "Scheduled message cancelled");
-      fetchHistory();
+      if (selectedContact) fetchConversation(selectedContact);
+      fetchAllScheduled();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Could not cancel message";
-      toast.error(errMsg);
+      toast.error(err.response?.data?.message || "Could not cancel message");
     } finally {
       setCancellingId(null);
     }
   };
 
-  // Retry Failed Message
-  const handleRetryMessage = async (id) => {
-    setRetryingId(id);
+  // Submit Rescheduled Message
+  const handleUpdateScheduledSubmit = async (e) => {
+    e.preventDefault();
+    if (!rescheduleMessageItem) return;
+
+    const { _id, recipient, subject, message, scheduledDate, scheduledTime } = rescheduleMessageItem;
+    let nextIso = null;
+    if (scheduledDate && scheduledTime) {
+      const d = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        toast.error("Scheduled time must be in the future");
+        return;
+      }
+      nextIso = d.toISOString();
+    }
+
+    setUpdatingScheduled(true);
+    const updatePayload = {
+      recipient: recipient.trim(),
+      subject: (subject || "").trim(),
+      message: (message || "").trim(),
+      scheduledAt: nextIso,
+      timeZone: userTimeZone,
+    };
+
     try {
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/messages/${id}/retry`,
-        {},
-        { headers: authHeaders() }
-      );
-      toast.success(data.message || "Message resent successfully");
-      fetchHistory();
+      let data = null;
+      try {
+        const res = await axios.patch(`${API_BASE_URL}/api/messages/${_id}`, updatePayload, { headers: authHeaders() });
+        data = res.data;
+      } catch (patchErr) {
+        if (patchErr.response?.status === 404 || patchErr.response?.status === 405) {
+          try {
+            const res = await axios.put(`${API_BASE_URL}/api/messages/${_id}`, updatePayload, { headers: authHeaders() });
+            data = res.data;
+          } catch (putErr) {
+            const res = await axios.post(`${API_BASE_URL}/api/messages/${_id}/reschedule`, updatePayload, { headers: authHeaders() });
+            data = res.data;
+          }
+        } else {
+          throw patchErr;
+        }
+      }
+
+      toast.success(data?.message || "Scheduled message updated");
+      setRescheduleMessageItem(null);
+      if (selectedContact) fetchConversation(selectedContact);
+      fetchAllScheduled();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Retry failed";
-      toast.error(errMsg);
+      toast.error(err.response?.data?.message || "Could not update scheduled message");
     } finally {
-      setRetryingId(null);
+      setUpdatingScheduled(false);
     }
   };
 
-  // Delete Message from History
-  const handleDeleteMessage = async (id) => {
+  // Contact Creation / Editing
+  const handleOpenAddContact = () => {
+    setEditingContact(null);
+    setContactFormData({
+      name: "",
+      phone: "",
+      whatsappPhone: "",
+      telegramUsername: "",
+      email: "",
+      notes: "",
+      isFavorite: false,
+    });
+    setShowContactModal(true);
+  };
+
+  const handleOpenEditContact = (c) => {
+    setEditingContact(c);
+    setContactFormData({
+      name: c.name || "",
+      phone: c.phone || "",
+      whatsappPhone: c.whatsappPhone || "",
+      telegramUsername: c.telegramUsername || "",
+      email: c.email || "",
+      notes: c.notes || "",
+      isFavorite: Boolean(c.isFavorite),
+    });
+    setShowContactModal(true);
+  };
+
+  const handleContactFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!contactFormData.name.trim()) {
+      toast.error("Contact name is required");
+      return;
+    }
+
     try {
-      await axios.delete(`${API_BASE_URL}/api/messages/${id}`, {
-        headers: authHeaders(),
-      });
-      setHistory((prev) => prev.filter((item) => item._id !== id));
-      if (draftId === id) setDraftId(null);
-      toast.success("Message removed from history");
+      if (editingContact) {
+        const { data } = await axios.patch(
+          `${API_BASE_URL}/api/contacts/${editingContact._id}`,
+          contactFormData,
+          { headers: authHeaders() }
+        );
+        toast.success(data.message || "Contact updated");
+        setSelectedContact(data.contact);
+      } else {
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/contacts`,
+          contactFormData,
+          { headers: authHeaders() }
+        );
+        toast.success(data.message || "Contact added");
+        setSelectedContact(data.contact);
+      }
+      setShowContactModal(false);
+      fetchContacts();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Could not delete message";
-      toast.error(errMsg);
+      toast.error(err.response?.data?.message || "Failed to save contact");
+    }
+  };
+
+  const handleToggleFavorite = async (contact) => {
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/contacts/${contact._id}`,
+        { isFavorite: !contact.isFavorite },
+        { headers: authHeaders() }
+      );
+      setContacts((prev) => prev.map((c) => (c._id === contact._id ? data.contact : c)));
+      if (selectedContact?._id === contact._id) setSelectedContact(data.contact);
+      toast.success(data.contact.isFavorite ? "Added to favorites" : "Removed from favorites");
+    } catch {
+      toast.error("Could not update favorite status");
+    }
+  };
+
+  const handleToggleMute = async (contact) => {
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/contacts/${contact._id}`,
+        { isMuted: !contact.isMuted },
+        { headers: authHeaders() }
+      );
+      setContacts((prev) => prev.map((c) => (c._id === contact._id ? data.contact : c)));
+      if (selectedContact?._id === contact._id) setSelectedContact(data.contact);
+      toast.success(data.contact.isMuted ? "Notifications muted" : "Notifications unmuted");
+    } catch {
+      toast.error("Could not update mute status");
     }
   };
 
   // Apply Template to Composer
   const handleApplyTemplate = (tpl) => {
-    if (tpl.subject) {
-      setSubject(tpl.subject);
+    if (tpl.subject && channel === "email") {
+      setEmailSubject(tpl.subject);
     }
     if (tpl.body) {
-      setMessage(tpl.body);
-      savedSelectionRef.current = { start: tpl.body.length, end: tpl.body.length };
-    }
-    if (tpl.channel && tpl.channel !== "all") {
-      setChannel(tpl.channel);
+      let bodyText = tpl.body;
+      if (selectedContact?.name) {
+        bodyText = bodyText.replace(/\{\{name\}\}/g, selectedContact.name);
+      }
+      setMessageText(bodyText);
     }
     setShowTemplateModal(false);
     toast.success(`Loaded template: "${tpl.title}"`);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
+  // Filtered contacts based on search and active channel
+  const filteredContacts = useMemo(() => {
+    return contacts.filter((c) => {
+      // Channel match
+      if (channel && channel !== "all") {
+        const hasChannel = c.channels?.includes(channel) ||
+          (channel === "whatsapp" && (c.whatsappPhone || c.phone)) ||
+          (channel === "telegram" && c.telegramUsername) ||
+          (channel === "email" && c.email);
+        if (!hasChannel) return false;
+      }
+      // Search match
+      if (contactSearch.trim()) {
+        const q = contactSearch.toLowerCase().trim();
+        return (
+          c.name?.toLowerCase().includes(q) ||
+          c.phone?.includes(q) ||
+          c.whatsappPhone?.includes(q) ||
+          c.telegramUsername?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q) ||
+          c.lastMessage?.toLowerCase().includes(q)
+        );
+      }
+      return true;
     });
-  };
+  }, [contacts, channel, contactSearch]);
 
-  // Compute Distinct Template Categories and Filtered Templates List
-  const templateCategories = [
-    "All",
-    ...Array.from(new Set(templates.map((t) => t.category).filter(Boolean))),
-  ];
+  // Scheduled messages for selected contact
+  const contactScheduledMessages = useMemo(() => {
+    if (!selectedContact) return [];
+    return messages.filter((m) => m.status === "scheduled");
+  }, [messages, selectedContact]);
 
-  const filteredTemplates = templates.filter((tpl) => {
-    // Category Filter
-    if (templateCategory !== "All" && tpl.category !== templateCategory) {
-      return false;
-    }
-    // Search Query (across title, subject, body, placeholders, category)
-    if (templateSearch.trim()) {
-      const q = templateSearch.toLowerCase().trim();
-      const inTitle = tpl.title?.toLowerCase().includes(q);
-      const inSubject = tpl.subject?.toLowerCase().includes(q);
-      const inBody = tpl.body?.toLowerCase().includes(q);
-      const inCategory = tpl.category?.toLowerCase().includes(q);
-      const inPlaceholders = tpl.placeholders?.some((p) => p.toLowerCase().includes(q));
-      return inTitle || inSubject || inBody || inCategory || inPlaceholders;
-    }
-    return true;
-  });
-
-  // Save Current Message as Custom Template
-  const handleSaveCustomTemplate = async (e) => {
-    e.preventDefault();
-    if (!newTemplateTitle.trim()) {
-      toast.error("Please enter a title for the template");
-      return;
-    }
-    if (!message.trim()) {
-      toast.error("Message body cannot be empty");
-      return;
-    }
-
-    setSavingTemplate(true);
-    try {
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/messages/templates`,
-        {
-          title: newTemplateTitle.trim(),
-          category: newTemplateCategory.trim() || "Custom",
-          channel,
-          subject: subject.trim(),
-          body: message.trim(),
-        },
-        { headers: authHeaders() }
-      );
-
-      toast.success(data.message || "Template saved!");
-      setShowSaveTemplateModal(false);
-      setNewTemplateTitle("");
-      fetchTemplates();
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || "Could not save template";
-      toast.error(errMsg);
-    } finally {
-      setSavingTemplate(false);
-    }
-  };
-
-  // Filter and Search History Items
-  const filteredHistory = history.filter((item) => {
-    // Tab Filter
-    if (historyFilter !== "all" && item.status !== historyFilter) {
-      return false;
-    }
-    // Search Query
-    if (historySearch.trim()) {
-      const q = historySearch.toLowerCase().trim();
-      const matchRecipient = item.recipient?.toLowerCase().includes(q);
-      const matchSubject = item.subject?.toLowerCase().includes(q);
-      const matchBody = item.message?.toLowerCase().includes(q);
-      const matchChannel = item.channel?.toLowerCase().includes(q);
-      return matchRecipient || matchSubject || matchBody || matchChannel;
-    }
-    return true;
-  });
-
-  // History Tab Badges Count
-  const counts = {
-    all: history.length,
-    scheduled: history.filter((h) => h.status === "scheduled").length,
-    draft: history.filter((h) => h.status === "draft").length,
-    sent: history.filter((h) => h.status === "sent").length,
-    failed: history.filter((h) => h.status === "failed").length,
-    cancelled: history.filter((h) => h.status === "cancelled").length,
-  };
+  // Separate messages and scheduled items in chronological view
+  const conversationItems = useMemo(() => {
+    return [...messages].sort((a, b) => new Date(a.createdAt || a.scheduledAt) - new Date(b.createdAt || b.scheduledAt));
+  }, [messages]);
 
   return (
-    <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-6">
-      {/* HEADER SECTION */}
-      <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-purple-100 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20">
-              <Send className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
-                QuickSend &amp; Dispatch
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500">
-                Multi-channel messaging, scheduled deliveries, templates, and live tracking.
-              </p>
-            </div>
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-4">
+      {/* ------------------------------------------------------------- */}
+      {/* TOP WORKSPACE HEADER                                           */}
+      {/* ------------------------------------------------------------- */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-purple-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        {/* Logo & Subtitle */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-700 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
-
-          {/* Connection Readiness Pill */}
-          <button
-            type="button"
-            onClick={() => setShowProviderDetails((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto text-xs px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50/60 text-purple-700 font-semibold hover:bg-purple-100 transition cursor-pointer"
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                providers[channel]?.configured ? "bg-emerald-500 animate-pulse" : "bg-amber-400"
-              }`}
-            />
-            <span>{channel.toUpperCase()}: {providers[channel]?.configured ? "Connected" : "Setup Needed"}</span>
-            {showProviderDetails ? (
-              <ChevronUp className="w-3.5 h-3.5" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
-            )}
-          </button>
-        </div>
-
-        {/* PROVIDER READINESS DETAILS DRAWER */}
-        {showProviderDetails && (
-          <div className="mt-4 mb-2 p-4 rounded-2xl bg-purple-50/40 border border-purple-100 text-xs space-y-3 animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-gray-700 flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-purple-600" />
-                Channel Connection Readiness
-              </span>
-              <button
-                type="button"
-                onClick={fetchProviders}
-                className="text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw className="w-3 h-3" /> Refresh
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Email Status Card */}
-              <div className="p-3 rounded-xl bg-white border border-purple-100 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-gray-800 flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-sky-500" /> Email
-                    </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        providers.email.configured
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {providers.email.configured ? "Ready" : "Inactive"}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 text-[11px] leading-tight">
-                    {providers.email.label}
-                  </p>
-                </div>
-              </div>
-
-              {/* Telegram Status Card */}
-              <div className="p-3 rounded-xl bg-white border border-purple-100 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-gray-800 flex items-center gap-1">
-                      <Send className="w-3.5 h-3.5 text-blue-500" /> Telegram
-                    </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        providers.telegram.configured
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {providers.telegram.configured ? "Ready" : "Setup Required"}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 text-[11px] leading-tight">
-                    {providers.telegram.label}
-                  </p>
-                </div>
-                {providers.telegram.botUsername && (
-                  <a
-                    href={`https://t.me/${providers.telegram.botUsername}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 text-purple-600 hover:text-purple-800 font-semibold inline-flex items-center gap-1"
-                  >
-                    Open Bot <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
-              </div>
-
-              {/* WhatsApp Status Card */}
-              <div className="p-3 rounded-xl bg-white border border-purple-100 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-gray-800 flex items-center gap-1">
-                      <MessageCircle className="w-3.5 h-3.5 text-emerald-500" /> WhatsApp
-                    </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        providers.whatsapp.configured
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {providers.whatsapp.configured ? "Cloud API" : "Web Direct"}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 text-[11px] leading-tight">
-                    {providers.whatsapp.label}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CHANNEL SELECTION TABS */}
-        <div className="flex rounded-2xl bg-purple-50/70 p-1 mb-5 border border-purple-100">
-          <button
-            type="button"
-            onClick={() => setChannel("email")}
-            className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${
-              channel === "email"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "text-gray-600 hover:text-purple-600"
-            }`}
-          >
-            <Mail className="w-4 h-4 text-sky-600" />
-            <span>Email</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setChannel("telegram")}
-            className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${
-              channel === "telegram"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "text-gray-600 hover:text-purple-600"
-            }`}
-          >
-            <Send className="w-4 h-4 text-blue-500" />
-            <span>Telegram</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setChannel("whatsapp")}
-            className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${
-              channel === "whatsapp"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "text-gray-600 hover:text-purple-600"
-            }`}
-          >
-            <MessageCircle className="w-4 h-4 text-emerald-600" />
-            <span>WhatsApp</span>
-          </button>
-        </div>
-
-        {/* COMPOSER FORM */}
-        <form onSubmit={handleSend} className="space-y-4">
-          {draftId && (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-purple-100/70 text-purple-800 text-xs">
-              <span className="font-semibold flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-purple-600" />
-                Editing saved draft
-              </span>
-              <button
-                type="button"
-                onClick={() => setDraftId(null)}
-                className="hover:underline text-purple-700 font-bold cursor-pointer"
-              >
-                Clear draft link
-              </button>
-            </div>
-          )}
-
-          {/* RECIPIENT FIELD */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-gray-700">
-                To <span className="text-rose-500">*</span>
-              </label>
-              <span className="text-[11px] text-gray-400">
-                {channel === "email"
-                  ? "Standard email format"
-                  : channel === "telegram"
-                  ? "@username or numeric chat ID"
-                  : "E.164 phone with country code (e.g. +14155552671)"}
-              </span>
-            </div>
-            <div className="relative flex items-center">
-              <input
-                type={channel === "email" ? "email" : "text"}
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                placeholder={
-                  channel === "email"
-                    ? "name@example.com"
-                    : channel === "telegram"
-                    ? "@username or numeric chat ID..."
-                    : "+1234567890 (International phone)..."
-                }
-                className="w-full rounded-xl border border-purple-100 bg-purple-50/20 px-3.5 py-2.5 pr-10 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition"
-                required
-              />
-              <div className="absolute right-3 text-purple-500 pointer-events-none">
-                <User className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          {/* SUBJECT FIELD (Shown for Email or optional headline for chats) */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
-              Subject {channel === "email" ? <span className="text-rose-500">*</span> : <span className="text-gray-400 font-normal">(Optional heading)</span>}
-            </label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder={channel === "email" ? "Enter subject line..." : "Headline / Subject (optional)..."}
-              className="w-full rounded-xl border border-purple-100 bg-purple-50/20 px-3.5 py-2.5 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition"
-              required={channel === "email"}
-            />
-          </div>
-
-          {/* MESSAGE FIELD WITH WHATSAPP-STYLE INLINE EMOJI COMPOSER & TOOLBAR */}
-          <div className="relative">
-            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-              <label className="block text-xs font-bold text-gray-700">
-                Message <span className="text-rose-500">*</span>
-              </label>
-
-              {/* Composer Toolbar Buttons */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* Template Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateModal(true)}
-                  className="inline-flex items-center gap-1 text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200/60 px-2.5 py-1 rounded-xl font-semibold transition cursor-pointer"
-                  title="Choose from reusable templates"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Templates</span>
-                </button>
-
-                {/* Quick Emoji Bar Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowQuickEmojis((prev) => !prev)}
-                  className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl font-semibold transition cursor-pointer border ${
-                    showQuickEmojis
-                      ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                      : "text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200/60"
-                  }`}
-                  title="Toggle quick emoji shortcuts"
-                >
-                  <Smile className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Quick</span>
-                </button>
-
-                {/* WhatsApp-Style Inline Emoji Picker Toggle Button */}
-                <button
-                  ref={emojiBtnRef}
-                  type="button"
-                  onClick={() => setShowEmojiPicker((prev) => !prev)}
-                  aria-expanded={showEmojiPicker}
-                  aria-haspopup="dialog"
-                  className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl font-semibold transition cursor-pointer border ${
-                    showEmojiPicker
-                      ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                      : "text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200/60"
-                  }`}
-                  title="Toggle WhatsApp-style inline emoji picker"
-                >
-                  <span className="text-sm leading-none">😊</span>
-                  <span>Emojis</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Emoji Bar */}
-            {showQuickEmojis && (
-              <div className="mb-2 flex flex-wrap gap-1.5 rounded-2xl border border-purple-100 bg-purple-50/70 p-2 animate-fadeIn">
-                {QUICK_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => handleEmojiSelect(emoji)}
-                    className="rounded-xl px-2 py-1 text-lg transition hover:bg-white hover:scale-110 active:scale-95 cursor-pointer shadow-xs"
-                    title={`Insert ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Main Message Textarea with Selection Caret Tracking */}
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                handleTextareaSelection(e);
-              }}
-              onSelect={handleTextareaSelection}
-              onClick={handleTextareaSelection}
-              onKeyUp={handleTextareaSelection}
-              placeholder="Type your message here... Use {{name}}, {{task}}, or {{date}} for dynamic values."
-              rows={4}
-              className="w-full rounded-2xl border border-purple-100 bg-purple-50/20 px-3.5 py-2.5 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition resize-none leading-relaxed"
-              required
-            />
-            <div className="flex justify-between items-center text-[11px] text-gray-400 mt-1">
-              <span>Supports emoji, formatted text, and file attachments</span>
-              <span>{message.length} characters</span>
-            </div>
-
-            {/* WHATSAPP-STYLE INLINE EMOJI PICKER POPOVER (ANCHORED DIRECTLY TO COMPOSER) */}
-            {showEmojiPicker && (
-              <div
-                ref={emojiPickerRef}
-                role="dialog"
-                aria-label="WhatsApp-Style Emoji Picker"
-                className="absolute bottom-full mb-2 right-0 sm:right-auto sm:left-0 md:left-auto md:right-0 w-full sm:w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-3xl shadow-2xl border border-purple-200 z-30 overflow-hidden animate-fadeIn"
-              >
-                {/* Popover Header */}
-                <div className="flex items-center justify-between px-3.5 py-2 bg-gradient-to-r from-purple-50 via-indigo-50/40 to-purple-50 border-b border-purple-100">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base">😊</span>
-                    <span className="text-xs font-bold text-gray-800">
-                      WhatsApp Emoji Composer
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowEmojiPicker(false)}
-                    className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-white/80 transition cursor-pointer"
-                    aria-label="Close emoji picker"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Lazy-Loaded Emoji Picker */}
-                <div className="p-1">
-                  <Suspense
-                    fallback={
-                      <div className="h-64 flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-                        <span className="text-xs text-gray-400">Loading emojis...</span>
-                      </div>
-                    }
-                  >
-                    <EmojiPicker
-                      onEmojiClick={(emojiData) => handleEmojiSelect(emojiData.emoji)}
-                      width="100%"
-                      height={340}
-                      previewConfig={{ showPreview: false }}
-                      skinTonesDisabled
-                      lazyLoadEmojis={true}
-                      searchPlaceHolder="Search emojis (smile, fire, check...)"
-                    />
-                  </Suspense>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ATTACHMENTS LIST & UPLOADER */}
-          <div>
-            {files.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {files.map((file, index) => (
-                  <span
-                    key={`${file.name}-${index}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-purple-50 border border-purple-200 px-3 py-1.5 text-xs font-semibold text-purple-800 shadow-2xs"
-                  >
-                    <Paperclip className="w-3.5 h-3.5 text-purple-600" />
-                    <span className="max-w-[150px] truncate">{file.name}</span>
-                    <span className="text-gray-400 font-normal">
-                      ({formatFileSize(file.size)})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      className="text-purple-400 hover:text-purple-700 cursor-pointer p-0.5 rounded-full hover:bg-purple-200/60 transition"
-                      title="Remove file"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={files.length >= 5}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/50 text-xs font-bold text-purple-700 hover:bg-purple-100 transition cursor-pointer disabled:opacity-50"
-              >
-                <Paperclip className="w-3.5 h-3.5" />
-                <span>Add Attachment ({files.length}/5)</span>
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              {/* Save As Template Button */}
-              {message.trim() && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewTemplateTitle(subject || "Custom Template");
-                    setShowSaveTemplateModal(true);
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-purple-100 text-xs font-semibold text-purple-600 hover:bg-purple-50 transition cursor-pointer"
-                  title="Save this message as a reusable template"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Save as Template</span>
-                </button>
-              )}
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+                QuickSend
+              </h1>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                Workspace
+              </span>
             </div>
+            <p className="text-xs text-gray-500">
+              Message anyone on WhatsApp, Telegram or Email. Send now or schedule for later.
+            </p>
           </div>
+        </div>
 
-          {/* SCHEDULE SEND TOGGLE & PICKERS */}
-          <div className="pt-2 border-t border-purple-100">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-bold text-gray-800">Scheduled Delivery</span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isScheduling}
-                  onChange={(e) => setIsScheduling(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-              </label>
-            </div>
+        {/* Header Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowTemplateModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-purple-100 bg-purple-50/60 hover:bg-purple-100 text-purple-700 text-xs font-bold transition cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <span>Message Templates</span>
+          </button>
 
-            {isScheduling && (
-              <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-100 space-y-3 animate-fadeIn">
-                <p className="text-[11px] text-gray-600">
-                  Tasklert's atomic background worker will persistently dispatch this message at the exact time, even if you close your browser.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Date <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
-                      required={isScheduling}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Time <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
-                      required={isScheduling}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Timezone (IANA)
-                    </label>
-                    <input
-                      type="text"
-                      value={userTimeZone}
-                      readOnly
-                      title="Detected system timezone"
-                      className="w-full rounded-xl border border-purple-100 bg-gray-50 px-3 py-2 text-xs text-gray-600"
-                    />
-                  </div>
-                </div>
-
-                {scheduledDate && scheduledTime && (
-                  <div className="text-xs font-semibold text-purple-800 bg-purple-100/60 p-2 rounded-xl flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
-                    <span>
-                      Will dispatch on: {scheduledDate} at {scheduledTime} ({userTimeZone})
-                    </span>
-                  </div>
-                )}
-              </div>
+          <button
+            type="button"
+            onClick={() => setShowScheduledQueueModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-purple-100 bg-purple-50/60 hover:bg-purple-100 text-purple-700 text-xs font-bold transition cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5 text-purple-600" />
+            <span>Scheduled Messages</span>
+            {allScheduledMessages.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-600 text-white font-bold ml-0.5">
+                {allScheduledMessages.length}
+              </span>
             )}
-          </div>
+          </button>
 
-          {/* ACTION BUTTONS: SEND / SCHEDULE / DRAFT */}
-          <div className="flex flex-col sm:flex-row items-center gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={sending}
-              className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md shadow-purple-600/25 transition active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-            >
-              {sending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isScheduling ? "Scheduling Message..." : "Sending Message..."}</span>
-                </>
-              ) : isScheduling ? (
-                <>
-                  <Clock className="w-4 h-4" />
-                  <span>Schedule Dispatch</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Send Message Now</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              disabled={savingDraft || sending}
-              onClick={handleSaveDraft}
-              className="w-full sm:w-auto py-3.5 px-5 rounded-2xl border border-purple-200 bg-purple-50/50 hover:bg-purple-100 text-purple-700 font-bold text-xs sm:text-sm transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
-            >
-              {savingDraft ? (
-                <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-              ) : (
-                <FileText className="w-4 h-4 text-purple-600" />
-              )}
-              <span>Save Draft</span>
-            </button>
-
-            {(recipient || message || files.length > 0) && (
-              <button
-                type="button"
-                onClick={resetComposer}
-                className="py-2 px-3 text-xs text-gray-400 hover:text-gray-600 transition cursor-pointer"
-                title="Clear current composer fields"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
+          <button
+            type="button"
+            onClick={() => setShowProviderModal(true)}
+            className="p-2 rounded-2xl border border-purple-100 bg-white hover:bg-purple-50 text-gray-600 hover:text-purple-700 transition cursor-pointer"
+            title="Channel Connection Status & Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* QUICK SEND TEMPLATES MODAL (2-COLUMN ON LAPTOPS/DESKTOPS, ACCESSIBLE, SEARCHABLE, CATEGORY FILTERED) */}
-      {showTemplateModal &&
-        createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
-            <div
-              ref={templateModalRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="templates-modal-title"
-              className="relative bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-2xl w-full max-h-[min(90dvh,760px)] flex flex-col overflow-hidden"
-            >
-              {/* STICKY MODAL HEADER */}
-              <div className="p-4 sm:p-5 border-b border-purple-100 bg-white">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-sm shadow-purple-500/20">
-                      <Sparkles className="w-4 h-4" />
+      {/* ------------------------------------------------------------- */}
+      {/* THREE-PART CHAT WORKSPACE                                      */}
+      {/* ------------------------------------------------------------- */}
+      <div className="bg-white rounded-3xl shadow-sm border border-purple-100/90 overflow-hidden min-h-[680px] grid grid-cols-1 md:grid-cols-12 relative">
+        {/* ============================================================= */}
+        {/* LEFT PANE: CONTACTS & CONVERSATIONS (md:col-span-4 / col-span-12) */}
+        {/* ============================================================= */}
+        <aside
+          className={`md:col-span-4 border-r border-purple-100/80 bg-white flex flex-col h-[700px] ${
+            selectedContact ? "hidden md:flex" : "flex"
+          }`}
+        >
+          {/* Contact Search Input */}
+          <div className="p-3.5 border-b border-purple-100/70 space-y-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={contactSearch}
+                onChange={(e) => setContactSearch(e.target.value)}
+                placeholder="Search contacts..."
+                className="w-full pl-9 pr-8 py-2 rounded-2xl border border-purple-100 bg-purple-50/20 text-xs text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition"
+              />
+              {contactSearch && (
+                <button
+                  type="button"
+                  onClick={() => setContactSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Channel Switcher Pills (WhatsApp, Telegram, Email) */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-purple-50/60 border border-purple-100/60">
+              {/* WhatsApp Button */}
+              <button
+                type="button"
+                onClick={() => handleChannelChange("whatsapp")}
+                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  channel === "whatsapp"
+                    ? "bg-emerald-500 text-white shadow-xs"
+                    : "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/50"
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">WhatsApp</span>
+              </button>
+
+              {/* Telegram Button */}
+              <button
+                type="button"
+                onClick={() => handleChannelChange("telegram")}
+                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  channel === "telegram"
+                    ? "bg-sky-500 text-white shadow-xs"
+                    : "text-gray-600 hover:text-sky-700 hover:bg-sky-50/50"
+                }`}
+              >
+                <Send className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Telegram</span>
+              </button>
+
+              {/* Email Button */}
+              <button
+                type="button"
+                onClick={() => handleChannelChange("email")}
+                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  channel === "email"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "text-gray-600 hover:text-purple-700 hover:bg-purple-50/50"
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Email</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Contact List */}
+          <div className="flex-1 overflow-y-auto divide-y divide-purple-50/80 scrollbar-none">
+            {loadingContacts ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                <span className="text-xs text-gray-400">Loading contacts...</span>
+              </div>
+            ) : filteredContacts.length === 0 ? (
+              <div className="py-12 text-center p-4">
+                <Users className="w-8 h-8 text-purple-300 mx-auto mb-2" />
+                <p className="text-xs font-bold text-gray-700">No contacts found</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Add a new contact or try another search query.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddContact}
+                  className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Contact</span>
+                </button>
+              </div>
+            ) : (
+              filteredContacts.map((contact) => {
+                const isSelected = selectedContact?._id === contact._id;
+                const initials = contact.name
+                  .split(" ")
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase();
+
+                return (
+                  <div
+                    key={contact._id}
+                    onClick={() => setSelectedContact(contact)}
+                    className={`p-3 sm:p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors relative group ${
+                      isSelected
+                        ? "bg-purple-50/70 border-l-4 border-purple-600"
+                        : "hover:bg-purple-50/30"
+                    }`}
+                  >
+                    {/* Contact Avatar */}
+                    <div className="relative shrink-0">
+                      {contact.avatar ? (
+                        <img
+                          src={contact.avatar}
+                          alt={contact.name}
+                          className="w-10 h-10 rounded-full object-cover border border-purple-100 shadow-2xs"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 text-white font-bold text-xs flex items-center justify-center shadow-2xs">
+                          {initials}
+                        </div>
+                      )}
+                      {contact.isFavorite && (
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-white flex items-center justify-center text-[9px] shadow-xs">
+                          ★
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <h3 id="templates-modal-title" className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
-                        QuickSend Templates
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-gray-500">
-                        Search, preview placeholders, and apply pre-built or custom messages.
+
+                    {/* Contact Details */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">
+                          {contact.name}
+                        </span>
+                        <span className="text-[10px] text-gray-400 shrink-0">
+                          {contact.lastMessageAt
+                            ? new Date(contact.lastMessageAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                            : ""}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-500 truncate leading-relaxed">
+                        {contact.lastMessage || (
+                          channel === "whatsapp"
+                            ? contact.whatsappPhone || contact.phone
+                            : channel === "telegram"
+                            ? `@${contact.telegramUsername || "telegram"}`
+                            : contact.email
+                        )}
                       </p>
                     </div>
+
+                    {/* Unread badge or favorite indicator */}
+                    {contact.unreadCount > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                        {contact.unreadCount}
+                      </span>
+                    )}
                   </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Add Contact Footer Action */}
+          <div className="p-3 border-t border-purple-100/70 bg-purple-50/30 flex items-center justify-between">
+            <span className="text-xs text-gray-500 font-medium">
+              {filteredContacts.length} contact{filteredContacts.length !== 1 ? "s" : ""}
+            </span>
+            <button
+              type="button"
+              onClick={handleOpenAddContact}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Add Recipient</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* ============================================================= */}
+        {/* CENTER PANE: CONVERSATION & COMPOSER (md:col-span-8 or 5)      */}
+        {/* ============================================================= */}
+        <main
+          className={`${
+            showRightPanel ? "md:col-span-5 lg:col-span-5" : "md:col-span-8"
+          } flex flex-col h-[700px] bg-slate-50/40 relative ${
+            !selectedContact ? "hidden md:flex" : "flex"
+          }`}
+        >
+          {selectedContact ? (
+            <>
+              {/* Active Conversation Top Bar */}
+              <div className="p-3.5 sm:p-4 bg-white border-b border-purple-100/80 flex items-center justify-between shrink-0 shadow-2xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Mobile Back Button */}
                   <button
                     type="button"
-                    onClick={() => setShowTemplateModal(false)}
-                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
-                    aria-label="Close templates modal"
+                    onClick={() => setSelectedContact(null)}
+                    className="md:hidden p-1.5 rounded-xl text-gray-500 hover:bg-gray-100 cursor-pointer"
                   >
-                    <X className="w-5 h-5" />
+                    <ArrowLeft className="w-5 h-5" />
                   </button>
+
+                  {/* Contact Avatar */}
+                  <div
+                    onClick={() => setShowRightPanel((prev) => !prev)}
+                    className="cursor-pointer shrink-0"
+                  >
+                    {selectedContact.avatar ? (
+                      <img
+                        src={selectedContact.avatar}
+                        alt={selectedContact.name}
+                        className="w-10 h-10 rounded-full object-cover border border-purple-100"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 text-white font-bold text-xs flex items-center justify-center">
+                        {selectedContact.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Name and Channel Identity */}
+                  <div
+                    onClick={() => setShowRightPanel((prev) => !prev)}
+                    className="min-w-0 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm sm:text-base font-bold text-gray-900 truncate">
+                        {selectedContact.name}
+                      </h2>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase ${
+                          channel === "whatsapp"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : channel === "telegram"
+                            ? "bg-sky-100 text-sky-800"
+                            : "bg-purple-100 text-purple-800"
+                        }`}
+                      >
+                        {channel}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-mono truncate">
+                      {activeRecipientIdentifier || "No address configured"}
+                    </p>
+                  </div>
                 </div>
 
-                {/* SEARCH BAR */}
-                <div className="relative mb-3">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={templateSearch}
-                    onChange={(e) => setTemplateSearch(e.target.value)}
-                    placeholder="Search templates by title, keywords, or placeholders..."
-                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-purple-200 bg-purple-50/30 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition"
-                  />
-                  {templateSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setTemplateSearch("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full cursor-pointer"
-                      aria-label="Clear template search"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                {/* Conversation Header Actions */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFavorite(selectedContact)}
+                    className={`p-2 rounded-xl transition cursor-pointer ${
+                      selectedContact.isFavorite
+                        ? "text-amber-500 bg-amber-50 hover:bg-amber-100"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                    }`}
+                    title={selectedContact.isFavorite ? "Favorited" : "Add to favorites"}
+                  >
+                    <Star className="w-4 h-4 fill-current" />
+                  </button>
 
-                {/* CATEGORY FILTER PILLS */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {templateCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setTemplateCategory(cat)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-                        templateCategory === cat
-                          ? "bg-purple-600 text-white shadow-xs"
-                          : "bg-purple-50 text-gray-600 hover:bg-purple-100 hover:text-purple-700"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (channel === "whatsapp" && waDirectUrl) {
+                        window.open(waDirectUrl, "_blank", "noopener,noreferrer");
+                      } else {
+                        toast.info(`Calling ${selectedContact.name}...`);
+                      }
+                    }}
+                    className="p-2 rounded-xl text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+                    title="Audio call / WhatsApp web"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRightPanel((prev) => !prev)}
+                    className={`p-2 rounded-xl transition cursor-pointer ${
+                      showRightPanel
+                        ? "bg-purple-100 text-purple-700"
+                        : "text-gray-500 hover:text-purple-600 hover:bg-purple-50"
+                    }`}
+                    title="Toggle contact info panel"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              {/* SCROLLABLE TEMPLATES 2-COLUMN GRID */}
-              <div className="overflow-y-auto modal-content-scroll p-4 sm:p-5 flex-1 space-y-3">
-                {loadingTemplates ? (
-                  <div className="py-12 flex flex-col items-center justify-center gap-2">
+              {/* Message Thread Scroll Area */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
+                {/* Date Chip */}
+                <div className="flex justify-center">
+                  <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-purple-50/80 text-purple-700 border border-purple-100 shadow-2xs">
+                    Today
+                  </span>
+                </div>
+
+                {loadingConversation ? (
+                  <div className="py-12 flex justify-center">
                     <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-                    <span className="text-xs text-gray-500">Loading templates...</span>
                   </div>
-                ) : filteredTemplates.length === 0 ? (
-                  <div className="py-12 text-center flex flex-col items-center justify-center gap-2">
-                    <FileText className="w-8 h-8 text-purple-300" />
-                    <p className="text-sm font-semibold text-gray-700">No matching templates found</p>
-                    <p className="text-xs text-gray-400">
-                      Try adjusting your search query or selected category.
+                ) : conversationItems.length === 0 ? (
+                  <div className="py-12 text-center max-w-sm mx-auto space-y-2">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center mx-auto">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-800">
+                      Start a conversation with {selectedContact.name}
                     </p>
-                    {(templateSearch || templateCategory !== "All") && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTemplateSearch("");
-                          setTemplateCategory("All");
-                        }}
-                        className="mt-2 px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition cursor-pointer"
-                      >
-                        Clear Filters
-                      </button>
-                    )}
+                    <p className="text-xs text-gray-400">
+                      Messages sent now or scheduled for later delivery will appear right here in this thread.
+                    </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {filteredTemplates.map((tpl) => (
-                      <div
-                        key={tpl._id}
-                        onClick={() => handleApplyTemplate(tpl)}
-                        className="p-3.5 rounded-2xl border border-purple-100 bg-white hover:border-purple-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-1.5 mb-1.5">
-                            <h4 className="font-bold text-xs sm:text-sm text-gray-900 group-hover:text-purple-700 transition">
-                              {tpl.title}
-                            </h4>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 shrink-0 border border-purple-100">
-                              {tpl.category || "General"}
+                  conversationItems.map((item) => {
+                    const isScheduled = item.status === "scheduled";
+                    const isIncoming = item.direction === "incoming";
+
+                    // 1. INLINE SCHEDULED MESSAGE CARD (Matches user screenshot!)
+                    if (isScheduled) {
+                      return (
+                        <div
+                          key={item._id}
+                          className="max-w-md mx-auto my-3 p-4 rounded-3xl bg-purple-50/90 border border-purple-200 text-gray-900 shadow-xs space-y-2 animate-fadeIn"
+                        >
+                          <div className="flex items-center justify-between text-xs font-bold text-purple-700">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-4 h-4 text-purple-600 animate-pulse" />
+                              Scheduled Message
                             </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const targetDate = item.scheduledAt ? new Date(item.scheduledAt) : new Date();
+                                  const pad = (n) => String(n).padStart(2, "0");
+                                  setRescheduleMessageItem({
+                                    ...item,
+                                    scheduledDate: `${targetDate.getFullYear()}-${pad(targetDate.getMonth() + 1)}-${pad(targetDate.getDate())}`,
+                                    scheduledTime: `${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())}`,
+                                  });
+                                }}
+                                className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-200/50 rounded-lg cursor-pointer"
+                                title="Reschedule or edit message"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={cancellingId === item._id}
+                                onClick={() => handleCancelScheduled(item._id)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-lg cursor-pointer"
+                                title="Cancel schedule"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
-                          {tpl.subject && (
-                            <p className="text-[11px] font-semibold text-purple-900 mb-1 truncate">
-                              Subj: {tpl.subject}
+                          <p className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed font-sans">
+                            {item.message}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-1 text-[11px] text-purple-800 font-semibold border-t border-purple-200/50">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                              {item.scheduledAt
+                                ? new Date(item.scheduledAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })
+                                : "Pending"}
+                            </span>
+                            <span className="text-[10px] text-purple-600 uppercase font-mono">
+                              {item.channel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // 2. STANDARD CHAT BUBBLES
+                    return (
+                      <div
+                        key={item._id}
+                        className={`flex flex-col ${
+                          isIncoming ? "items-start" : "items-end"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl p-3 text-xs leading-relaxed space-y-1 shadow-2xs ${
+                            isIncoming
+                              ? "bg-white text-gray-900 rounded-tl-xs border border-gray-100"
+                              : channel === "whatsapp"
+                              ? "bg-[#dcf8c6] text-gray-900 rounded-tr-xs"
+                              : "bg-purple-600 text-white rounded-tr-xs"
+                          }`}
+                        >
+                          {item.subject && (
+                            <p className="font-bold pb-1 border-b border-black/10">
+                              {item.subject}
                             </p>
                           )}
+                          <p className="whitespace-pre-wrap break-words">{item.message}</p>
 
-                          <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-2.5">
-                            {tpl.body}
-                          </p>
-                        </div>
-
-                        <div>
-                          {/* Placeholders */}
-                          {tpl.placeholders?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2.5">
-                              {tpl.placeholders.map((p) => (
-                                <span
-                                  key={p}
-                                  className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-purple-50/60 border border-purple-100 text-purple-700"
+                          {/* Attachments */}
+                          {item.attachments?.length > 0 && (
+                            <div className="mt-1.5 pt-1 border-t border-black/10 flex flex-col gap-1">
+                              {item.attachments.map((att, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-1.5 bg-black/5 p-1.5 rounded-lg text-[11px]"
                                 >
-                                  {p}
-                                </span>
+                                  <Paperclip className="w-3 h-3" />
+                                  <span className="truncate max-w-[140px] font-medium">{att.filename}</span>
+                                </div>
                               ))}
                             </div>
                           )}
 
-                          <div className="pt-2 border-t border-purple-50 flex items-center justify-between text-xs font-bold text-purple-700 group-hover:text-purple-900">
-                            <span>Use Template</span>
-                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                          {/* Timestamp and Checkmarks */}
+                          <div
+                            className={`flex items-center justify-end gap-1 text-[10px] pt-0.5 ${
+                              isIncoming
+                                ? "text-gray-400"
+                                : channel === "whatsapp"
+                                ? "text-gray-500"
+                                : "text-purple-200"
+                            }`}
+                          >
+                            <span>
+                              {item.sentAt
+                                ? new Date(item.sentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                                : new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            {!isIncoming && <CheckCheck className="w-3.5 h-3.5 text-sky-500" />}
                           </div>
                         </div>
                       </div>
+                    );
+                  })
+                )}
+                <div ref={conversationEndRef} />
+              </div>
+
+              {/* ======================================================= */}
+              {/* COMPOSER & SCHEDULING ACTION BAR                        */}
+              {/* ======================================================= */}
+              <div className="p-3 sm:p-4 bg-white border-t border-purple-100/80 space-y-2.5 shrink-0">
+                {/* Email Subject Line (Only shown for Email channel) */}
+                {channel === "email" && (
+                  <div className="space-y-1.5 pb-1 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        placeholder="Subject..."
+                        className="flex-1 rounded-xl border border-purple-100 bg-purple-50/20 px-3 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailCcBcc((prev) => !prev)}
+                        className="text-[11px] font-bold text-purple-700 hover:underline cursor-pointer whitespace-nowrap"
+                      >
+                        {showEmailCcBcc ? "Hide CC" : "+ CC/BCC"}
+                      </button>
+                    </div>
+
+                    {showEmailCcBcc && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="email"
+                          value={emailCc}
+                          onChange={(e) => setEmailCc(e.target.value)}
+                          placeholder="CC..."
+                          className="rounded-xl border border-purple-100 bg-purple-50/20 px-3 py-1 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                        />
+                        <input
+                          type="email"
+                          value={emailBcc}
+                          onChange={(e) => setEmailBcc(e.target.value)}
+                          placeholder="BCC..."
+                          className="rounded-xl border border-purple-100 bg-purple-50/20 px-3 py-1 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Attachment Chips */}
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pb-1">
+                    {attachments.map((f, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-100 text-purple-800 text-[11px] font-medium"
+                      >
+                        <Paperclip className="w-3 h-3 text-purple-600" />
+                        <span className="truncate max-w-[120px]">{f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(i)}
+                          className="hover:text-rose-600 p-0.5 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
                     ))}
                   </div>
                 )}
-              </div>
 
-              {/* MODAL FOOTER */}
-              <div className="p-3.5 sm:p-4 bg-purple-50/50 border-t border-purple-100 flex items-center justify-between text-xs text-gray-500">
-                <span>
-                  {filteredTemplates.length} template{filteredTemplates.length !== 1 ? "s" : ""} found
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateModal(false)}
-                  className="px-4 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold transition cursor-pointer"
-                >
-                  Close
-                </button>
+                {/* Primary Message Input Bar */}
+                <div className="flex items-center gap-2 relative">
+                  {/* Emoji Button */}
+                  <button
+                    ref={emojiBtnRef}
+                    type="button"
+                    onClick={() => setShowEmojiPicker((prev) => !prev)}
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition cursor-pointer"
+                    title="Insert emoji"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+
+                  {/* Attachment Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition cursor-pointer"
+                    title="Attach files (max 5)"
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {/* Textarea Input */}
+                  <textarea
+                    ref={textareaRef}
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onSelect={handleTextareaSelect}
+                    onKeyUp={handleTextareaSelect}
+                    onClick={handleTextareaSelect}
+                    rows={1}
+                    placeholder={`Type a message to ${selectedContact.name}...`}
+                    className="flex-1 rounded-2xl border border-purple-100 bg-purple-50/20 px-3.5 py-2.5 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition resize-none max-h-24"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+
+                  {/* Character Counter */}
+                  <span className="text-[10px] text-gray-400 font-mono hidden sm:inline">
+                    {messageText.length}/4096
+                  </span>
+
+                  {/* Send Icon Button */}
+                  <button
+                    type="button"
+                    disabled={sending || (!messageText.trim() && attachments.length === 0)}
+                    onClick={handleSendMessage}
+                    className="w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white flex items-center justify-center shadow-md shadow-purple-600/25 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Send now"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 -rotate-12 translate-x-0.5" />
+                    )}
+                  </button>
+
+                  {/* Emoji Picker Popover */}
+                  {showEmojiPicker && (
+                    <div
+                      ref={emojiPickerRef}
+                      className="absolute left-0 bottom-full mb-2 z-40 shadow-2xl rounded-2xl overflow-hidden border border-purple-100 animate-fadeIn"
+                    >
+                      <Suspense
+                        fallback={
+                          <div className="p-8 bg-white flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                          </div>
+                        }
+                      >
+                        <EmojiPicker
+                          onEmojiClick={handleEmojiClick}
+                          autoFocusSearch={false}
+                          width={300}
+                          height={340}
+                          previewConfig={{ showPreview: false }}
+                        />
+                      </Suspense>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Scheduling Presets Bar (Matches user's exact uploaded design!) */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-purple-100/60">
+                  {/* Send Now Button */}
+                  <button
+                    type="button"
+                    disabled={sending || (!messageText.trim() && attachments.length === 0)}
+                    onClick={handleSendMessage}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-purple-700 font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Send Now</span>
+                  </button>
+
+                  {/* Schedule Action Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomScheduleModal(true)}
+                    className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    <span>Schedule</span>
+                  </button>
+
+                  {/* Preset 1: Tomorrow 7:00 AM */}
+                  <button
+                    type="button"
+                    disabled={scheduling}
+                    onClick={() => handleSchedulePreset("tomorrow")}
+                    className="px-2.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50/50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition cursor-pointer"
+                    title="Schedule for Tomorrow at 7:00 AM"
+                  >
+                    <span>Tomorrow 7:00 AM</span>
+                  </button>
+
+                  {/* Preset 2: In 7 Days */}
+                  <button
+                    type="button"
+                    disabled={scheduling}
+                    onClick={() => handleSchedulePreset("7days")}
+                    className="px-2.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50/50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition cursor-pointer"
+                    title="Schedule for 7 days from now at 7:00 AM"
+                  >
+                    <span>In 7 Days</span>
+                  </button>
+
+                  {/* Preset 3: In 20 Days */}
+                  <button
+                    type="button"
+                    disabled={scheduling}
+                    onClick={() => handleSchedulePreset("20days")}
+                    className="px-2.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50/50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition cursor-pointer"
+                    title="Schedule for 20 days from now at 7:00 AM"
+                  >
+                    <span>In 20 Days</span>
+                  </button>
+
+                  {/* Custom Option */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomScheduleModal(true)}
+                    className="px-2.5 py-1.5 rounded-xl border border-dashed border-purple-300 text-purple-700 hover:bg-purple-50 text-xs font-semibold transition cursor-pointer"
+                  >
+                    <span>Custom...</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3">
+              <div className="w-16 h-16 rounded-3xl bg-purple-100 text-purple-600 flex items-center justify-center">
+                <MessageCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-gray-800">
+                Select a contact to start messaging
+              </h3>
+              <p className="text-xs text-gray-400 max-w-sm">
+                Choose a conversation from the left or switch between WhatsApp, Telegram and Email.
+              </p>
+            </div>
+          )}
+        </main>
+
+        {/* ============================================================= */}
+        {/* RIGHT PANE: CONTACT DETAILS & SCHEDULED SUMMARY (Collapsible) */}
+        {/* ============================================================= */}
+        {showRightPanel && selectedContact && (
+          <aside className="md:col-span-3 border-l border-purple-100/80 bg-white flex flex-col h-[700px] p-4 overflow-y-auto animate-fadeIn shrink-0">
+            {/* Header with Close */}
+            <div className="flex items-center justify-between pb-3 border-b border-purple-100">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Contact Info
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowRightPanel(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Contact Profile Summary */}
+            <div className="text-center py-4 border-b border-purple-100/70">
+              {selectedContact.avatar ? (
+                <img
+                  src={selectedContact.avatar}
+                  alt={selectedContact.name}
+                  className="w-16 h-16 rounded-full object-cover mx-auto mb-2 border-2 border-purple-200 shadow-xs"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 text-white font-bold text-lg flex items-center justify-center mx-auto mb-2 shadow-xs">
+                  {selectedContact.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <h3 className="text-sm font-bold text-gray-900">{selectedContact.name}</h3>
+              <p className="text-xs text-gray-500 font-mono mt-0.5">
+                {activeRecipientIdentifier || "No address"}
+              </p>
+
+              {/* Supported Channels Badges */}
+              <div className="flex justify-center gap-1.5 mt-2">
+                {selectedContact.channels?.map((ch) => (
+                  <span
+                    key={ch}
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      ch === "whatsapp"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : ch === "telegram"
+                        ? "bg-sky-100 text-sky-800"
+                        : "bg-purple-100 text-purple-800"
+                    }`}
+                  >
+                    {ch}
+                  </span>
+                ))}
               </div>
             </div>
-          </div>,
-          document.body
-        )}
 
-      {/* SAVE CUSTOM TEMPLATE MODAL */}
-      {showSaveTemplateModal &&
+            {/* Quick Actions List (Matching user's screenshot!) */}
+            <div className="py-3 border-b border-purple-100/70 space-y-1">
+              <button
+                type="button"
+                onClick={() => handleOpenEditContact(selectedContact)}
+                className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-purple-50 transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-purple-600" />
+                  View &amp; Edit Contact
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toast.info(`${selectedContact.name} has 12 shared documents and media items.`)}
+                className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-purple-50 transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-purple-600" />
+                  Media, Links &amp; Files
+                </span>
+                <span className="text-[11px] font-bold text-gray-400">12 &gt;</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCustomScheduleModal(true)}
+                className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-purple-50 transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600" />
+                  Schedule Message
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+              </button>
+
+              <div className="flex items-center justify-between p-2 text-xs font-semibold text-gray-700">
+                <span className="flex items-center gap-2">
+                  <BellOff className="w-4 h-4 text-purple-600" />
+                  Mute Notifications
+                </span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selectedContact.isMuted)}
+                    onChange={() => handleToggleMute(selectedContact)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between p-2 text-xs font-semibold text-gray-700">
+                <span className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-purple-600" />
+                  Add to Favorites
+                </span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selectedContact.isFavorite)}
+                    onChange={() => handleToggleFavorite(selectedContact)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => toast.warning(`Contact "${selectedContact.name}" blocked.`)}
+                className="w-full text-left p-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer flex items-center gap-2"
+              >
+                <Ban className="w-4 h-4 text-rose-500" />
+                <span>Block Contact</span>
+              </button>
+            </div>
+
+            {/* Scheduled Messages Summary for this contact */}
+            <div className="pt-3 flex-1 flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-gray-800">
+                  Scheduled Messages ({contactScheduledMessages.length})
+                </span>
+                {contactScheduledMessages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduledQueueModal(true)}
+                    className="text-[10px] text-purple-700 font-bold hover:underline cursor-pointer"
+                  >
+                    See all
+                  </button>
+                )}
+              </div>
+
+              {contactScheduledMessages.length === 0 ? (
+                <p className="text-[11px] text-gray-400 italic">
+                  No active scheduled messages for {selectedContact.name}.
+                </p>
+              ) : (
+                <div className="space-y-2 overflow-y-auto max-h-48">
+                  {contactScheduledMessages.map((m) => (
+                    <div
+                      key={m._id}
+                      className="p-2.5 rounded-2xl bg-purple-50/80 border border-purple-100 text-xs space-y-1"
+                    >
+                      <p className="text-gray-800 line-clamp-2 font-medium">
+                        {m.message}
+                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-purple-700 font-bold pt-1">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-purple-600" />
+                          {m.scheduledAt ? new Date(m.scheduledAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "Scheduled"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelScheduled(m._id)}
+                          className="text-rose-500 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 1: ADD / EDIT CONTACT MODAL                              */}
+      {/* ------------------------------------------------------------- */}
+      {showContactModal &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
             <div
-              ref={saveTemplateModalRef}
+              ref={contactModalRef}
               role="dialog"
               aria-modal="true"
-              aria-labelledby="save-template-modal-title"
-              className="bg-white rounded-3xl shadow-2xl p-5 max-w-md w-full border border-purple-100"
+              aria-labelledby="contact-modal-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-md w-full p-5 sm:p-6 space-y-4"
             >
-              <div className="flex items-center justify-between mb-3">
-                <h3 id="save-template-modal-title" className="text-base font-bold text-gray-900">
-                  Save as Template
-                </h3>
+              <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 id="contact-modal-title" className="text-base font-bold text-gray-900 leading-tight">
+                      {editingContact ? "Edit Contact" : "Add New Contact"}
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Link WhatsApp, Telegram, and Email identifiers for 1-click messaging.
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setShowSaveTemplateModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition cursor-pointer"
-                  aria-label="Close modal"
+                  onClick={() => setShowContactModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-xl hover:bg-gray-100 transition cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={handleSaveCustomTemplate} className="space-y-3">
+
+              <form onSubmit={handleContactFormSubmit} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Template Title</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Display Name <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    value={newTemplateTitle}
-                    onChange={(e) => setNewTemplateTitle(e.target.value)}
-                    placeholder="e.g. Weekly Status Update"
+                    value={contactFormData.name}
+                    onChange={(e) => setContactFormData({ ...contactFormData, name: e.target.value })}
+                    placeholder="e.g. Ramu or Sarah Connor"
                     className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
                     required
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-800 mb-1 flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3 text-emerald-600" /> WhatsApp Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={contactFormData.whatsappPhone}
+                      onChange={(e) => setContactFormData({ ...contactFormData, whatsappPhone: e.target.value })}
+                      placeholder="+917997864218"
+                      className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1">
+                      <Send className="w-3 h-3 text-sky-600" /> Telegram Handle
+                    </label>
+                    <input
+                      type="text"
+                      value={contactFormData.telegramUsername}
+                      onChange={(e) => setContactFormData({ ...contactFormData, telegramUsername: e.target.value })}
+                      placeholder="@ramu_tech"
+                      className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
+                  <label className="block text-[11px] font-bold text-purple-800 mb-1 flex items-center gap-1">
+                    <Mail className="w-3 h-3 text-purple-600" /> Email Address
+                  </label>
                   <input
-                    type="text"
-                    value={newTemplateCategory}
-                    onChange={(e) => setNewTemplateCategory(e.target.value)}
-                    placeholder="e.g. Workflow, Productivity"
+                    type="email"
+                    value={contactFormData.email}
+                    onChange={(e) => setContactFormData({ ...contactFormData, email: e.target.value })}
+                    placeholder="ramu@example.com"
                     className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
                   />
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Notes (Optional)</label>
+                  <input
+                    type="text"
+                    value={contactFormData.notes}
+                    onChange={(e) => setContactFormData({ ...contactFormData, notes: e.target.value })}
+                    placeholder="Project lead, team member..."
+                    className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={contactFormData.isFavorite}
+                      onChange={(e) => setContactFormData({ ...contactFormData, isFavorite: e.target.checked })}
+                      className="rounded text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>Mark as favorite contact</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-purple-100">
                   <button
                     type="button"
-                    onClick={() => setShowSaveTemplateModal(false)}
-                    className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+                    onClick={() => setShowContactModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={savingTemplate}
-                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
                   >
-                    {savingTemplate && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Save Template</span>
+                    {editingContact ? "Save Changes" : "Create Contact"}
                   </button>
                 </div>
               </form>
@@ -1525,268 +2125,502 @@ const MessageCenter = () => {
           document.body
         )}
 
-      {/* DELIVERY TRACKING & RECENT MESSAGES */}
-      <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-sm border border-purple-100">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
-              Delivery Tracking &amp; History
-            </h2>
-            <p className="text-xs text-gray-500">
-              Real-time delivery records, scheduled queues, drafts, and failure retries.
-            </p>
-          </div>
-
-          {/* Search History */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
-              placeholder="Search recipient or text..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-purple-100 bg-purple-50/20 text-xs text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* STATUS FILTER PILLS */}
-        <div className="flex flex-wrap gap-1.5 mb-5 pb-3 border-b border-purple-100/60">
-          {[
-            { key: "all", label: "All", count: counts.all },
-            { key: "scheduled", label: "Scheduled", count: counts.scheduled },
-            { key: "draft", label: "Drafts", count: counts.draft },
-            { key: "sent", label: "Sent", count: counts.sent },
-            { key: "failed", label: "Failed", count: counts.failed },
-            { key: "cancelled", label: "Cancelled", count: counts.cancelled },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setHistoryFilter(tab.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                historyFilter === tab.key
-                  ? "bg-purple-600 text-white shadow-xs"
-                  : "bg-purple-50/60 text-gray-600 hover:bg-purple-100/80 hover:text-purple-700"
-              }`}
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2: CUSTOM SCHEDULE MODAL                                 */}
+      {/* ------------------------------------------------------------- */}
+      {showCustomScheduleModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div
+              ref={customScheduleModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="custom-schedule-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-md w-full p-5 sm:p-6 space-y-4"
             >
-              <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  historyFilter === tab.key
-                    ? "bg-purple-700 text-white"
-                    : "bg-white text-purple-700 border border-purple-200"
-                }`}
-              >
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* HISTORY LIST */}
-        {loadingHistory ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-          </div>
-        ) : filteredHistory.length === 0 ? (
-          <div className="py-12 text-center text-xs sm:text-sm text-gray-400">
-            {historySearch || historyFilter !== "all"
-              ? "No messages match your selected filters."
-              : "No messages yet — your dispatched and scheduled updates will appear here."}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredHistory.map((item) => (
-              <div
-                key={item._id}
-                className="p-4 rounded-2xl border border-purple-100 hover:border-purple-200 bg-white hover:bg-purple-50/20 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs"
-              >
-                {/* Left: Channel Icon & Details */}
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div
-                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs ${
-                      item.channel === "email"
-                        ? "bg-sky-100 text-sky-600"
-                        : item.channel === "telegram"
-                        ? "bg-blue-100 text-blue-600"
-                        : item.channel === "whatsapp"
-                        ? "bg-emerald-100 text-emerald-600"
-                        : "bg-purple-100 text-purple-600"
-                    }`}
-                  >
-                    {item.channel === "email" ? (
-                      <Mail className="h-4 w-4" />
-                    ) : item.channel === "telegram" ? (
-                      <Send className="h-4 w-4" />
-                    ) : (
-                      <MessageCircle className="h-4 w-4" />
-                    )}
+              <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Calendar className="w-4 h-4" />
                   </div>
+                  <div>
+                    <h3 id="custom-schedule-title" className="text-base font-bold text-gray-900 leading-tight">
+                      Schedule Message
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      To: <strong>{selectedContact?.name}</strong> via <strong>{channel}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomScheduleModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                      <span
-                        onClick={() => loadIntoComposer(item, item.status === "draft")}
-                        className="text-xs sm:text-sm font-bold text-gray-900 hover:text-purple-600 cursor-pointer truncate max-w-[200px] sm:max-w-[280px]"
-                        title="Click to load into composer"
-                      >
-                        {item.recipient}
-                      </span>
-
-                      {/* Status Badges */}
-                      {item.status === "scheduled" && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800">
-                          <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
-                          <span>Scheduled for {new Date(item.scheduledAt).toLocaleString()}</span>
-                        </span>
-                      )}
-                      {item.status === "sent" && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>Sent {item.sentAt ? new Date(item.sentAt).toLocaleTimeString() : ""}</span>
-                        </span>
-                      )}
-                      {item.status === "draft" && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-700">
-                          <FileText className="w-3 h-3 text-gray-500" />
-                          <span>Draft</span>
-                        </span>
-                      )}
-                      {item.status === "failed" && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-rose-100 text-rose-800">
-                          <XCircle className="w-3 h-3 text-rose-600" />
-                          <span>Failed</span>
-                        </span>
-                      )}
-                      {item.status === "cancelled" && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-700">
-                          <Ban className="w-3 h-3 text-zinc-500" />
-                          <span>Cancelled</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {item.subject && (
-                      <p className="text-xs font-semibold text-purple-900 truncate">
-                        {item.subject}
-                      </p>
-                    )}
-
-                    {item.message && (
-                      <p className="text-xs text-gray-600 line-clamp-1 break-words">
-                        {item.message}
-                      </p>
-                    )}
-
-                    {/* Attachments preview */}
-                    {item.attachments?.length > 0 && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500">
-                        <span className="text-gray-400">
-                          {item.attachments.length} file{item.attachments.length > 1 ? "s" : ""}:
-                        </span>
-                        {item.attachments.map((att, idx) => (
-                          att.path ? (
-                            <a
-                              key={idx}
-                              href={resolveAttachmentUrl(att.path)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 hover:underline border border-purple-100 font-medium"
-                            >
-                              <Paperclip className="w-2.5 h-2.5" />
-                              <span className="max-w-[110px] truncate">{att.filename}</span>
-                            </a>
-                          ) : (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 font-medium"
-                            >
-                              <Paperclip className="w-2.5 h-2.5" />
-                              <span className="max-w-[110px] truncate">{att.filename}</span>
-                            </span>
-                          )
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Error explanation if failed */}
-                    {item.status === "failed" && item.error && (
-                      <p className="mt-1 text-[11px] font-medium text-rose-600 bg-rose-50/70 p-1.5 rounded-lg border border-rose-100">
-                        Error: {item.error}
-                      </p>
-                    )}
-
-                    <span className="text-[10px] text-gray-400 block mt-1">
-                      Created: {new Date(item.createdAt).toLocaleString()}
-                    </span>
+              <form onSubmit={handleCustomScheduleSubmit} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={customScheduleDate}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setCustomScheduleDate(e.target.value)}
+                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Time <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={customScheduleTime}
+                      onChange={(e) => setCustomScheduleTime(e.target.value)}
+                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
                   </div>
                 </div>
 
-                {/* Right: Actions */}
-                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-                  {/* Cancel Scheduled Send */}
-                  {item.status === "scheduled" && (
-                    <button
-                      type="button"
-                      disabled={cancellingId === item._id}
-                      onClick={() => handleCancelScheduled(item._id)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700 transition cursor-pointer disabled:opacity-50"
-                      title="Cancel this scheduled dispatch"
-                    >
-                      {cancellingId === item._id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Ban className="w-3 h-3" />
-                      )}
-                      <span>Cancel</span>
-                    </button>
-                  )}
+                <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100 text-xs text-purple-900 flex items-center justify-between">
+                  <span>Detected Timezone:</span>
+                  <span className="font-bold font-mono">{userTimeZone}</span>
+                </div>
 
-                  {/* Retry Failed */}
-                  {item.status === "failed" && (
-                    <button
-                      type="button"
-                      disabled={retryingId === item._id}
-                      onClick={() => handleRetryMessage(item._id)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 transition cursor-pointer disabled:opacity-50"
-                      title="Retry sending this message now"
-                    >
-                      {retryingId === item._id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <RotateCcw className="w-3 h-3" />
-                      )}
-                      <span>Retry</span>
-                    </button>
-                  )}
-
-                  {/* Open in Composer / Reuse */}
+                <div className="flex justify-end gap-2 pt-3 border-t border-purple-100">
                   <button
                     type="button"
-                    onClick={() => loadIntoComposer(item, item.status === "draft")}
-                    className="inline-flex items-center gap-1 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700 transition cursor-pointer"
-                    title={item.status === "draft" ? "Open draft in composer" : "Reuse in composer"}
+                    onClick={() => setShowCustomScheduleModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
                   >
-                    <Edit3 className="w-3 h-3" />
-                    <span>{item.status === "draft" ? "Edit" : "Reuse"}</span>
+                    Cancel
                   </button>
+                  <button
+                    type="submit"
+                    disabled={scheduling}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                  >
+                    {scheduling && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Confirm Schedule</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
-                  {/* Delete Item */}
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 3: RESCHEDULE / EDIT MESSAGE MODAL                       */}
+      {/* ------------------------------------------------------------- */}
+      {rescheduleMessageItem &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div
+              ref={rescheduleModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reschedule-modal-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-lg w-full p-5 sm:p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 id="reschedule-modal-title" className="text-base font-bold text-gray-900 leading-tight">
+                      Reschedule Message
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Update the delivery date/time or message details before dispatch.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleMessageItem(null)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateScheduledSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Recipient</label>
+                  <input
+                    type="text"
+                    value={rescheduleMessageItem.recipient || ""}
+                    onChange={(e) =>
+                      setRescheduleMessageItem((prev) => ({ ...prev, recipient: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-purple-200 bg-purple-50/20 px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Message</label>
+                  <textarea
+                    rows={4}
+                    value={rescheduleMessageItem.message || ""}
+                    onChange={(e) =>
+                      setRescheduleMessageItem((prev) => ({ ...prev, message: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-purple-200 bg-purple-50/20 p-3 text-xs text-gray-800 focus:border-purple-500 focus:outline-none font-sans"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">New Date</label>
+                    <input
+                      type="date"
+                      value={rescheduleMessageItem.scheduledDate || ""}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) =>
+                        setRescheduleMessageItem((prev) => ({ ...prev, scheduledDate: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">New Time</label>
+                    <input
+                      type="time"
+                      value={rescheduleMessageItem.scheduledTime || ""}
+                      onChange={(e) =>
+                        setRescheduleMessageItem((prev) => ({ ...prev, scheduledTime: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-gray-800 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-purple-100">
                   <button
                     type="button"
-                    onClick={() => handleDeleteMessage(item._id)}
-                    className="p-1.5 rounded-xl border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 transition cursor-pointer"
-                    title="Delete message log"
+                    onClick={() => setRescheduleMessageItem(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    Cancel
                   </button>
+                  <button
+                    type="submit"
+                    disabled={updatingScheduled}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                  >
+                    {updatingScheduled && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 4: TEMPLATES MODAL                                       */}
+      {/* ------------------------------------------------------------- */}
+      {showTemplateModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div
+              ref={templateModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="templates-modal-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-2xl w-full max-h-[min(90dvh,760px)] flex flex-col overflow-hidden"
+            >
+              <div className="p-4 sm:p-5 border-b border-purple-100 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 id="templates-modal-title" className="text-base font-bold text-gray-900 leading-tight">
+                        QuickSend Templates
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        1-click apply pre-built messages into your active conversation.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateModal(false)}
+                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                    placeholder="Search templates..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-purple-200 bg-purple-50/30 text-xs text-gray-800 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none"
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="overflow-y-auto p-4 sm:p-5 flex-1 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {templates
+                    .filter((t) => !templateSearch || t.title.toLowerCase().includes(templateSearch.toLowerCase()) || t.body.toLowerCase().includes(templateSearch.toLowerCase()))
+                    .map((tpl) => (
+                      <div
+                        key={tpl._id}
+                        onClick={() => handleApplyTemplate(tpl)}
+                        className="p-3.5 rounded-2xl border border-purple-100 bg-white hover:border-purple-300 hover:shadow-md transition cursor-pointer flex flex-col justify-between group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <h4 className="font-bold text-xs text-gray-900 group-hover:text-purple-700 transition">
+                              {tpl.title}
+                            </h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                              {tpl.category}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed mb-2">
+                            {tpl.body}
+                          </p>
+                        </div>
+                        <div className="pt-2 border-t border-purple-50 flex items-center justify-between text-xs font-bold text-purple-700 group-hover:text-purple-900">
+                          <span>Apply to Chat</span>
+                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
-      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 5: ALL SCHEDULED QUEUE MODAL                             */}
+      {/* ------------------------------------------------------------- */}
+      {showScheduledQueueModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div
+              ref={scheduledQueueModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="scheduled-queue-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-2xl w-full max-h-[min(90dvh,760px)] flex flex-col overflow-hidden"
+            >
+              <div className="p-4 sm:p-5 border-b border-purple-100 bg-white flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 id="scheduled-queue-title" className="text-base font-bold text-gray-900">
+                      Scheduled Dispatches ({allScheduledMessages.length})
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Persistent backend scheduler queue across WhatsApp, Telegram, and Email.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduledQueueModal(false)}
+                  className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto p-4 sm:p-5 flex-1 space-y-3">
+                {allScheduledMessages.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-gray-400">
+                    No active scheduled messages in the queue.
+                  </div>
+                ) : (
+                  allScheduledMessages.map((item) => (
+                    <div
+                      key={item._id}
+                      className="p-3.5 rounded-2xl border border-purple-100 bg-white hover:border-purple-200 transition flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-xs text-gray-900 truncate">
+                            {item.recipient}
+                          </span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase bg-amber-100 text-amber-800">
+                            {item.channel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 line-clamp-1">{item.message}</p>
+                        <p className="text-[10px] text-purple-700 font-semibold mt-1">
+                          ⏰ Scheduled for: {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : ""}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetDate = item.scheduledAt ? new Date(item.scheduledAt) : new Date();
+                            const pad = (n) => String(n).padStart(2, "0");
+                            setRescheduleMessageItem({
+                              ...item,
+                              scheduledDate: `${targetDate.getFullYear()}-${pad(targetDate.getMonth() + 1)}-${pad(targetDate.getDate())}`,
+                              scheduledTime: `${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())}`,
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-xl border border-purple-200 text-xs font-bold text-purple-700 hover:bg-purple-50 cursor-pointer"
+                        >
+                          Reschedule
+                        </button>
+                        <button
+                          type="button"
+                          disabled={cancellingId === item._id}
+                          onClick={() => handleCancelScheduled(item._id)}
+                          className="px-2.5 py-1 rounded-xl border border-amber-200 text-xs font-bold text-amber-700 hover:bg-amber-50 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 6: PROVIDER CONNECTION STATUS MODAL                      */}
+      {/* ------------------------------------------------------------- */}
+      {showProviderModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div
+              ref={providerModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="provider-modal-title"
+              className="bg-white rounded-3xl shadow-2xl border border-purple-100 max-w-md w-full p-5 sm:p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 id="provider-modal-title" className="text-base font-bold text-gray-900 leading-tight">
+                      Channel Connections
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Real connection status of your WhatsApp, Telegram &amp; Email gateways.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProviderModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {/* WhatsApp */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                      <MessageCircle className="w-4 h-4 text-emerald-600" /> WhatsApp
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      providers.whatsapp.configured ? "bg-emerald-200 text-emerald-900" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {providers.whatsapp.configured ? "Ready" : "Web Direct Fallback"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600">{providers.whatsapp.label}</p>
+                </div>
+
+                {/* Telegram */}
+                <div className="p-3.5 rounded-2xl bg-sky-50/50 border border-sky-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sky-900 flex items-center gap-1.5">
+                      <Send className="w-4 h-4 text-sky-600" /> Telegram
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      providers.telegram.configured ? "bg-emerald-200 text-emerald-900" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {providers.telegram.configured ? "Ready" : "Setup Required"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600">{providers.telegram.label}</p>
+                  {providers.telegram.botUsername && (
+                    <a
+                      href={`https://t.me/${providers.telegram.botUsername}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-700 font-bold hover:underline inline-flex items-center gap-1 mt-1 text-[11px]"
+                    >
+                      Open @{providers.telegram.botUsername} <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div className="p-3.5 rounded-2xl bg-purple-50/50 border border-purple-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-purple-900 flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-purple-600" /> Email
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      providers.email.configured ? "bg-emerald-200 text-emerald-900" : "bg-gray-100 text-gray-700"
+                    }`}>
+                      {providers.email.configured ? "Ready" : "Inactive"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600">{providers.email.label}</p>
+                  {providers.email.sender && (
+                    <p className="text-[11px] text-purple-800 font-mono">From: {providers.email.sender}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-purple-100">
+                <button
+                  type="button"
+                  onClick={() => setShowProviderModal(false)}
+                  className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs shadow-xs cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import validator from "validator";
-import { sendEmail, isEmailConfigured, isSmtpConfigured } from "../utils/mailer.js";
+import { sendEmail, isEmailConfigured, isSmtpConfigured, escapeHtml } from "../utils/mailer.js";
 import { sendSms } from "../utils/sms.js";
 
 /**
@@ -66,10 +66,14 @@ export const getProviderStatus = () => {
     twilioSid && twilioToken && smsPhone && !twilioSid.includes("your_sid")
   );
 
+  const emailSender = (process.env.RESEND_FROM || process.env.BREVO_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@tasklert.com").trim();
+  const waSender = (process.env.WHATSAPP_DISPLAY_PHONE_NUMBER || process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || null);
+
   return {
     email: {
       configured: emailConfigured,
       provider: emailProvider,
+      sender: emailSender,
       label: emailConfigured
         ? `Ready (${emailProvider.toUpperCase()})`
         : "Not configured (Setup SMTP / Resend / Brevo)",
@@ -86,6 +90,7 @@ export const getProviderStatus = () => {
     whatsapp: {
       configured: whatsappConfigured,
       provider: whatsappProvider,
+      senderNumber: waSender,
       label: whatsappConfigured
         ? `Ready (${whatsappProvider === "cloud_api" ? "Meta Cloud API" : "Twilio WhatsApp"})`
         : "Setup required (Cloud API or Twilio)",
@@ -326,7 +331,7 @@ export const sendViaWhatsApp = async ({ recipient, subject, message, reaction, f
 /**
  * Dispatch message via Email
  */
-export const sendViaEmail = async ({ to, subject, message, reaction, files = [] }) => {
+export const sendViaEmail = async ({ to, subject, message, reaction, files = [], cc = "", bcc = "" }) => {
   const mailSubject = subject?.trim() || "New message from Tasklert";
   const safeSubject = escapeHtml(subject?.trim() || "");
   const safeMessage = escapeHtml(message || "").replace(/\n/g, "<br/>");

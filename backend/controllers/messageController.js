@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Message from "../models/messageModel.js";
+import Contact from "../models/contactModel.js";
 import MessageTemplate from "../models/messageTemplateModel.js";
 import {
   dispatchQuickSendMessage,
@@ -115,6 +116,10 @@ export const sendMessage = async (req, res) => {
     const {
       channel,
       recipient,
+      contactId,
+      contact: contactRef,
+      cc = "",
+      bcc = "",
       subject = "",
       message = "",
       reaction = "",
@@ -175,6 +180,8 @@ export const sendMessage = async (req, res) => {
           {
             channel,
             recipient: cleanRecipient,
+            cc: cc.trim(),
+            bcc: bcc.trim(),
             subject: subject.trim(),
             message: message.trim(),
             reaction: reaction || "",
@@ -190,6 +197,8 @@ export const sendMessage = async (req, res) => {
           owner: req.user.id,
           channel,
           recipient: cleanRecipient,
+          cc: cc.trim(),
+          bcc: bcc.trim(),
           subject: subject.trim(),
           message: message.trim(),
           reaction: reaction || "",
@@ -227,6 +236,8 @@ export const sendMessage = async (req, res) => {
         owner: req.user.id,
         channel,
         recipient: cleanRecipient,
+        cc: cc.trim(),
+        bcc: bcc.trim(),
         subject: subject.trim(),
         message: message.trim(),
         reaction: reaction || "",
@@ -234,6 +245,7 @@ export const sendMessage = async (req, res) => {
         status: "scheduled",
         scheduledAt: scheduleDate,
         timeZone: timeZone || "UTC",
+        contact: contactId || contactRef || null,
         isClaimed: false,
       });
 
@@ -251,10 +263,13 @@ export const sendMessage = async (req, res) => {
       owner: req.user.id,
       channel,
       recipient: cleanRecipient,
+      cc: cc.trim(),
+      bcc: bcc.trim(),
       subject: subject.trim(),
       message: message.trim(),
       reaction: reaction || "",
       attachments: attachmentMeta,
+      contact: contactId || contactRef || null,
       status: "processing",
     });
 
@@ -266,6 +281,8 @@ export const sendMessage = async (req, res) => {
         message: message.trim(),
         reaction: reaction || "",
         files,
+        cc: cc.trim(),
+        bcc: bcc.trim(),
       });
 
       log.status = "sent";
@@ -345,6 +362,99 @@ export const getMessages = async (req, res) => {
 /**
  * Cancel a scheduled message
  */
+
+/**
+ * Update / Reschedule an existing scheduled message or draft before dispatch
+ */
+export const updateScheduledMessage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      channel,
+      recipient,
+      subject,
+      message: messageText,
+      cc,
+      bcc,
+      scheduledAt,
+      timeZone,
+      contactId,
+    } = req.body;
+
+    const message = await Message.findOne({ _id: id, owner: req.user.id });
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    if (message.status !== "scheduled" && message.status !== "draft") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot edit a message with status '${message.status}'. Only scheduled messages and drafts can be edited.`,
+      });
+    }
+
+    // Check target channel
+    const targetChannel = channel || message.channel;
+    const validChannels = ["email", "telegram", "whatsapp", "sms"];
+    if (!validChannels.includes(targetChannel)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid channel: ${targetChannel}`,
+      });
+    }
+    message.channel = targetChannel;
+
+    // Validate recipient if updated
+    if (recipient) {
+      const validation = validateRecipient(targetChannel, recipient);
+      if (!validation.valid) {
+        return res.status(400).json({ success: false, message: validation.message });
+      }
+      message.recipient = validation.cleanRecipient;
+    }
+
+    if (subject !== undefined) message.subject = subject.trim();
+    if (messageText !== undefined) message.message = messageText.trim();
+    if (cc !== undefined) message.cc = cc.trim();
+    if (bcc !== undefined) message.bcc = bcc.trim();
+    if (timeZone !== undefined) message.timeZone = timeZone || "UTC";
+
+    // Validate scheduledAt if updated
+    if (scheduledAt !== undefined) {
+      if (scheduledAt) {
+        const scheduleDate = new Date(scheduledAt);
+        if (isNaN(scheduleDate.getTime())) {
+          return res.status(400).json({ success: false, message: "Invalid scheduled date/time" });
+        }
+        if (scheduleDate.getTime() <= Date.now()) {
+          return res.status(400).json({ success: false, message: "Scheduled time must be in the future" });
+        }
+        message.scheduledAt = scheduleDate;
+        message.status = "scheduled";
+      } else {
+        message.scheduledAt = null;
+      }
+    }
+
+    // Reset claiming lock so the scheduler will cleanly pick it up
+    message.isClaimed = false;
+    message.claimedAt = null;
+
+    await message.save();
+
+    res.json({
+      success: true,
+      message: message.status === "scheduled"
+        ? `Scheduled message updated for ${new Date(message.scheduledAt).toLocaleString()}`
+        : "Draft updated successfully",
+      log: message,
+    });
+  } catch (err) {
+    console.error("updateScheduledMessage error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const cancelScheduledMessage = async (req, res) => {
   try {
     const { id } = req.params;

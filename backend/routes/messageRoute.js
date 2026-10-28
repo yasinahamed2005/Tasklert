@@ -3,6 +3,7 @@ import multer from "multer";
 import authMiddleware from "../middleware/auth.js";
 import {
   cancelScheduledMessage,
+  updateScheduledMessage,
   createTemplate,
   deleteMessage,
   deleteTemplate,
@@ -45,6 +46,10 @@ messageRouter.post(
 );
 
 // Actions on individual messages
+messageRouter.patch("/:id", authMiddleware, updateScheduledMessage);
+messageRouter.put("/:id", authMiddleware, updateScheduledMessage);
+messageRouter.post("/:id", authMiddleware, updateScheduledMessage);
+messageRouter.post("/:id/reschedule", authMiddleware, updateScheduledMessage);
 messageRouter.post("/:id/cancel", authMiddleware, cancelScheduledMessage);
 messageRouter.post("/:id/retry", authMiddleware, retryMessage);
 messageRouter.delete("/:id", authMiddleware, deleteMessage);
