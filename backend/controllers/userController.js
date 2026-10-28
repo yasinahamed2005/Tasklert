@@ -220,43 +220,69 @@ export async function verifySignupOtp(req, res) {
 //get current user
 export async function getCurrentUser(req, res) {
   try {
-    const user = await User.findById(req.user.id).select("name email");
+    const user = await User.findById(req.user.id).select("name email avatar provider createdAt");
     if (!user) {
       return res.status(400).json({ success: false, message: "User not found" });
     }
-    res.json({ success: true, user })
-  } 
-  catch (err) {
-    console.log(err);
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 }
 
 //update user profile
-
 export async function updateProfile(req, res) {
-  const { name, email } = req.body;
+  const { name, email, avatar } = req.body;
 
   if (!name || !email || !validator.isEmail(email)) {
     return res.status(400).json({ success: false, message: "Valid name and email required" });
   }
-   try {
+  try {
     const exists = await User.findOne({ email, _id: { $ne: req.user.id } });
     if (exists) {
       return res.status(409).json({ success: false, message: "Email already in use by another account." });
     }
 
+    const updateFields = { name, email };
+    if (avatar !== undefined) {
+      updateFields.avatar = avatar;
+    }
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, email },
-      { new: true, runValidators: true, select: "name email" }
+      updateFields,
+      { new: true, runValidators: true, select: "name email avatar provider createdAt" }
     );
 
     res.json({ success: true, user });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+}
+
+// Upload custom avatar image
+export async function uploadAvatar(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image file provided" });
+    }
+    const relativeUrl = `/uploads/avatars/${req.file.filename}`;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: relativeUrl },
+      { new: true, select: "name email avatar provider createdAt" }
+    );
+    res.json({
+      success: true,
+      message: "Avatar uploaded successfully",
+      avatar: relativeUrl,
+      user,
+    });
+  } catch (err) {
+    console.error("[Avatar Upload Error]", err);
+    res.status(500).json({ success: false, message: err.message || "Failed to upload avatar" });
   }
 }
 // CHANGE PASSWORD FUNCTION

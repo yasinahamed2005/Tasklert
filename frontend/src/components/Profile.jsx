@@ -1,465 +1,654 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { notify } from "../utils/toastManager";
-import { BACK_BUTTON } from "../assets/dummy";
 import {
   ChevronLeft,
-  ChevronRight,
-  UserCircle,
-  Save,
-  Shield,
-  LogOut,
-  Lock,
-  KeyRound,
-  CheckCircle,
-  Mail,
   User,
-  Palette,
-  Check,
-  Laptop,
-  Bell,
-  HelpCircle,
+  Mail,
+  Camera,
+  Trash2,
+  Save,
+  X,
+  ShieldCheck,
+  CheckCircle2,
+  Calendar,
+  Lock,
+  ExternalLink,
+  KeyRound,
+  Shield,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import DeviceNotificationSettings from "./DeviceNotificationSettings";
+import UserAvatar from "./UserAvatar";
 import { API_BASE_URL } from "../config/api";
-const API_URL = API_BASE_URL;
 
-const THEMES = [
-  { name: "theme-blue", label: "Ocean Blue", color: "#1e88e5" },
-  { name: "theme-peach", label: "Warm Peach", color: "#d4a373" },
-  { name: "theme-green", label: "Emerald Green", color: "#a3d977" },
-  { name: "theme-lavender", label: "Lavender Purple", color: "#a78bfa" },
-  { name: "theme-dark", label: "Charcoal Dark", color: "#1f2937" },
-  { name: "theme-pink", label: "Vibrant Fuchsia", color: "#c026d3" },
-];
-
-const Profile = ({ setCurrentUser, onLogout }) => {
-  const [profile, setProfile] = useState({ name: "", email: "" });
-  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem("theme") || "theme-lavender");
-  const [activeSection, setActiveSection] = useState("all"); // 'all' | 'account' | 'security' | 'themes'
+const Profile = ({ user, setCurrentUser, onLogout }) => {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
-  const applyTheme = (theme) => {
-    document.documentElement.classList.remove(
-      "theme-blue",
-      "theme-peach",
-      "theme-green",
-      "theme-lavender",
-      "theme-dark",
-      "theme-pink"
-    );
-    document.documentElement.classList.add(theme);
-    localStorage.setItem("theme", theme);
-    setActiveTheme(theme);
-    window.dispatchEvent(new CustomEvent("themechange", { detail: theme }));
-    notify.success("Accent theme applied!", { toastId: "theme-applied" });
-  };
+  // Editable Profile State
+  const [profile, setProfile] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    avatar: user?.avatar || "",
+    provider: user?.provider || "local",
+    createdAt: user?.createdAt || null,
+  });
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Password Change State
+  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  // Sync state when props or backend loads
+  useEffect(() => {
+    if (user) {
+      setProfile((prev) => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+        avatar: user.avatar !== undefined ? user.avatar : prev.avatar,
+        provider: user.provider || prev.provider,
+        createdAt: user.createdAt || prev.createdAt,
+      }));
+    }
+  }, [user]);
+
+  // Fetch full user record from backend
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     axios
-      .get(`${API_URL}/api/user/me`, {
+      .get(`${API_BASE_URL}/api/user/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(({ data }) => {
-        if (data.success)
-          setProfile({ name: data.user.name, email: data.user.email });
-        else notify.error(data.message);
+        if (data.success && data.user) {
+          const u = data.user;
+          setProfile({
+            name: u.name || "",
+            email: u.email || "",
+            avatar: u.avatar || "",
+            provider: u.provider || "local",
+            createdAt: u.createdAt || null,
+          });
+          setCurrentUser?.((prev) => ({
+            ...prev,
+            ...u,
+          }));
+        }
       })
-      .catch(() => notify.error("Unable to load profile information."));
-  }, []);
+      .catch((err) => {
+        console.warn("Could not fetch remote profile details:", err.message);
+      });
+  }, [setCurrentUser]);
 
-  const saveProfile = async (e) => {
+  // Handle Profile Save
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
+    if (!profile.name.trim() || !profile.email.trim()) {
+      notify.error("Name and email are required.");
+      return;
+    }
+
     setSavingProfile(true);
     try {
       const token = localStorage.getItem("token");
       const { data } = await axios.put(
-        `${API_URL}/api/user/profile`,
-        { name: profile.name, email: profile.email },
+        `${API_BASE_URL}/api/user/profile`,
+        { name: profile.name.trim(), email: profile.email.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (data.success) {
         setCurrentUser?.((prev) => ({
           ...prev,
-          name: profile.name,
-          email: profile.email,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            profile.name
-          )}&background=random`,
+          name: profile.name.trim(),
+          email: profile.email.trim(),
         }));
-        notify.success("Profile updated successfully!");
-      } else notify.error(data.message);
+        setIsEditing(false);
+        notify.success("Profile information updated successfully!");
+      } else {
+        notify.error(data.message || "Failed to update profile");
+      }
     } catch (err) {
-      notify.error(err.response?.data?.message || "Profile update failed");
+      notify.error(err.response?.data?.message || "Failed to update profile information");
     } finally {
       setSavingProfile(false);
     }
   };
 
-  const changePassword = async (e) => {
+  // Cancel edit mode and restore current values
+  const handleCancelEdit = () => {
+    setProfile((prev) => ({
+      ...prev,
+      name: user?.name || prev.name,
+      email: user?.email || prev.email,
+    }));
+    setIsEditing(false);
+  };
+
+  // Handle Avatar Image Upload
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate image format
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      notify.error("Please upload a valid image file (JPEG, PNG, WEBP, or GIF).");
+      return;
+    }
+
+    // Validate size (max 3 MB)
+    if (file.size > 3 * 1024 * 1024) {
+      notify.error("Profile picture size must not exceed 3 MB.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    setUploadingAvatar(true);
+    try {
+      const token = localStorage.getItem("token");
+      const { data } = await axios.post(`${API_BASE_URL}/api/user/avatar`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (data.success && data.avatar) {
+        setProfile((prev) => ({ ...prev, avatar: data.avatar }));
+        setCurrentUser?.((prev) => ({ ...prev, avatar: data.avatar }));
+        notify.success("Profile photo updated successfully!");
+      } else {
+        notify.error(data.message || "Photo upload failed.");
+      }
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Failed to upload photo.");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove Avatar (reset to theme initials)
+  const handleRemoveAvatar = async () => {
+    if (!profile.avatar) return;
+    setUploadingAvatar(true);
+    try {
+      const token = localStorage.getItem("token");
+      const { data } = await axios.put(
+        `${API_BASE_URL}/api/user/profile`,
+        { name: profile.name, email: profile.email, avatar: "" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (data.success) {
+        setProfile((prev) => ({ ...prev, avatar: "" }));
+        setCurrentUser?.((prev) => ({ ...prev, avatar: "" }));
+        notify.success("Photo removed. Initial avatar active.");
+      } else {
+        notify.error(data.message || "Failed to remove avatar.");
+      }
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Failed to remove avatar.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  // Handle Password Change
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
-      return notify.error("New password & confirmation do not match.");
+      notify.error("New password and confirmation do not match.");
+      return;
     }
     if (passwords.new.length < 8) {
-      return notify.error("New password must be at least 8 characters.");
+      notify.error("New password must be at least 8 characters long.");
+      return;
     }
+
     setSavingPassword(true);
     try {
       const token = localStorage.getItem("token");
       const { data } = await axios.put(
-        `${API_URL}/api/user/password`,
-        {
-          currentPassword: passwords.current,
-          newPassword: passwords.new,
-        },
+        `${API_BASE_URL}/api/user/password`,
+        { currentPassword: passwords.current, newPassword: passwords.new },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       if (data.success) {
-        notify.success("Password changed successfully!");
+        notify.success("Password updated successfully!");
         setPasswords({ current: "", new: "", confirm: "" });
-      } else notify.error(data.message);
+      } else {
+        notify.error(data.message || "Password update failed.");
+      }
     } catch (err) {
-      notify.error(err.response?.data?.message || "Password change failed");
+      notify.error(err.response?.data?.message || "Failed to update password.");
     } finally {
       setSavingPassword(false);
     }
   };
 
+  const isGoogleAccount = profile.provider === "google";
+  const memberDate = profile.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
   return (
-    <div className="w-full min-w-0 py-2 sm:py-4 px-2 sm:px-4">
+    <div className="w-full min-w-0 py-3 sm:py-6 px-3 sm:px-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-purple-600 transition-colors bg-white px-3.5 py-1.5 rounded-lg border border-slate-200/80 shadow-xs hover:border-purple-200"
-        >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back to Dashboard
-        </button>
-
-        {/* Header Profile Card - Mobile Centered Style matching Screen 12 */}
-        <div className="bg-white rounded-3xl border border-purple-100 p-6 shadow-xs flex flex-col items-center text-center">
-          <div className="relative mb-3">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-sm">
-              {profile.name ? profile.name[0].toUpperCase() : "N"}
-            </div>
-            <span className="absolute bottom-0 right-0 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full" title="Active Account" />
-          </div>
-
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
-            {profile.name || "Naveen"}
-          </h1>
-          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-            {profile.email || "naveen@example.com"}
-          </p>
-          <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-            <CheckCircle className="w-3 h-3" /> Verified Member
-          </div>
-        </div>
-
-        {/* MOBILE IOS GROUPED NAVIGATION LIST MATCHING SCREEN 12 */}
-        <div className="sm:hidden rounded-3xl border border-purple-100 bg-white shadow-sm overflow-hidden divide-y divide-purple-50">
-          {/* 1. Account Settings */}
+        {/* Top Breadcrumb Navigation */}
+        <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setActiveSection(activeSection === "account" ? "all" : "account")}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+            onClick={() => navigate("/")}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-gray-600 hover:text-[color:var(--primary)] bg-white px-3.5 py-2 rounded-xl border border-gray-200 shadow-xs hover:border-[color:var(--primary-200)] transition cursor-pointer"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <User className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Account Settings</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <ChevronLeft className="w-4 h-4" />
+            <span>Dashboard</span>
           </button>
 
-          {/* 2. Notification Preferences */}
           <button
             type="button"
             onClick={() => navigate("/settings")}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[color:var(--primary-700)] hover:text-[color:var(--primary-800)] bg-[color:var(--primary-50)] hover:bg-[color:var(--primary-100)] px-3.5 py-2 rounded-xl border border-[color:var(--primary-200)] transition cursor-pointer"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <Bell className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Notification Preferences</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* 3. Theme & Appearance */}
-          <button
-            type="button"
-            onClick={() => setActiveSection(activeSection === "themes" ? "all" : "themes")}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <Palette className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Theme & Appearance</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* 4. Connected Devices */}
-          <button
-            type="button"
-            onClick={() => navigate("/settings")}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <Laptop className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Connected Devices</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* 5. Security */}
-          <button
-            type="button"
-            onClick={() => setActiveSection(activeSection === "security" ? "all" : "security")}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <Shield className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Security</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* 6. Help & Support */}
-          <button
-            type="button"
-            onClick={() => {
-              notify.info("Tasklert Support: Check documentation or contact support@tasklert.com");
-            }}
-            className="w-full flex items-center justify-between p-4 hover:bg-purple-50/50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <HelpCircle className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Help & Support</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* 7. Sign Out */}
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full flex items-center justify-between p-4 hover:bg-rose-50/50 transition cursor-pointer text-rose-600 font-bold"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-                <LogOut className="w-4 h-4" />
-              </div>
-              <span className="text-sm">Sign Out</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-rose-400" />
+            <span>All Settings</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Accent Theme Selection */}
-        <section className={`bg-white rounded-3xl border border-purple-100 shadow-xs p-5 sm:p-6 space-y-3.5 transition-all duration-300 ${
-          activeSection === "themes" ? "block animate-fadeIn" : "hidden sm:block"
-        }`}>
-          <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
-            <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
-              <Palette className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">Accent Theme</h2>
-              <p className="text-xs text-slate-500">Choose your favorite accent color across all pages and calendar cells</p>
-            </div>
+        {/* 1. PROFESSIONAL PROFILE HERO CARD */}
+        <div className="bg-white rounded-3xl border border-purple-100/90 shadow-xs overflow-hidden">
+          {/* Header Accent Ribbon */}
+          <div className="h-24 sm:h-32 bg-gradient-to-r from-[color:var(--primary-600)] via-[color:var(--primary-500)] to-[color:var(--primary-400)] relative">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.2),transparent_70%)]" />
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3">
-            {THEMES.map((t) => {
-              const isSelected = activeTheme === t.name;
-              return (
+          {/* Profile Details Container */}
+          <div className="px-5 sm:px-8 pb-6 sm:pb-8 pt-0 relative">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 sm:-mt-16">
+              {/* Avatar with Upload Action */}
+              <div className="relative inline-block self-center sm:self-auto">
+                <div className="p-1 rounded-full bg-white shadow-md">
+                  <UserAvatar
+                    user={{ ...user, avatar: profile.avatar }}
+                    size="xl"
+                    showStatus
+                    statusColor="bg-emerald-500"
+                  />
+                </div>
+
+                {/* Upload Button Overlay */}
                 <button
-                  key={t.name}
                   type="button"
-                  onClick={() => applyTheme(t.name)}
-                  className={`h-11 sm:h-12 rounded-xl cursor-pointer border-2 transition-all shadow-xs flex items-center justify-center relative active:scale-95 ${
-                    isSelected ? "border-purple-600 ring-2 ring-purple-300 scale-102" : "border-transparent hover:scale-102"
-                  }`}
-                  style={{ backgroundColor: t.color }}
-                  title={t.label}
-                  aria-label={`Switch to ${t.label}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  title="Upload profile photo"
+                  aria-label="Upload profile photo"
+                  className="absolute bottom-1 right-1 p-2 rounded-full bg-gray-900 text-white hover:bg-black shadow-md border-2 border-white transition active:scale-95 cursor-pointer disabled:opacity-50"
                 >
-                  {isSelected && <Check className="w-5 h-5 text-white drop-shadow-md" />}
+                  <Camera className="w-4 h-4" />
                 </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Profile & Security Grid */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Personal Information */}
-          <section className={`bg-white rounded-3xl border border-purple-100 shadow-xs p-6 space-y-5 transition-all duration-300 ${
-            activeSection === "account" ? "block animate-fadeIn" : "hidden sm:block"
-          }`}>
-            <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100">
-              <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
-                <UserCircle className="w-5 h-5" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">Personal Information</h2>
-                <p className="text-xs text-slate-500">Update your account name and email address</p>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-center sm:justify-end gap-2.5">
+                {profile.avatar && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    disabled={uploadingAvatar}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer disabled:opacity-50"
+                    title="Remove custom photo and use theme initials"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Photo</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsEditing((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition active:scale-95 cursor-pointer ${
+                    isEditing
+                      ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      : "bg-[color:var(--primary)] text-white hover:brightness-105"
+                  }`}
+                >
+                  {isEditing ? (
+                    <>
+                      <X className="w-4 h-4" />
+                      <span>Cancel</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Edit Profile</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
-            <form onSubmit={saveProfile} className="space-y-4">
+            {/* User Identity Details */}
+            <div className="mt-4 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+                  {profile.name || "Tasklert User"}
+                </h1>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {isGoogleAccount ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-100">
+                      <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
+                      Google Authenticated
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Verified Account
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">
+                {profile.email || "No email provided"}
+              </p>
+
+              {memberDate && (
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-gray-400 mt-2">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Member since {memberDate}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 2. EDIT FORM / INFORMATION GRID */}
+        {isEditing ? (
+          <div className="bg-white rounded-3xl border border-purple-100 p-6 sm:p-8 shadow-xs animate-fadeIn">
+            <div className="pb-4 border-b border-gray-100 mb-6 flex items-center justify-between">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
-                <div className="flex items-center border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 transition-all bg-slate-50/50">
-                  <User className="text-purple-500 w-4 h-4 mr-2.5 shrink-0" />
+                <h2 className="text-lg font-bold text-gray-900">Edit Personal Information</h2>
+                <p className="text-xs text-gray-500">Update your account name and email address</p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
+                Editing
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Full Name
+                </label>
+                <div className="flex items-center border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-transparent transition">
+                  <User className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
                   <input
                     type="text"
-                    placeholder="Full Name"
                     value={profile.name}
                     onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="w-full focus:outline-none text-sm text-slate-800 bg-transparent"
+                    className="w-full text-sm font-medium text-gray-800 bg-transparent focus:outline-none"
+                    placeholder="Enter full name"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Address</label>
-                <div className="flex items-center border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 transition-all bg-slate-50/50">
-                  <Mail className="text-purple-500 w-4 h-4 mr-2.5 shrink-0" />
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Email Address
+                </label>
+                <div className="flex items-center border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-transparent transition">
+                  <Mail className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
                   <input
                     type="email"
-                    placeholder="Email Address"
                     value={profile.email}
                     onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="w-full focus:outline-none text-sm text-slate-800 bg-transparent"
+                    className="w-full text-sm font-medium text-gray-800 bg-transparent focus:outline-none"
+                    placeholder="Enter email address"
                     required
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={savingProfile}
-                className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm hover:from-fuchsia-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-[0.99] disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {savingProfile ? "Saving..." : "Save Profile Changes"}
-              </button>
+              <div className="flex items-center justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[color:var(--primary)] text-white text-xs sm:text-sm font-bold shadow-xs hover:brightness-105 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingProfile ? "Saving..." : "Save Changes"}</span>
+                </button>
+              </div>
             </form>
-          </section>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Personal Details Card */}
+            <div className="bg-white rounded-3xl border border-purple-100 p-6 shadow-xs space-y-4">
+              <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <User className="w-4 h-4 text-[color:var(--primary)]" />
+                  <span>Personal Details</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="text-xs font-bold text-[color:var(--primary-700)] hover:underline cursor-pointer"
+                >
+                  Edit
+                </button>
+              </div>
 
-          {/* Security & Password */}
-          <section className="bg-white rounded-2xl border border-purple-100 shadow-xs p-6 space-y-5 flex flex-col justify-between transition-all duration-300">
-            <div>
-              <div className="flex items-center gap-2.5 pb-3 border-b border-purple-100 mb-5">
-                <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
-                  <Shield className="w-5 h-5" />
-                </div>
+              <div className="space-y-3 text-sm">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">Security & Password</h2>
-                  <p className="text-xs text-slate-500">Ensure your account uses a strong password</p>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Full Name
+                  </span>
+                  <p className="font-semibold text-gray-800 mt-0.5">{profile.name || "—"}</p>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Email Address
+                  </span>
+                  <p className="font-semibold text-gray-800 mt-0.5">{profile.email || "—"}</p>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Profile Photo
+                  </span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    {profile.avatar
+                      ? "Custom photo uploaded"
+                      : "Theme-aware dynamic initial medallion"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Account & Security Summary Card */}
+            <div className="bg-white rounded-3xl border border-purple-100 p-6 shadow-xs space-y-4">
+              <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[color:var(--primary)]" />
+                  <span>Account Summary</span>
+                </h3>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Authentication Provider
+                  </span>
+                  <p className="font-semibold text-gray-800 mt-0.5 capitalize">
+                    {isGoogleAccount ? "Google OAuth" : "Email & Password"}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Account Status
+                  </span>
+                  <p className="font-semibold text-emerald-700 mt-0.5 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Active &amp; Verified
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block">
+                    Settings &amp; Preferences
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/settings")}
+                    className="text-xs font-bold text-[color:var(--primary-700)] hover:underline inline-flex items-center gap-1 mt-0.5"
+                  >
+                    <span>Configure in Settings Hub</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. SECURITY & PASSWORD CHANGE (Only for local email accounts) */}
+        {!isGoogleAccount && (
+          <div className="bg-white rounded-3xl border border-purple-100 p-6 sm:p-8 shadow-xs">
+            <div className="pb-4 border-b border-gray-100 mb-6 flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900">Change Password</h2>
+                <p className="text-xs text-gray-500">
+                  Ensure your account uses a secure password with at least 8 characters
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Current Password
+                </label>
+                <div className="flex items-center border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-transparent transition">
+                  <KeyRound className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
+                  <input
+                    type="password"
+                    placeholder="Enter current password"
+                    value={passwords.current}
+                    onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                    className="w-full text-sm text-gray-800 bg-transparent focus:outline-none"
+                    required
+                  />
                 </div>
               </div>
 
-              <form onSubmit={changePassword} className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Current Password</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 transition-all bg-slate-50/50">
-                    <Lock className="text-purple-500 w-4 h-4 mr-2.5 shrink-0" />
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    New Password
+                  </label>
+                  <div className="flex items-center border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-transparent transition">
+                    <Lock className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
                     <input
                       type="password"
-                      placeholder="Current Password"
-                      value={passwords.current}
-                      onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-                      className="w-full focus:outline-none text-sm text-slate-800 bg-transparent"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">New Password</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 transition-all bg-slate-50/50">
-                    <KeyRound className="text-purple-500 w-4 h-4 mr-2.5 shrink-0" />
-                    <input
-                      type="password"
-                      placeholder="New Password (min 8 chars)"
+                      placeholder="Min. 8 characters"
                       value={passwords.new}
                       onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                      className="w-full focus:outline-none text-sm text-slate-800 bg-transparent"
+                      className="w-full text-sm text-gray-800 bg-transparent focus:outline-none"
                       required
+                      minLength={8}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Confirm New Password</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 transition-all bg-slate-50/50">
-                    <KeyRound className="text-purple-500 w-4 h-4 mr-2.5 shrink-0" />
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Confirm Password
+                  </label>
+                  <div className="flex items-center border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-transparent transition">
+                    <Lock className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
                     <input
                       type="password"
-                      placeholder="Confirm New Password"
+                      placeholder="Re-enter new password"
                       value={passwords.confirm}
                       onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                      className="w-full focus:outline-none text-sm text-slate-800 bg-transparent"
+                      className="w-full text-sm text-gray-800 bg-transparent focus:outline-none"
                       required
                     />
                   </div>
                 </div>
+              </div>
 
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={savingPassword}
-                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-[0.99] disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs sm:text-sm font-bold shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
                 >
-                  <Shield className="w-4 h-4" />
                   {savingPassword ? "Updating Password..." : "Update Password"}
                 </button>
-              </form>
-            </div>
-
-            {/* Danger Zone */}
-            <div className="mt-6 pt-5 border-t border-red-100 bg-red-50/40 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-red-700 flex items-center gap-1.5">
-                  <LogOut className="w-4 h-4" /> Log Out Session
-                </h3>
-                <p className="text-xs text-slate-500">Sign out of your active Tasklert session</p>
               </div>
-              <button
-                onClick={onLogout}
-                className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors shrink-0"
-              >
-                Logout Now
-              </button>
-            </div>
-          </section>
-        </div>
+            </form>
+          </div>
+        )}
 
-        {/* Smart Alarm & Device Notifications Panel */}
-        <DeviceNotificationSettings />
+        {/* 4. SESSION LOGOUT & DANGER ZONE */}
+        <div className="bg-rose-50/50 rounded-3xl border border-rose-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <h3 className="text-sm font-bold text-rose-900 flex items-center justify-center sm:justify-start gap-1.5">
+              <Clock className="w-4 h-4 text-rose-600" />
+              <span>Active Session</span>
+            </h3>
+            <p className="text-xs text-rose-700/80 mt-0.5">
+              You are signed in as <strong className="font-bold">{profile.email}</strong>.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+          >
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );

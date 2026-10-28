@@ -1,30 +1,23 @@
-import React, { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { HEADER, WRAPPER, ADD_BUTTON, ICON_WRAPPER,STAT_CARD,STATS,STATS_GRID,VALUE_CLASS, LABEL_CLASS, FILTER_WRAPPER } from '../assets/dummy';
-import { HomeIcon, Plus, Filter, CalendarIcon, Search, X, BellRing, Clock, ArrowRight, Volume2, Folder, Tag, CheckSquare, Square, Trash2, CheckCircle2, RotateCcw, Sparkles, Timer, AlertTriangle, Send, BarChart3, AlarmClock } from 'lucide-react';
+import { HomeIcon, Plus, Filter, CalendarIcon, Search, X, BellRing, Clock, ArrowRight, Volume2, Folder, Tag, CheckSquare, Square, Trash2, CheckCircle2, RotateCcw, Sparkles, Timer, AlertTriangle, Send, BarChart3, AlarmClock, ArrowUpDown, SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FILTER_LABELS, SELECT_CLASSES, FILTER_OPTIONS,TABS_WRAPPER,TAB_BASE,TAB_ACTIVE,TAB_INACTIVE,EMPTY_STATE, SORT_OPTIONS, sortTasks  } from '../assets/dummy';
+import { FILTER_LABELS, SELECT_CLASSES, FILTER_OPTIONS,TABS_WRAPPER,TAB_BASE,TAB_ACTIVE,TAB_INACTIVE,EMPTY_STATE, SORT_OPTIONS, sortTasks, isTaskCompleted, parseSafeDate, isTaskDueToday, isTaskOverdue } from '../assets/dummy';
 import TaskItem from '../components/TaskItem';
 const TaskModal = lazy(() => import('../components/TaskModal'));
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { API_BASE_URL } from '../config/api';
 
-const isCompletedTask = (task) =>
-  [true, 1, 'yes'].includes(
-    typeof task.completed === 'string' ? task.completed.toLowerCase() : task.completed
-  );
+const isCompletedTask = isTaskCompleted;
 
-const FILTER_CHIPS = [
-  "all",
-  "pending",
-  "completed",
-  "overdue",
-  "today",
-  "tomorrow",
-  "high",
-  "medium",
-  "low",
+const ESSENTIAL_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "completed", label: "Completed" },
+  { id: "overdue", label: "Overdue" },
+  { id: "today", label: "Due Today" },
 ];
 
 const SORT_LABELS = {
@@ -38,7 +31,7 @@ const SORT_LABELS = {
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const Dashboard = () => {
-  const { tasks = [], refreshTasks, user, loadingTasks } = useOutletContext();
+  const { tasks = [], refreshTasks, user, loadingTasks, searchQuery = "", setSearchQuery } = useOutletContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedTask, setSelectTask] = useState(null);
 
@@ -57,8 +50,54 @@ const Dashboard = () => {
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Unified search is managed in Navbar & passed via outletContext
   const navigate = useNavigate();
+
+  const moreFiltersRef = useRef(null);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+
+  useEffect(() => {
+    if (!showMoreFilters) return;
+    const handleClickOutside = (e) => {
+      if (moreFiltersRef.current && !moreFiltersRef.current.contains(e.target)) {
+        setShowMoreFilters(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowMoreFilters(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showMoreFilters]);
+
+  const isMoreFilterActive = ["tomorrow", "high", "medium", "low"].includes(filter) || selectedProject !== "all" || selectedTag !== "all";
+
+  const activeMoreCount = (["tomorrow", "high", "medium", "low"].includes(filter) ? 1 : 0) +
+    (selectedProject !== "all" ? 1 : 0) +
+    (selectedTag !== "all" ? 1 : 0);
+
+  const hasActiveFilters = filter !== "all" || selectedProject !== "all" || selectedTag !== "all" || Boolean(searchQuery);
+
+  const resetAllFilters = useCallback(() => {
+    setFilter("all");
+    setSelectedProject("all");
+    setSelectedTag("all");
+    if (setSearchQuery) setSearchQuery("");
+  }, [setSearchQuery]);
+
+  const resetMoreFilters = useCallback(() => {
+    if (["tomorrow", "high", "medium", "low"].includes(filter)) {
+      setFilter("all");
+    }
+    setSelectedProject("all");
+    setSelectedTag("all");
+  }, [filter]);
 
   const formatAlarmTime = useCallback((dateString) => {
     if (!dateString) return "";
@@ -195,9 +234,9 @@ const Dashboard = () => {
         if (priority === "medium") counts.medium += 1;
         if (priority === "low") counts.low += 1;
 
-        if (dueDate && dueDate >= today && dueDate < tomorrow) counts.today += 1;
-        if (dueDate && dueDate >= tomorrow && dueDate < dayAfterTomorrow) counts.tomorrow += 1;
-        if (dueDate && dueDate < today && !completed) counts.overdue += 1;
+        if (isTaskDueToday(task)) counts.today += 1;
+        if (dueDate && dueDate >= tomorrow && dueDate < dayAfterTomorrow && !completed) counts.tomorrow += 1;
+        if (isTaskOverdue(task)) counts.overdue += 1;
 
         return counts;
       },
@@ -216,17 +255,21 @@ const Dashboard = () => {
   }, [tasks]);
 
 
-  const stats = useMemo(() => ({
-    total: tasks.length,
-    lowPriority: tasks.filter(t => t.priority?.toLowerCase() === 'low').length,
-    mediumPriority: tasks.filter(t => t.priority?.toLowerCase() === 'medium').length,
-    highPriority: tasks.filter(t => t.priority?.toLowerCase() === 'high').length,
-    completed: tasks.filter(t => 
-      t.completed === true || 
-      t.completed === 1 || 
-      (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes')
-    ).length
-  }), [tasks]);
+  const stats = useMemo(() => {
+    const completedTasks = tasks.filter(isTaskCompleted);
+    const lowPriority = tasks.filter(t => (t.priority || "").toLowerCase() === 'low').length;
+    const mediumPriority = tasks.filter(t => (t.priority || "").toLowerCase() === 'medium').length;
+    const highPriority = tasks.filter(t => (t.priority || "").toLowerCase() === 'high').length;
+
+    return {
+      total: tasks.length,
+      lowPriority,
+      mediumPriority,
+      highPriority,
+      completed: completedTasks.length,
+      pending: tasks.length - completedTasks.length,
+    };
+  }, [tasks]);
 
   // TODAY'S PLAN & PROGRESS (Feature E)
   const todayPlan = useMemo(() => {
@@ -235,25 +278,25 @@ const Dashboard = () => {
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
     const isDueToday = (t) => {
-      if (!t.dueDate) return false;
-      const d = new Date(t.dueDate);
-      return d >= startOfToday && d <= endOfToday;
+      if (!t.dueDate || isTaskCompleted(t)) return false;
+      const d = parseSafeDate(t.dueDate);
+      return d !== null && d >= startOfToday && d <= endOfToday;
     };
 
     const isOverdue = (t) => {
-      if (!t.dueDate || isCompletedTask(t)) return false;
-      const d = new Date(t.dueDate);
-      return d < startOfToday;
+      if (!t.dueDate || isTaskCompleted(t)) return false;
+      const d = parseSafeDate(t.dueDate);
+      return d !== null && d < startOfToday;
     };
 
     const isCompletedToday = (t) => {
-      if (!isCompletedTask(t)) return false;
-      if (!t.completedAt) return false;
-      const d = new Date(t.completedAt);
-      return d >= startOfToday && d <= endOfToday;
+      if (!isTaskCompleted(t)) return false;
+      const cDate = parseSafeDate(t.completedAt) || parseSafeDate(t.updatedAt);
+      if (!cDate) return false;
+      return cDate >= startOfToday && cDate <= endOfToday;
     };
 
-    const dueTodayTasks = tasks.filter((t) => isDueToday(t) && !isCompletedTask(t));
+    const dueTodayTasks = tasks.filter(isDueToday);
     const overdueTasks = tasks.filter(isOverdue);
     const completedTodayTasks = tasks.filter(isCompletedToday);
 
@@ -265,7 +308,7 @@ const Dashboard = () => {
 
     const totalTarget = uniqueIds.size;
     const completedCount = completedTodayTasks.length;
-    const progressPct = totalTarget > 0 ? Math.round((completedCount / totalTarget) * 100) : 0;
+    const progressPct = totalTarget > 0 ? Math.min(100, Math.max(0, Math.round((completedCount / totalTarget) * 100))) : 0;
 
     return {
       dueTodayTasks,
@@ -324,11 +367,11 @@ const Dashboard = () => {
         case "low":
           return task.priority?.toLowerCase() === filter;
         case "today":
-          return dueDate && dueDate >= today && dueDate < tomorrow;
+          return isTaskDueToday(task);
         case "tomorrow":
-          return dueDate && dueDate >= tomorrow && dueDate < dayAfterTomorrow;
+          return dueDate && dueDate >= tomorrow && dueDate < dayAfterTomorrow && !completed;
         case "overdue":
-          return dueDate && dueDate < today && !completed;
+          return isTaskOverdue(task);
         default:
           return true;
       }
@@ -408,25 +451,47 @@ const Dashboard = () => {
         </div>
 
         {/* Overdue */}
-        <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-100 flex items-center gap-3 shadow-2xs">
-          <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5" />
+        <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-100 flex items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-black text-rose-700">{todayPlan.overdueTasks.length}</p>
+              <p className="text-[11px] font-semibold text-gray-500">Overdue</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-xl font-black text-rose-700">{todayPlan.overdueTasks.length}</p>
-            <p className="text-[11px] font-semibold text-gray-500">Overdue</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/pending?filter=overdue")}
+            title="View overdue tasks"
+            aria-label="View overdue tasks"
+            className="w-8 h-8 rounded-lg bg-rose-100/70 hover:bg-rose-200/80 text-rose-700 flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Due Today */}
-        <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100 flex items-center gap-3 shadow-2xs">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5" />
+        <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100 flex items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-black text-amber-700">{todayPlan.dueTodayTasks.length}</p>
+              <p className="text-[11px] font-semibold text-gray-500">Due Today</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-xl font-black text-amber-700">{todayPlan.dueTodayTasks.length}</p>
-            <p className="text-[11px] font-semibold text-gray-500">Due Today</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/calendar")}
+            title="Open calendar"
+            aria-label="Open calendar"
+            className="w-8 h-8 rounded-lg bg-amber-100/70 hover:bg-amber-200/80 text-amber-700 flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+          >
+            <CalendarIcon className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -596,7 +661,7 @@ const Dashboard = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/settings")}
+                onClick={() => navigate("/settings?tab=notifications")}
                 className="px-3.5 py-1.5 text-xs font-semibold bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-600 hover:to-purple-700 text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Device Settings</span>
@@ -616,7 +681,7 @@ const Dashboard = () => {
             </div>
             <button
               type="button"
-              onClick={() => navigate("/settings")}
+              onClick={() => navigate("/settings?tab=alarms")}
               className="text-xs font-semibold text-purple-600 hover:text-purple-700 hover:underline shrink-0 cursor-pointer"
             >
               Configure Alarm Settings &rarr;
@@ -751,218 +816,394 @@ const Dashboard = () => {
       {/* CONTENTS */}
       <div className='space-y-6 w-full min-w-0 max-w-full'>
 
-        {/* SEARCH */}
-        <div className='relative w-full min-w-0 max-w-full'>
-          <Search className='w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' />
-          <input
-            type='text'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search tasks...'
-            className='w-full pl-9 pr-9 py-2.5 bg-white border border-purple-100 rounded-xl shadow-sm text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200'
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
-            >
-              <X className='w-4 h-4' />
-            </button>
-          )}
-        </div>
-
-        {/* ORDER YOUR LIST & FILTERS */}
-        <section className='bg-white rounded-2xl border border-purple-100 shadow-xs p-3.5 sm:p-5 w-full min-w-0 max-w-full overflow-hidden'>
-    <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4'>
-      <div className='min-w-0'>
-        <p className='text-xs uppercase tracking-[0.2em] text-purple-600 font-bold flex items-center gap-1.5'>
-          <CalendarIcon className='w-3.5 h-3.5 text-purple-500' /> Order Your List
-        </p>
-        <h2 className='text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2 mt-0.5'>
-          Sort & Filter Tasks
-        </h2>
-      </div>
-      <div className='flex items-center gap-2 text-xs sm:text-sm text-purple-700 bg-purple-50/80 border border-purple-100 px-3.5 py-1.5 rounded-full self-start font-medium shadow-xs'>
-        <span>Showing <strong>{filteredTasks.length}</strong> of <strong>{tasks.length}</strong> tasks</span>
-      </div>
-    </div>
-
-    {/* Sort Buttons */}
-    <div className='mb-4'>
-      <p className='text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider'>Sort By</p>
-      <div className='flex flex-wrap gap-2'>
-        {SORT_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => setSortBy(option.id)}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs sm:text-sm transition-all duration-200 transform hover:scale-[1.02] ${
-              sortBy === option.id
-                ? 'bg-purple-700 text-white border-purple-700 shadow-md font-bold'
-                : 'bg-white text-slate-700 border-purple-200 hover:bg-purple-50 hover:text-purple-700 font-medium'
-            }`}
-          >
-            {option.icon}
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Filter Chips */}
-    <div>
-      <p className='text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider'>Filter By Category</p>
-      <div className='flex gap-2 overflow-x-auto pb-1 hide-scrollbar'>
-        {FILTER_CHIPS.map((option) => (
-          <button
-            key={option}
-            onClick={() => setFilter(option)}
-            className={`shrink-0 min-w-max px-3.5 py-1.5 rounded-full border text-xs sm:text-sm transition-all duration-200 transform hover:scale-[1.02] cursor-pointer ${
-              filter === option
-                ? 'bg-purple-700 text-white border-purple-700 shadow-sm font-bold'
-                : 'bg-white text-slate-700 border-purple-200 hover:bg-purple-50 hover:text-purple-700 font-medium'
-            }`}
-          >
-            <span>{FILTER_LABELS[option]}</span>
-            <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full ${filter === option ? 'bg-white/20 text-white font-bold' : 'bg-purple-100 text-purple-800'}`}>
-              {filterCounts[option] ?? 0}
+        {/* SEARCH FILTER ACTIVE BADGE (Unified search in Navbar) */}
+        {searchQuery && (
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-purple-50/90 border border-purple-200/80 rounded-xl text-xs sm:text-sm text-purple-800 font-medium animate-page-enter">
+            <Search className="w-4 h-4 text-purple-600 shrink-0" />
+            <span className="truncate">
+              Searching tasks: <strong className="font-bold text-purple-900">"{searchQuery}"</strong>
             </span>
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Project Filter */}
-    {projects.length > 0 && (
-      <div className='mt-4 pt-4 border-t border-purple-100'>
-        <p className='text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5'>
-          <Folder className='w-3.5 h-3.5 text-purple-500' /> Filter By Project
-        </p>
-        <div className='flex gap-2 overflow-x-auto pb-1 hide-scrollbar'>
-          <button
-            type='button'
-            onClick={() => setSelectedProject("all")}
-            className={`shrink-0 min-w-max px-3 py-1 rounded-full border text-xs transition cursor-pointer ${
-              selectedProject === "all"
-                ? "bg-purple-700 text-white border-purple-700 font-bold shadow-xs"
-                : "bg-white text-gray-700 border-purple-200 hover:bg-purple-50 font-medium"
-            }`}
-          >
-            All Projects
-          </button>
-          {projects.map((proj) => (
             <button
-              key={proj._id}
-              type='button'
-              onClick={() => setSelectedProject(proj._id)}
-              className={`shrink-0 min-w-max px-3 py-1 rounded-full border text-xs flex items-center gap-1.5 transition cursor-pointer ${
-                selectedProject === proj._id
-                  ? "bg-purple-700 text-white border-purple-700 font-bold shadow-xs"
-                  : "bg-white text-gray-700 border-purple-200 hover:bg-purple-50 font-medium"
+              type="button"
+              onClick={() => setSearchQuery && setSearchQuery("")}
+              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs transition-colors cursor-pointer"
+              title="Clear search filter"
+            >
+              <span>Clear</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* SIMPLIFIED SORT & FILTER TOOLBAR */}
+        <section className="bg-white rounded-2xl border border-purple-100 shadow-xs p-3.5 sm:p-4 mb-4 w-full min-w-0 max-w-full">
+          {/* Header row: Tasks title, compact count & Bulk Actions */}
+          <div className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-purple-50">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-gray-800 tracking-tight">
+                Tasks
+              </h2>
+              <span className="text-xs font-medium text-gray-500">
+                ({filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'})
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectionMode(!isSelectionMode);
+                setSelectedTaskIds([]);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer shrink-0 ${
+                isSelectionMode
+                  ? "bg-purple-700 text-white border-purple-700 shadow-xs"
+                  : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
               }`}
             >
-              <span
-                className='w-2 h-2 rounded-full'
-                style={{ backgroundColor: proj.color || "#8B2CF5" }}
-              />
-              <span>{proj.name}</span>
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>{isSelectionMode ? "Exit Bulk Mode" : "Bulk Actions"}</span>
             </button>
-          ))}
-          <button
-            type='button'
-            onClick={() => setSelectedProject("none")}
-            className={`shrink-0 min-w-max px-3 py-1 rounded-full border text-xs transition cursor-pointer ${
-              selectedProject === "none"
-                ? "bg-purple-700 text-white border-purple-700 font-bold shadow-xs"
-                : "bg-white text-gray-700 border-purple-200 hover:bg-purple-50 font-medium"
-            }`}
-          >
-            No Project
-          </button>
-        </div>
-      </div>
-    )}
+          </div>
 
-    {/* Tag Filter */}
-    {userTags.length > 0 && (
-      <div className='mt-4 pt-4 border-t border-purple-100'>
-        <p className='text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5'>
-          <Tag className='w-3.5 h-3.5 text-purple-500' /> Filter By Tag
-        </p>
-        <div className='flex gap-2 overflow-x-auto pb-1 hide-scrollbar'>
-          <button
-            type='button'
-            onClick={() => setSelectedTag("all")}
-            className={`shrink-0 min-w-max px-3 py-1 rounded-full border text-xs transition cursor-pointer ${
-              selectedTag === "all"
-                ? "bg-purple-700 text-white border-purple-700 font-bold shadow-xs"
-                : "bg-white text-gray-700 border-purple-200 hover:bg-purple-50 font-medium"
-            }`}
-          >
-            All Tags
-          </button>
-          {userTags.map((tag) => (
-            <button
-              key={tag}
-              type='button'
-              onClick={() => setSelectedTag(tag)}
-              className={`shrink-0 min-w-max px-3 py-1 rounded-full border text-xs transition cursor-pointer ${
-                selectedTag === tag
-                  ? "bg-purple-700 text-white border-purple-700 font-bold shadow-xs"
-                  : "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 font-medium"
-              }`}
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      </div>
-    )}
+          {/* Controls row: Category filter chips & Sort dropdown */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            {/* Left: Essential filter chips + More filters */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+              {ESSENTIAL_FILTERS.map(({ id, label }) => {
+                const isActive = filter === id;
+                const count = filterCounts[id] ?? 0;
+                const isOverdue = id === "overdue";
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFilter(id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      isActive
+                        ? isOverdue
+                          ? "bg-rose-600 text-white shadow-xs font-bold"
+                          : "bg-purple-700 text-white shadow-xs font-bold"
+                        : isOverdue && count > 0
+                        ? "bg-rose-50 text-rose-700 border border-rose-200/80 hover:bg-rose-100 font-semibold"
+                        : "bg-white text-gray-700 border border-purple-100 hover:bg-purple-50 hover:text-purple-700 font-medium"
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive
+                          ? "bg-white/25 text-white"
+                          : isOverdue && count > 0
+                          ? "bg-rose-200/70 text-rose-800"
+                          : "bg-purple-100 text-purple-800"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
 
-    {/* Clear all filters active pill */}
-    {(filter !== "all" || selectedProject !== "all" || selectedTag !== "all" || searchQuery) && (
-      <div className='mt-4 pt-3 border-t border-purple-100 flex items-center justify-between'>
-        <span className='text-xs text-gray-500'>Active filters applied</span>
-        <button
-          type='button'
-          onClick={() => {
-            setFilter("all");
-            setSelectedProject("all");
-            setSelectedTag("all");
-            setSearchQuery("");
-          }}
-          className='inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-semibold hover:underline cursor-pointer'
-        >
-          <RotateCcw className='w-3 h-3' /> Reset All Filters
-        </button>
-      </div>
-    )}
-  </section>
+              {/* More filters popover trigger */}
+              <div className="relative shrink-0" ref={moreFiltersRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreFilters((prev) => !prev)}
+                  aria-expanded={showMoreFilters}
+                  aria-haspopup="dialog"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                    activeMoreCount > 0
+                      ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs font-bold'
+                      : 'bg-white text-gray-700 border-purple-100 hover:bg-purple-50 hover:text-purple-700'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
+                  <span>More filters</span>
+                  {activeMoreCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-purple-700 text-white text-[10px] font-bold flex items-center justify-center">
+                      {activeMoreCount}
+                    </span>
+                  )}
+                  <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${showMoreFilters ? 'rotate-180' : ''}`} />
+                </button>
 
-  {/* BULK ACTIONS / TASK LIST TOOLBAR */}
-  <div className='flex items-center justify-between gap-3 px-1'>
-    <div className='flex items-center gap-2'>
-      <h3 className='text-sm sm:text-base font-bold text-gray-800'>
-        Tasks <span className='text-xs font-medium text-gray-500'>({filteredTasks.length})</span>
-      </h3>
-    </div>
-    <div className='flex items-center gap-2'>
-      <button
-        type='button'
-        onClick={() => {
-          setIsSelectionMode(!isSelectionMode);
-          setSelectedTaskIds([]);
-        }}
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
-          isSelectionMode
-            ? "bg-purple-700 text-white border-purple-700 shadow-xs"
-            : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
-        }`}
-      >
-        <CheckSquare className='w-3.5 h-3.5' />
-        {isSelectionMode ? "Exit Bulk Mode" : "Bulk Actions"}
-      </button>
-    </div>
-  </div>
+                {/* Dropdown Popover */}
+                {showMoreFilters && (
+                  <div
+                    role="dialog"
+                    aria-label="Additional filters"
+                    className="absolute left-0 mt-1.5 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-white rounded-xl shadow-xl border border-purple-100 p-3.5 z-30 animate-fadeIn space-y-3.5 max-h-[80vh] overflow-y-auto"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-100">
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Filter className="w-3.5 h-3.5 text-purple-600" /> More Filters
+                      </span>
+                      {activeMoreCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={resetMoreFilters}
+                          className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Reset
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Date: Due Tomorrow */}
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter(filter === "tomorrow" ? "all" : "tomorrow");
+                          setShowMoreFilters(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                          filter === "tomorrow"
+                            ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                            : 'bg-purple-50/60 text-gray-700 hover:bg-purple-100/70 font-medium'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" /> Due Tomorrow
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          filter === "tomorrow" ? 'bg-white/25 text-white' : 'bg-purple-200/70 text-purple-800'
+                        }`}>
+                          {filterCounts.tomorrow}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Priority Filters */}
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Priority</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: "high", label: "High", count: filterCounts.high, color: "text-red-600 bg-red-50 border-red-100" },
+                          { id: "medium", label: "Medium", count: filterCounts.medium, color: "text-amber-600 bg-amber-50 border-amber-100" },
+                          { id: "low", label: "Low", count: filterCounts.low, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+                        ].map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setFilter(filter === p.id ? "all" : p.id);
+                              setShowMoreFilters(false);
+                            }}
+                            className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition cursor-pointer border ${
+                              filter === p.id
+                                ? 'bg-purple-700 text-white border-purple-700 font-bold shadow-2xs'
+                                : `${p.color} hover:opacity-90 font-medium`
+                            }`}
+                          >
+                            <span>{p.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              filter === p.id ? 'bg-white/25 text-white' : 'bg-white/80 text-gray-700'
+                            }`}>
+                              {p.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Project Filter */}
+                    {projects.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <Folder className="w-3 h-3 text-purple-600" /> Projects
+                        </p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProject("all");
+                              setShowMoreFilters(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                              selectedProject === "all"
+                                ? 'bg-purple-100 text-purple-800 font-bold'
+                                : 'text-gray-700 hover:bg-gray-100 font-medium'
+                            }`}
+                          >
+                            <span>All Projects</span>
+                            {selectedProject === "all" && <Check className="w-3.5 h-3.5 text-purple-700" />}
+                          </button>
+                          {projects.map((proj) => (
+                            <button
+                              key={proj._id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedProject(proj._id);
+                                setShowMoreFilters(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                                selectedProject === proj._id
+                                  ? 'bg-purple-100 text-purple-800 font-bold'
+                                  : 'text-gray-700 hover:bg-gray-100 font-medium'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: proj.color || '#8B2CF5' }} />
+                                <span className="truncate">{proj.name}</span>
+                              </span>
+                              {selectedProject === proj._id && <Check className="w-3.5 h-3.5 text-purple-700" />}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProject("none");
+                              setShowMoreFilters(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                              selectedProject === "none"
+                                ? 'bg-purple-100 text-purple-800 font-bold'
+                                : 'text-gray-700 hover:bg-gray-100 font-medium'
+                            }`}
+                          >
+                            <span>No Project</span>
+                            {selectedProject === "none" && <Check className="w-3.5 h-3.5 text-purple-700" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tag Filter */}
+                    {userTags.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <Tag className="w-3 h-3 text-purple-600" /> Tags
+                        </p>
+                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTag("all");
+                              setShowMoreFilters(false);
+                            }}
+                            className={`px-2 py-1 rounded-md text-[11px] transition cursor-pointer ${
+                              selectedTag === "all"
+                                ? 'bg-purple-700 text-white font-bold'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            All Tags
+                          </button>
+                          {userTags.map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTag(selectedTag === tag ? "all" : tag);
+                                setShowMoreFilters(false);
+                              }}
+                              className={`px-2 py-1 rounded-md text-[11px] transition cursor-pointer ${
+                                selectedTag === tag
+                                  ? 'bg-purple-700 text-white font-bold'
+                                  : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                              }`}
+                            >
+                              #{tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-purple-100 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreFilters(false)}
+                        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Compact Sort By dropdown & Reset button */}
+            <div className="flex items-center justify-between md:justify-end gap-2.5 pt-2 md:pt-0 border-t md:border-t-0 border-purple-50">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <label htmlFor="dashboard-sort-by" className="text-xs font-semibold text-gray-500 whitespace-nowrap flex items-center gap-1">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="hidden sm:inline">Sort by:</span>
+                  <span className="sm:hidden">Sort:</span>
+                </label>
+                <div className="relative">
+                  <select
+                    id="dashboard-sort-by"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="appearance-none pl-2.5 pr-7 py-1.5 bg-white border border-purple-200/90 hover:border-purple-300 rounded-lg text-xs font-semibold text-gray-800 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer transition"
+                  >
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="priority">Priority</option>
+                    <option value="deadline">Deadline</option>
+                    <option value="alphabetical">A–Z</option>
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-semibold hover:underline cursor-pointer transition"
+                  title="Reset all filters"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Active extended filter tags if any active from More filters */}
+          {isMoreFilterActive && (
+            <div className="mt-2.5 pt-2 border-t border-purple-50 flex flex-wrap items-center gap-1.5 animate-fadeIn">
+              <span className="text-[11px] text-gray-500 font-medium mr-1">Active filter:</span>
+              {filter === "tomorrow" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200 animate-fadeIn">
+                  <span>Due Tomorrow ({filterCounts.tomorrow})</span>
+                  <button type="button" onClick={() => setFilter("all")} className="hover:text-purple-950 cursor-pointer" title="Remove filter">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {["high", "medium", "low"].includes(filter) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200 animate-fadeIn capitalize">
+                  <span>Priority: {filter} ({filterCounts[filter]})</span>
+                  <button type="button" onClick={() => setFilter("all")} className="hover:text-purple-950 cursor-pointer" title="Remove filter">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedProject !== "all" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200 animate-fadeIn">
+                  <span>Project: {selectedProject === "none" ? "No Project" : projects.find((p) => p._id === selectedProject)?.name || "Selected"}</span>
+                  <button type="button" onClick={() => setSelectedProject("all")} className="hover:text-purple-950 cursor-pointer" title="Remove filter">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedTag !== "all" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200 animate-fadeIn">
+                  <span>#{selectedTag}</span>
+                  <button type="button" onClick={() => setSelectedTag("all")} className="hover:text-purple-950 cursor-pointer" title="Remove filter">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+        </section>
 
   {/* DOCKED BULK ACTION BAR */}
   {isSelectionMode && (

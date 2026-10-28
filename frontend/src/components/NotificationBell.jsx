@@ -118,7 +118,7 @@ const NotificationBell = ({
               type="button"
               onClick={() => {
                 setOpen(false);
-                navigate("/settings");
+                navigate("/settings?tab=notifications");
               }}
               className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-700 font-semibold cursor-pointer"
             >

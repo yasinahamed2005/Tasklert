@@ -119,26 +119,50 @@ body.modal-scroll-locked {
 /* Theme color classes matching Tasklert Accent Themes */
 .theme-blue {
   --primary: #1e88e5;
+  --avatar-bg: linear-gradient(135deg, #1565c0, #1e88e5);
+  --avatar-border: #0d47a1;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(30, 136, 229, 0.3);
 }
 
 .theme-peach {
   --primary: #d4a373;
+  --avatar-bg: linear-gradient(135deg, #9a3412, #c2410c);
+  --avatar-border: #7c2d12;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(194, 65, 12, 0.3);
 }
 
 .theme-green {
   --primary: #a3d977;
+  --avatar-bg: linear-gradient(135deg, #166534, #15803d);
+  --avatar-border: #14532d;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(22, 101, 52, 0.3);
 }
 
 .theme-lavender {
   --primary: #a78bfa;
+  --avatar-bg: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  --avatar-border: #5b21b6;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(139, 92, 246, 0.3);
 }
 
 .theme-dark {
   --primary: #1f2937;
+  --avatar-bg: linear-gradient(135deg, #1f2937, #374151);
+  --avatar-border: #4b5563;
+  --avatar-text: #f9fafb;
+  --avatar-ring: rgba(156, 163, 175, 0.3);
 }
 
 .theme-pink {
   --primary: #c026d3;
+  --avatar-bg: linear-gradient(135deg, #86198f, #c026d3);
+  --avatar-border: #701a75;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(192, 38, 211, 0.3);
 }
 
 /* Dynamic theme variables recomputed whenever active theme class applies */
@@ -156,9 +180,10 @@ body.modal-scroll-locked {
   --primary-500: var(--primary);
   --primary-600: color-mix(in srgb, var(--primary) 86%, black);
   --primary-700: color-mix(in srgb, var(--primary) 70%, black);
-  --avatar-bg: color-mix(in srgb, var(--primary) 24%, white);
-  --avatar-border: color-mix(in srgb, var(--primary) 40%, white);
-  --avatar-text: color-mix(in srgb, var(--primary) 48%, black);
+  --avatar-bg: linear-gradient(135deg, #7c3aed, #9333ea);
+  --avatar-border: #6d28d9;
+  --avatar-text: #ffffff;
+  --avatar-ring: rgba(124, 58, 237, 0.25);
   --app-bg-soft: color-mix(in srgb, var(--primary) 9%, white);
   --app-bg-softer: color-mix(in srgb, var(--primary) 5%, white);
   --surface-1: color-mix(in srgb, var(--primary) 7%, white);
@@ -407,10 +432,12 @@ body.modal-scroll-locked {
 
 /* Reusable avatar chip for initial letters */
 .initial-avatar {
-  background-color: var(--avatar-bg);
+  background: var(--avatar-bg);
   color: var(--avatar-text);
-  border: 1px solid var(--avatar-border);
-  font-weight: 700;
+  border: 1.5px solid var(--avatar-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--avatar-ring);
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 /* Strong primary action button for forms/modals */

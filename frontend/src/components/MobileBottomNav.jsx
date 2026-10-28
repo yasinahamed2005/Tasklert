@@ -1,13 +1,26 @@
 import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, ListChecks, Calendar, Timer, Menu, X, BarChart3, Send, Bell, User, Palette, LogOut, ChevronRight, AlarmClock } from "lucide-react";
-import ThemeSettings from "./ThemeSettings";
+import {
+  Home,
+  ListChecks,
+  Calendar,
+  Timer,
+  Menu,
+  X,
+  BarChart3,
+  Send,
+  Settings,
+  User,
+  LogOut,
+  ChevronRight,
+  AlarmClock,
+} from "lucide-react";
+import UserAvatar from "./UserAvatar";
 
 const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
-  const [openThemeModal, setOpenThemeModal] = useState(false);
 
   const pendingCount = tasks.filter(
     (t) => !["yes", true, 1].includes(typeof t.completed === "string" ? t.completed.toLowerCase() : t.completed)
@@ -15,7 +28,6 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
 
   const username = user?.name || "User";
   const email = user?.email || "";
-  const initial = username.charAt(0).toUpperCase();
 
   const isTasksActive = location.pathname === "/pending" || location.pathname === "/complete";
   const isMoreActive = ["/settings", "/profile", "/messages", "/analytics", "/alarms"].includes(location.pathname) || moreOpen;
@@ -140,9 +152,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
 
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full initial-avatar flex items-center justify-center text-sm font-bold shadow-xs">
-                  {initial}
-                </div>
+                <UserAvatar user={user} size="md" showStatus statusColor="bg-emerald-500" />
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-gray-800 truncate">{username}</h3>
                   <p className="text-xs text-gray-500 truncate">{email || "Tasklert Member"}</p>
@@ -158,18 +168,46 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
               </button>
             </div>
 
-            {/* Navigation Grid / List */}
+            {/* Navigation List */}
             <div className="space-y-1">
               <button
                 type="button"
                 onClick={() => handleNav("/profile")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
                     <User className="w-4 h-4" />
                   </div>
-                  <span className="text-sm font-semibold">Account Profile &amp; Settings</span>
+                  <span className="text-sm font-semibold">My Profile</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleNav("/settings")}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-semibold">Account Settings</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleNav("/alarms")}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
+                    <AlarmClock className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-semibold">Alarms &amp; Clock</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </button>
@@ -177,10 +215,10 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
               <button
                 type="button"
                 onClick={() => handleNav("/analytics")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
                     <BarChart3 className="w-4 h-4" />
                   </div>
                   <span className="text-sm font-semibold">Analytics &amp; Productivity</span>
@@ -191,58 +229,13 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
               <button
                 type="button"
                 onClick={() => handleNav("/messages")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
                     <Send className="w-4 h-4" />
                   </div>
                   <span className="text-sm font-semibold">QuickSend Messenger</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNav("/settings")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
-                    <Bell className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-semibold">Alarms &amp; Device Settings</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNav("/alarms")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
-                    <AlarmClock className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-semibold">Alarms Clock (On/Off)</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setOpenThemeModal(true);
-                }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-purple-50/70 text-gray-700 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
-                    <Palette className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-semibold">Theme &amp; Accent Color</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </button>
@@ -254,25 +247,17 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
                     setMoreOpen(false);
                     onLogout?.();
                   }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-red-50 text-red-600 transition cursor-pointer font-semibold text-sm"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-rose-50 text-rose-600 transition cursor-pointer font-semibold text-sm"
                 >
-                  <div className="p-2 rounded-lg bg-red-100 text-red-600">
+                  <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
                     <LogOut className="w-4 h-4" />
                   </div>
-                  <span>Sign Out</span>
+                  <span>Log out of Tasklert</span>
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Accent Theme Modal Triggered from More Menu */}
-      {openThemeModal && (
-        <ThemeSettings
-          isOpen={openThemeModal}
-          onClose={() => setOpenThemeModal(false)}
-        />
       )}
     </>
   );

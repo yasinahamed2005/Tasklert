@@ -465,7 +465,7 @@ export const AlarmsPage = () => {
         <div className="flex items-center gap-2 self-start md:self-auto">
           <button
             type="button"
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/settings?tab=alarms")}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-purple-200 text-purple-700 bg-purple-50/60 hover:bg-purple-100 text-xs font-bold transition cursor-pointer shadow-2xs"
             title="Device Notification Settings"
           >

@@ -14,6 +14,7 @@ import {
     BarChart3,
     Timer,
     AlarmClock,
+    Settings,
 } from "lucide-react";
 
 // BACKEND TEST 
@@ -120,7 +121,7 @@ export const menuItems = [
     { text: "Analytics", path: "/analytics", icon: <BarChart3 className="w-5 h-5" /> },
     { text: "Quick Send", path: "/messages", icon: <Send className="w-5 h-5" /> },
     { text: "Alarms & Clock", path: "/alarms", icon: <AlarmClock className="w-5 h-5" /> },
-    { text: "Alarms & Settings", path: "/settings", icon: <Bell className="w-5 h-5" /> },
+    { text: "Settings", path: "/settings", icon: <Settings className="w-5 h-5" /> },
 ]
 
 export const SIDEBAR_CLASSES = {
@@ -343,3 +344,144 @@ export const dummyUser = {
 };
 
 
+
+// Shared Task Status & Date Helpers
+export const isTaskCompleted = (task) => {
+  if (!task) return false;
+  const value = task.completed;
+  if (value === true || value === 1) return true;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'yes' || normalized === 'true' || normalized === 'completed' || normalized === '1';
+  }
+  return false;
+};
+
+export const parseSafeDate = (d) => {
+  if (!d) return null;
+  const date = new Date(d);
+  return isNaN(date.getTime()) ? null : date;
+};
+
+export const isTaskDueToday = (task) => {
+  if (isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.dueDate);
+  if (!d) return false;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return d >= start && d < end;
+};
+
+export const isTaskOverdue = (task) => {
+  if (isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.dueDate);
+  if (!d) return false;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return d < start;
+};
+
+export const isTaskUpcoming = (task) => {
+  if (isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.dueDate);
+  if (!d) return false;
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return d >= end;
+};
+
+export const isTaskNoDueDate = (task) => {
+  if (isTaskCompleted(task)) return false;
+  return !task.dueDate || parseSafeDate(task.dueDate) === null;
+};
+
+export const getStartOfDay = (d = new Date()) => {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+};
+
+export const getStartOfWeek = (d = new Date()) => {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  const day = date.getDay(); // 0 is Sunday, 1 is Monday...
+  const diff = (day === 0 ? -6 : 1) - day;
+  date.setDate(date.getDate() + diff);
+  return date;
+};
+
+export const getStartOfMonth = (d = new Date()) => {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+};
+
+export const isCompletedToday = (task, now = new Date()) => {
+  if (!isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.completedAt);
+  if (!d) return false;
+  const sod = getStartOfDay(now);
+  const eod = new Date(sod.getTime() + 86400000);
+  return d >= sod && d < eod;
+};
+
+export const isCompletedThisWeek = (task, now = new Date()) => {
+  if (!isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.completedAt);
+  if (!d) return false;
+  const sow = getStartOfWeek(now);
+  const eow = new Date(sow.getTime() + 7 * 86400000);
+  return d >= sow && d < eow;
+};
+
+export const isCompletedThisMonth = (task, now = new Date()) => {
+  if (!isTaskCompleted(task)) return false;
+  const d = parseSafeDate(task.completedAt);
+  if (!d) return false;
+  const som = getStartOfMonth(now);
+  const eom = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+  return d >= som && d < eom;
+};
+
+export const formatCompletionDate = (dateVal) => {
+  if (!dateVal) return null;
+  const d = parseSafeDate(dateVal);
+  if (!d) return null;
+
+  const now = new Date();
+  const startOfToday = getStartOfDay(now);
+  const startOfTomorrow = new Date(startOfToday.getTime() + 86400000);
+  const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
+
+  if (d >= startOfToday && d < startOfTomorrow) {
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `Today at ${timeStr}`;
+  }
+  if (d >= startOfYesterday && d < startOfToday) {
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `Yesterday at ${timeStr}`;
+  }
+
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+export const getCompletionGroup = (task, now = new Date()) => {
+  if (!isTaskCompleted(task)) return null;
+  const d = parseSafeDate(task.completedAt);
+  if (!d) return 'no_timestamp';
+
+  const startOfToday = getStartOfDay(now);
+  const startOfTomorrow = new Date(startOfToday.getTime() + 86400000);
+  const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
+
+  if (d >= startOfToday && d < startOfTomorrow) return 'today';
+  if (d >= startOfYesterday && d < startOfToday) return 'yesterday';
+
+  const startOfWeek = getStartOfWeek(now);
+  if (d >= startOfWeek && d < startOfYesterday) return 'this_week';
+
+  const startOfMonth = getStartOfMonth(now);
+  const earlierThreshold = startOfWeek < startOfYesterday ? startOfWeek : startOfYesterday;
+  if (d >= startOfMonth && d < earlierThreshold) return 'this_month';
+
+  return 'older';
+};

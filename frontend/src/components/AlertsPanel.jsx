@@ -1,45 +1,31 @@
-import { AlertTriangle, CalendarClock } from "lucide-react";
-import { isToday } from "date-fns";
-
-const isCompleted = (task) => {
-  const value = task?.completed;
-  if (value === true || value === 1) return true;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    return normalized === "yes" || normalized === "true" || normalized === "completed";
-  }
-  return false;
-};
+import { AlertTriangle, Calendar, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { isTaskDueToday, isTaskOverdue } from "../assets/dummy";
 
 const AlertsPanel = ({ tasks = [] }) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const navigate = useNavigate();
 
-  const dueToday = tasks.filter(
-    (task) =>
-      task.dueDate &&
-      isToday(new Date(task.dueDate)) &&
-      !isCompleted(task)
-  );
-
-  const overdue = tasks.filter((task) => {
-    if (!task.dueDate || isCompleted(task)) return false;
-    const due = new Date(task.dueDate);
-    due.setHours(0, 0, 0, 0);
-    return due < today;
-  });
+  const dueToday = tasks.filter(isTaskDueToday);
+  const overdue = tasks.filter(isTaskOverdue);
 
   return (
     <div className="space-y-3">
+      {/* Due Today Card with Calendar Shortcut */}
       <div className="alert-card alert-card-today">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="alert-title">Due Today</p>
             <p className="alert-count">{dueToday.length} tasks</p>
           </div>
-          <div className="alert-icon">
-            <CalendarClock className="w-4 h-4" />
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/calendar")}
+            title="Open calendar"
+            aria-label="Open calendar"
+            className="alert-icon hover:opacity-90 active:scale-95 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] shrink-0"
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
         </div>
         <div className="alert-list">
           {dueToday.length === 0 ? (
@@ -54,17 +40,26 @@ const AlertsPanel = ({ tasks = [] }) => {
         </div>
       </div>
 
-      <div
-        className="alert-card alert-card-overdue"
-      >
+      {/* Overdue Tasks Card with Pending View Shortcut */}
+      <div className="alert-card alert-card-overdue">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="alert-title">Overdue Tasks</p>
             <p className="alert-count">{overdue.length} tasks</p>
           </div>
-          <div className="alert-icon">
-            <AlertTriangle className="w-4 h-4" />
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/pending?filter=overdue")}
+            title="View overdue tasks"
+            aria-label="View overdue tasks"
+            className="alert-icon hover:opacity-90 active:scale-95 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 shrink-0"
+            style={{
+              background: "color-mix(in srgb, #ef4444 16%, white)",
+              color: "#dc2626",
+            }}
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
         <div className="alert-list">
           {overdue.length === 0 ? (

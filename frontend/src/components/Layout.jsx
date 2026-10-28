@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { TrendingUp, Circle, Clock, Zap, AlertTriangle } from "lucide-react";
+import { TrendingUp, Circle, Clock, Zap, AlertTriangle, BarChart3 } from "lucide-react";
 import { notify } from "../utils/toastManager";
 import AlertsPanel from "./AlertsPanel";
 import AlarmModal from "./AlarmModal";
 import MobileBottomNav from "./MobileBottomNav";
+
+const TaskDetailModal = React.lazy(() =>
+  import("./TaskDetailModal").then((m) => ({ default: m.TaskDetailModal || m.default }))
+);
+const TaskModal = React.lazy(() => import("./TaskModal"));
 import NotificationPermissionBanner from "./NotificationPermissionBanner";
 import ErrorBoundary from "./ErrorBoundary";
 import { showBrowserNotification } from "../utils/pushManager";
@@ -33,6 +38,7 @@ const StatCard = ({ title, value, icon }) => (
 );
 
 const Layout = ({ onLogout, user }) => {
+  const navigate = useNavigate();
   const location = useLocation();
   const isFullWidthPage = ["/settings", "/profile", "/messages", "/calendar", "/analytics", "/focus", "/alarms"].includes(location.pathname);
   const [tasks, setTasks] = useState(() => {
@@ -54,6 +60,65 @@ const Layout = ({ onLogout, user }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeAlarm, setActiveAlarm] = useState(null);
+
+  // Desktop collapsible sidebar preference (scoped safely to active user)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const uid = user?._id || user?.id || user?.email;
+      if (uid) {
+        const saved = localStorage.getItem(`tasklert_sidebar_collapsed_${uid}`);
+        if (saved !== null) return JSON.parse(saved);
+      }
+      return typeof window !== "undefined" && window.innerWidth < 1024;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  // Selected task & action modal states for Global Search
+  const [selectedDetailTask, setSelectedDetailTask] = useState(null);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Synchronize sidebar collapsed preference on account switch
+  useEffect(() => {
+    try {
+      const uid = user?._id || user?.id || user?.email;
+      if (uid) {
+        const saved = localStorage.getItem(`tasklert_sidebar_collapsed_${uid}`);
+        if (saved !== null) {
+          setSidebarCollapsed(JSON.parse(saved));
+          return;
+        }
+      }
+      setSidebarCollapsed(window.innerWidth < 1024);
+    } catch (_) {}
+  }, [user]);
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        const uid = user?._id || user?.id || user?.email;
+        if (uid) {
+          localStorage.setItem(`tasklert_sidebar_collapsed_${uid}`, JSON.stringify(next));
+        }
+      } catch (_) {}
+      return next;
+    });
+  }, [user]);
+
+  // Keyboard shortcut Ctrl+B or Cmd+B to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        handleToggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleToggleSidebar]);
 
   // Notification lifecycle & storm protection refs
   const isInitialNotifFetchRef = useRef(true);
@@ -428,8 +493,8 @@ const Layout = ({ onLogout, user }) => {
 
 
   const outletContext = useMemo(
-    () => ({ tasks, refreshTasks: fetchTasks, user, loadingTasks: loading }),
-    [tasks, fetchTasks, user, loading]
+    () => ({ tasks, refreshTasks: fetchTasks, user, loadingTasks: loading, searchQuery, setSearchQuery }),
+    [tasks, fetchTasks, user, loading, searchQuery, setSearchQuery]
   );
 
   // ERROR (Only block dashboard/tasks when tasks are critical and unavailable)
@@ -465,9 +530,24 @@ const Layout = ({ onLogout, user }) => {
         onMarkNotificationRead={markNotificationRead}
         onClearAllNotifications={clearAllNotifications}
         onDeleteNotification={deleteSingleNotification}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={handleToggleSidebar}
+        tasks={tasks}
+        onSelectTask={(task) => setSelectedDetailTask(task)}
+        onAction={(action) => {
+          if (action === "create_task") setIsCreateTaskModalOpen(true);
+        }}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
       />
-      <Sidebar user={user} tasks={tasks} />
-      <div className="min-w-0 ml-0 md:ml-20 lg:ml-64 xl:ml-64 pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300">
+      <Sidebar user={user} tasks={tasks} collapsed={sidebarCollapsed} />
+      <div
+        className={`min-w-0 ${
+          sidebarCollapsed
+            ? "ml-0 md:ml-20 lg:ml-20 xl:ml-20"
+            : "ml-0 md:ml-20 lg:ml-64 xl:ml-64"
+        } pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300`}
+      >
         {isFullWidthPage ? (
           <div className="w-full min-w-0 animate-page-enter">
             <ErrorBoundary>
@@ -486,10 +566,21 @@ const Layout = ({ onLogout, user }) => {
               <AlertsPanel tasks={tasks} />
               {/* STATISTICS */}
               <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-purple-100">
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-gray-800 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
-                  Task Statistics
-                </h3>
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-[color:var(--primary)]" />
+                    <span>Task Statistics</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/analytics")}
+                    title="View analytics"
+                    aria-label="View analytics"
+                    className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:text-[color:var(--primary)] bg-slate-50 hover:bg-[color:var(--primary-50)] border border-slate-200/80 hover:border-[color:var(--primary-200)] transition-all cursor-pointer flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] active:scale-95 shrink-0"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
                   <StatCard
@@ -627,6 +718,34 @@ const Layout = ({ onLogout, user }) => {
 
       {/* RESPECTFUL NOTIFICATION PERMISSION ONBOARDING BANNER */}
       <NotificationPermissionBanner />
+
+      {/* TASK DETAIL MODAL (Invoked from Global Search, Alerts, or Task Lists) */}
+      {selectedDetailTask && (
+        <React.Suspense fallback={null}>
+          <TaskDetailModal
+            isOpen={Boolean(selectedDetailTask)}
+            onClose={() => setSelectedDetailTask(null)}
+            task={selectedDetailTask}
+            onRefresh={fetchTasks}
+            onLogout={onLogout}
+          />
+        </React.Suspense>
+      )}
+
+      {/* TASK CREATION MODAL (Invoked from Global Search Quick Actions) */}
+      {isCreateTaskModalOpen && (
+        <React.Suspense fallback={null}>
+          <TaskModal
+            isOpen={isCreateTaskModalOpen}
+            onClose={() => setIsCreateTaskModalOpen(false)}
+            onSave={() => {
+              setIsCreateTaskModalOpen(false);
+              fetchTasks();
+            }}
+            onLogout={onLogout}
+          />
+        </React.Suspense>
+      )}
 
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION */}
       <MobileBottomNav user={user} onLogout={onLogout} tasks={tasks} />

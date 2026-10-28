@@ -40,6 +40,7 @@ const Pendingpage = lazyWithRetry(() => import("./pages/PendingPage"));
 const CompletePage = lazyWithRetry(() => import("./pages/CompletePage"));
 const Profile = lazyWithRetry(() => import("./components/Profile"));
 const MessageCenter = lazyWithRetry(() => import("./pages/MessageCenter"));
+const SettingsPage = lazyWithRetry(() => import("./pages/SettingsPage"));
 const AlarmSettingsPage = lazyWithRetry(() => import("./pages/AlarmSettingsPage"));
 const CalendarPage = lazyWithRetry(() => import("./pages/CalendarPage"));
 const AnalyticsPage = lazyWithRetry(() => import("./pages/AnalyticsPage"));
@@ -204,6 +205,8 @@ const App = () => {
         <Route path="/pending" element={<Pendingpage />} />
         <Route path="/complete" element={<CompletePage />} />
         <Route path="/Complete" element={<Navigate to="/complete" replace />} />
+        <Route path="/completed" element={<Navigate to="/complete" replace />} />
+        <Route path="/Completed" element={<Navigate to="/complete" replace />} />
         <Route
           path="/profile"
           element={
@@ -215,7 +218,19 @@ const App = () => {
           }
         />
         <Route path="/messages" element={<MessageCenter />} />
-        <Route path="/settings" element={<AlarmSettingsPage />} />
+        <Route
+          path="/settings"
+          element={
+            <SettingsPage
+              user={currentUser}
+              setCurrentUser={setCurrentUser}
+              onLogout={handleLogout}
+            />
+          }
+        />
+        <Route path="/settings/alarms" element={<Navigate to="/settings?tab=alarms" replace />} />
+        <Route path="/settings/notifications" element={<Navigate to="/settings?tab=notifications" replace />} />
+        <Route path="/alarm-settings" element={<Navigate to="/settings?tab=alarms" replace />} />
         <Route path="/alarms" element={<AlarmsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
