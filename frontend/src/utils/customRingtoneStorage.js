@@ -1,14 +1,21 @@
 /**
- * Tasklert Custom Audio & Ringtone Storage
+ * Tasklert Custom Audio & Ringtone Storage (v3 - Robust Slot & Multi-Mode Sync)
  * 
  * Safely persists custom user audio files (MP3, WAV, M4A, OGG) using browser IndexedDB.
- * Ensures custom music and ringtones survive browser restarts, tab closures, and PWA updates
- * without uploading private audio files to the cloud.
+ * Supports:
+ * - Independent ringtones per mode ('focus', 'short_break', 'long_break')
+ * - Unified mode: "Use the same ringtone for all sessions"
+ * - Atomic propagation via "Apply this ringtone to all sessions"
+ * - Stale cache purging & buffer invalidation
+ * - Native Android bridge syncing via TasklertAlarmEngine.saveCustomRingtone
  */
+
+import { soundManager } from "./soundManager";
 
 const DB_NAME = "tasklert_audio_db";
 const DB_VERSION = 1;
 const STORE_NAME = "ringtones";
+const UNIFIED_PREF_KEY = "tasklert_use_same_ringtone_for_all";
 
 let dbInstance = null;
 const memoryFallback = new Map();
@@ -38,7 +45,7 @@ const openDatabase = () => {
       };
 
       request.onerror = (event) => {
-        console.warn("IndexedDB audio store error, using fallback:", event.target.error);
+        console.warn("IndexedDB audio store error, using memory fallback:", event.target.error);
         resolve(null);
       };
     } catch (err) {
@@ -48,17 +55,77 @@ const openDatabase = () => {
   });
 };
 
+/**
+ * ArrayBuffer to Base64 utility for native Android bridge
+ */
+const arrayBufferToBase64 = (buffer) => {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+};
+
 export const customRingtoneStorage = {
   /**
-   * Save a user audio file for a specific mode/slot ('focus', 'short_break', 'long_break')
-   * If applyToAll is true, saves the file across focus, short_break, and long_break.
+   * Check preference: "Use the same ringtone for all sessions"
+   * Defaults to true for unified user experience.
    */
-  async saveRingtone(key, file, applyToAll = false) {
+  getUseSameRingtoneForAll() {
+    if (typeof window === "undefined") return true;
+    const pref = localStorage.getItem(UNIFIED_PREF_KEY);
+    return pref === null ? true : pref !== "false";
+  },
+
+  /**
+   * Set preference: "Use the same ringtone for all sessions"
+   */
+  setUseSameRingtoneForAll(enabled) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(UNIFIED_PREF_KEY, enabled ? "true" : "false");
+    }
+  },
+
+  /**
+   * Sync custom audio bytes to native Android storage if running in Capacitor
+   */
+  async syncToNativeAndroid(slot, fileName, arrayBuffer) {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.Capacitor?.isNativePlatform?.() &&
+        window.Capacitor?.Plugins?.TasklertAlarmEngine
+      ) {
+        const base64Data = arrayBufferToBase64(arrayBuffer);
+        await window.Capacitor.Plugins.TasklertAlarmEngine.saveCustomRingtone({
+          slot: String(slot),
+          fileName: String(fileName),
+          base64Data,
+        });
+        console.log(`[customRingtoneStorage] Synced ringtone "${fileName}" to native Android slot: ${slot}`);
+      }
+    } catch (nativeErr) {
+      console.warn("[customRingtoneStorage] Native Android ringtone sync failed:", nativeErr);
+    }
+  },
+
+  /**
+   * Save a user audio file for a mode ('focus', 'short_break', 'long_break')
+   * If applyToAll is true OR unified mode is active, writes to all 3 slots simultaneously.
+   */
+  async saveRingtone(key, file, applyToAll = null) {
     if (!file) return null;
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const slots = applyToAll ? ["focus", "short_break", "long_break"] : [String(key)];
+      const shouldApplyToAll =
+        applyToAll === true || (applyToAll === null && this.getUseSameRingtoneForAll());
+
+      const slots = shouldApplyToAll
+        ? ["focus", "short_break", "long_break"]
+        : [String(key || "focus")];
 
       const db = await openDatabase();
 
@@ -87,9 +154,15 @@ export const customRingtoneStorage = {
             }
           });
         }
+
+        // Mirror to native Android private filesystem
+        await this.syncToNativeAndroid(slot, record.name, record.data);
       }
 
-      return memoryFallback.get(String(key)) || null;
+      // Invalidate in-memory audio buffers in soundManager so new file plays immediately
+      soundManager.clearBuffers();
+
+      return memoryFallback.get(String(key || "focus")) || null;
     } catch (err) {
       console.error("Failed to save custom ringtone:", err);
       return null;
@@ -97,7 +170,7 @@ export const customRingtoneStorage = {
   },
 
   /**
-   * Save an audio file to all slots (focus, short_break, long_break)
+   * Save an audio file to all slots (focus, short_break, long_break) explicitly
    */
   async saveRingtoneToAll(file) {
     return this.saveRingtone("focus", file, true);
@@ -107,10 +180,12 @@ export const customRingtoneStorage = {
    * Retrieve a stored ringtone with raw ArrayBuffer data and blob URL
    */
   async getRingtone(key) {
-    const k = String(key || "focus");
+    const isUnified = this.getUseSameRingtoneForAll();
+    // In unified mode, always prioritize 'focus' as the single source of truth
+    const targetKey = isUnified ? "focus" : String(key || "focus");
 
     try {
-      let record = memoryFallback.get(k);
+      let record = memoryFallback.get(targetKey);
 
       if (!record) {
         const db = await openDatabase();
@@ -119,7 +194,7 @@ export const customRingtoneStorage = {
             try {
               const tx = db.transaction(STORE_NAME, "readonly");
               const store = tx.objectStore(STORE_NAME);
-              const req = store.get(k);
+              const req = store.get(targetKey);
               req.onsuccess = () => resolve(req.result || null);
               req.onerror = () => resolve(null);
             } catch {
@@ -129,9 +204,12 @@ export const customRingtoneStorage = {
         }
       }
 
-      // If slot specific audio not found, check 'focus' as general custom fallback
-      if ((!record || !record.data) && k !== "focus") {
-        return this.getRingtone("focus");
+      // If in unified mode and focus record is present in memory/IDB, ensure it's returned
+      if (isUnified && record && record.data) {
+        // Return unified focus record
+      } else if (!isUnified && (!record || !record.data)) {
+        // In separate mode, if no file uploaded for this mode, return null (DO NOT silently substitute!)
+        return null;
       }
 
       if (!record || !record.data) return null;
@@ -144,7 +222,7 @@ export const customRingtoneStorage = {
         name: record.name,
         type: record.type,
         size: record.size,
-        data: record.data, // Raw persistent ArrayBuffer for Web Audio decoding
+        data: record.data,
         blob,
         url: objectUrl,
       };
@@ -158,9 +236,11 @@ export const customRingtoneStorage = {
    * Get metadata only without allocating blob URLs
    */
   async getRingtoneMetadata(key) {
-    const k = String(key || "focus");
+    const isUnified = this.getUseSameRingtoneForAll();
+    const targetKey = isUnified ? "focus" : String(key || "focus");
+
     try {
-      let record = memoryFallback.get(k);
+      let record = memoryFallback.get(targetKey);
       if (!record) {
         const db = await openDatabase();
         if (db) {
@@ -168,7 +248,7 @@ export const customRingtoneStorage = {
             try {
               const tx = db.transaction(STORE_NAME, "readonly");
               const store = tx.objectStore(STORE_NAME);
-              const req = store.get(k);
+              const req = store.get(targetKey);
               req.onsuccess = () => resolve(req.result || null);
               req.onerror = () => resolve(null);
             } catch {
@@ -176,10 +256,6 @@ export const customRingtoneStorage = {
             }
           });
         }
-      }
-
-      if (!record && k !== "focus") {
-        return this.getRingtoneMetadata("focus");
       }
 
       if (!record) return null;
@@ -195,26 +271,29 @@ export const customRingtoneStorage = {
   },
 
   /**
-   * Delete a custom ringtone
+   * Delete a custom ringtone for a specific slot
    */
   async deleteRingtone(key) {
     const k = String(key || "focus");
     memoryFallback.delete(k);
 
     const db = await openDatabase();
-    if (!db) return true;
+    if (db) {
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          store.delete(k);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch {
+          resolve(true);
+        }
+      });
+    }
 
-    return new Promise((resolve) => {
-      try {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.delete(k);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => resolve(false);
-      } catch {
-        resolve(true);
-      }
-    });
+    soundManager.clearBuffers();
+    return true;
   },
 
   /**
@@ -263,19 +342,22 @@ export const customRingtoneStorage = {
   async clearAllRingtones() {
     memoryFallback.clear();
     const db = await openDatabase();
-    if (!db) return true;
+    if (db) {
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          store.clear();
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch {
+          resolve(true);
+        }
+      });
+    }
 
-    return new Promise((resolve) => {
-      try {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.clear();
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => resolve(false);
-      } catch {
-        resolve(true);
-      }
-    });
+    soundManager.clearBuffers();
+    return true;
   },
 };
 

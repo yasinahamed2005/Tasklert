@@ -90,3 +90,4 @@ class PrecisionTimerWorker {
 
 export const precisionTimerWorker = new PrecisionTimerWorker();
 export default precisionTimerWorker;
+

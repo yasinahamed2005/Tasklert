@@ -27,11 +27,15 @@ class SoundManager {
 
   /**
    * Safe getter: returns or instantiates the AudioContext WITHOUT calling resume() passively.
-   * This strictly eliminates the browser console warning:
+   * Eliminates the browser console warning:
    * "AudioContext was not allowed to start. It must be resumed or created after a user gesture."
    */
   getAudioContext() {
-    if (!this.audioCtx && typeof window !== "undefined") {
+    if (typeof window === "undefined") return null;
+    if (this.audioCtx && this.audioCtx.state === "closed") {
+      this.audioCtx = null;
+    }
+    if (!this.audioCtx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.audioCtx = new AudioCtx();
@@ -47,10 +51,16 @@ class SoundManager {
   async unlockAudioContext() {
     const ctx = this.getAudioContext();
     if (!ctx) return false;
-    if (ctx.state === "suspended") {
+
+    if (ctx.state === "closed") {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.audioCtx = new AudioCtx();
+    }
+
+    if (ctx.state === "suspended" || ctx.state === "interrupted") {
       try {
         await ctx.resume();
-        console.log(`[SoundManager] AudioContext successfully resumed on user gesture. State: ${ctx.state}`);
+        console.info(`[SoundManager] AudioContext successfully resumed via user gesture. State: "${ctx.state}"`);
       } catch (err) {
         console.warn("[SoundManager] AudioContext resume failed:", err);
       }
@@ -380,6 +390,8 @@ class SoundManager {
       // If we have an AudioBuffer, play via Web Audio BufferSource
       if (audioBuffer) {
         try {
+          this.stop(); // Stop any competing playback source first
+
           this.isPlaying = true;
           this.currentSound = "custom";
           this.currentRingtoneName = ringtoneName;
@@ -397,16 +409,22 @@ class SoundManager {
           source.onended = () => {
             if (this.customBufferSource === source) {
               this.isPlaying = false;
+              console.info(`[SoundManager] Playback lifecycle: source ended for "${ringtoneName}"`);
             }
           };
 
+          console.info(`[SoundManager] BufferSource created for track: "${ringtoneName}". Requesting start(0)...`);
           source.start(0);
           this.customBufferSource = source;
 
-          console.log(`[SoundManager] Audio playback started: "${ringtoneName}" | AudioContext state: "${ctx.state}" | Volume: ${volume}%`);
+          if (ctx.state === "running") {
+            console.info(`[SoundManager] Playback confirmed active: "${ringtoneName}" | State: "${ctx.state}" | Volume: ${volume}%`);
+          } else {
+            console.warn(`[SoundManager] Playback requested but AudioContext state is "${ctx.state}" (requires user gesture to unmute hardware)`);
+          }
           return;
         } catch (e) {
-          console.warn("[SoundManager] BufferSource playback error:", e);
+          console.error("[SoundManager] BufferSource playback failure:", e);
         }
       }
 

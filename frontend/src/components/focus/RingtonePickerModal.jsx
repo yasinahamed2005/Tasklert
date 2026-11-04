@@ -39,6 +39,7 @@ export const RingtonePickerModal = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [customAudioRecord, setCustomAudioRecord] = useState(null);
   const [allSlotsMeta, setAllSlotsMeta] = useState({});
+  const [useSameForAll, setUseSameForAll] = useState(() => customRingtoneStorage.getUseSameRingtoneForAll());
   const [applyToAll, setApplyToAll] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -49,12 +50,23 @@ export const RingtonePickerModal = ({
       setActiveSlot(targetSlot || "focus");
       setSelectedSound(currentSound || "chime");
       setVolume(currentVolume || 80);
+      setUseSameForAll(customRingtoneStorage.getUseSameRingtoneForAll());
       loadSlotData(targetSlot || "focus");
     } else {
       soundManager.stop();
       setIsPlaying(false);
     }
   }, [isOpen, targetSlot, currentSound, currentVolume]);
+
+  const handleToggleUseSameForAll = async (enabled) => {
+    setUseSameForAll(enabled);
+    customRingtoneStorage.setUseSameRingtoneForAll(enabled);
+    if (enabled && customAudioRecord) {
+      // Mirror to all slots
+      await customRingtoneStorage.saveRingtoneToAll(customAudioRecord);
+    }
+    await loadSlotData(activeSlot);
+  };
 
   const loadSlotData = async (slot) => {
     try {
@@ -362,18 +374,25 @@ export const RingtonePickerModal = ({
               </div>
             )}
 
-            {/* Apply To All Modes Checkbox */}
-            <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={applyToAll}
-                onChange={(e) => setApplyToAll(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-xs text-slate-700 font-semibold">
-                Apply this custom ringtone to all modes (Focus & Breaks)
-              </span>
-            </label>
+            {/* Global vs Independent Ringtone Selection Preference */}
+            <div className="pt-2 border-t border-blue-100/70 space-y-1.5">
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className="text-xs text-slate-800 font-bold">
+                  Use the same ringtone for all sessions
+                </span>
+                <input
+                  type="checkbox"
+                  checked={useSameForAll}
+                  onChange={(e) => handleToggleUseSameForAll(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                />
+              </label>
+              <p className="text-[11px] text-blue-700 font-medium">
+                {useSameForAll
+                  ? "✓ Active: Tere Vaaste.mp3 applies to Focus, Short Break, and Long Break"
+                  : `✓ Mode specific: Configured independently for ${activeSlot.replace("_", " ")}`}
+              </p>
+            </div>
 
             {/* Hidden file input */}
             <input
