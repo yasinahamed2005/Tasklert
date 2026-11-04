@@ -261,12 +261,16 @@ const Layout = ({ onLogout, user }) => {
         }
       }
     } catch (err) {
-      console.error("fetchNotifications error:", err.message);
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        onLogoutRef.current?.();
+        return;
+      }
+      console.warn("fetchNotifications warning:", err.message);
       // On 429 Rate Limit error, back off for 60 seconds
       if (err.response?.status === 429) {
         lastNotifFetchTimeRef.current = Date.now() + 60000;
       }
-      if (err.response?.status === 401) onLogoutRef.current?.();
     } finally {
       isFetchingNotifRef.current = false;
     }
