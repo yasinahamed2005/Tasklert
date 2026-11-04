@@ -4,13 +4,13 @@ import {
   Coffee,
   CheckCircle2,
   Clock,
-  Sparkles,
-  ArrowRight,
+  Play,
+  Pause,
   RotateCcw,
-  Volume2,
-  VolumeX,
-  BellRing,
   Check,
+  ArrowRight,
+  Music,
+  BellRing,
 } from "lucide-react";
 import { soundManager } from "../../utils/soundManager";
 
@@ -22,18 +22,18 @@ export const FocusCompletionModal = ({
   onStartNext,
   onSnooze,
 }) => {
-  const [isMuted, setIsMuted] = useState(false);
-  const [selectedSnoozeMinutes, setSelectedSnoozeMinutes] = useState(5);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isPlayingAudio, setIsPlayingAudio] = useState(true);
 
-  // Live Samsung-Clock style digital ticker
+  // Sync isPlayingAudio with SoundManager
   useEffect(() => {
-    if (!isOpen) return;
-    const ticker = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(ticker);
-  }, [isOpen]);
+    if (!isOpen) {
+      soundManager.stop();
+      setIsPlayingAudio(false);
+      return;
+    }
 
-  useEffect(() => {
+    setIsPlayingAudio(true);
+
     return () => {
       soundManager.stop();
       if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -42,20 +42,37 @@ export const FocusCompletionModal = ({
         } catch (_) {}
       }
     };
-  }, []);
+  }, [isOpen]);
 
   if (!isOpen || !sessionInfo) return null;
 
   const isFocus = sessionInfo.mode === "focus";
   const durationMins = sessionInfo.durationMinutes || 25;
+  const ringtoneName =
+    sessionInfo.customAudioName ||
+    (sessionInfo.sound === "custom" ? "Tere Vaaste.mp3" : null) ||
+    (sessionInfo.sound === "classic"
+      ? "Classic Twin Bell"
+      : sessionInfo.sound === "digital"
+      ? "Digital Pulse"
+      : sessionInfo.sound === "bell"
+      ? "Zen Singing Bowl"
+      : sessionInfo.sound === "soft"
+      ? "Warm Marimba"
+      : "Gentle Chime");
 
-  const toggleMute = () => {
-    if (isMuted) {
-      setIsMuted(false);
-      soundManager.playAlarm(sessionInfo.sound || "chime", sessionInfo.volume || 80);
-    } else {
-      setIsMuted(true);
+  const toggleAudio = () => {
+    if (isPlayingAudio) {
       soundManager.stop();
+      setIsPlayingAudio(false);
+    } else {
+      setIsPlayingAudio(true);
+      soundManager.playAlarm(
+        sessionInfo.sound || "chime",
+        sessionInfo.volume || 80,
+        sessionInfo.customAudioRecord || sessionInfo.customAudioUrl,
+        sessionInfo.mode || "focus"
+      );
     }
   };
 
@@ -79,7 +96,7 @@ export const FocusCompletionModal = ({
     onStartNext?.();
   };
 
-  const handleSnooze = (mins = selectedSnoozeMinutes) => {
+  const handleSnooze = (mins = 5) => {
     soundManager.stop();
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
@@ -89,187 +106,137 @@ export const FocusCompletionModal = ({
     onSnooze?.(mins);
   };
 
-  const timeString = currentTime.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const dateString = currentTime.toLocaleDateString([], {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Alarm Ringing"
-      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none animate-fadeIn"
     >
-      <div className="bg-white rounded-3xl w-full max-w-md sm:max-w-lg shadow-2xl border border-slate-200 overflow-hidden text-center relative flex flex-col justify-between max-h-[94vh]">
-        {/* TOP SAMSUNG-STYLE STATUS BAR */}
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-white shadow-sm font-black text-sm">
-              T
-            </div>
-            <div className="text-left">
-              <h1 className="text-xs font-black tracking-wider uppercase text-purple-300">Tasklert Focus</h1>
-              <p className="text-[10px] text-slate-400 font-medium">Samsung Clock Alarm Experience</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-              title={isMuted ? "Unmute Alarm" : "Mute Sound"}
-            >
-              {isMuted ? (
-                <>
-                  <VolumeX className="w-4 h-4 text-rose-400" />
-                  <span className="text-[11px] text-rose-300 hidden sm:inline">Muted</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 className="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <span className="text-[11px] text-emerald-300 hidden sm:inline">Sound On</span>
-                </>
-              )}
-            </button>
+      <div className="bg-white rounded-3xl w-full max-w-sm sm:max-w-md shadow-2xl border border-blue-100 overflow-hidden text-center p-5 sm:p-6 space-y-4 animate-scaleUp relative">
+        {/* Celebration Radial Glow & Icon (Screen 3 Reference) */}
+        <div className="relative mx-auto w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center pt-2">
+          {/* Dashed rays around icon */}
+          <div className="absolute inset-0 rounded-full border-2 border-dashed border-blue-200 animate-spin" style={{ animationDuration: "25s" }} />
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md">
+            {isFocus ? (
+              <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow" />
+            ) : (
+              <Coffee className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow" />
+            )}
           </div>
         </div>
 
-        {/* CLOCK & ALARM HEADER (Samsung Clock Alarm Style) */}
-        <div className="px-6 pt-5 pb-2">
-          {/* Live Digital Clock */}
-          <div className="mb-4">
-            <div className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight font-mono">
-              {timeString}
+        {/* Mode Badge & Titles */}
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+            <BellRing className="w-3.5 h-3.5 animate-bounce" />
+            <span>{isFocus ? "FOCUS COMPLETED" : "BREAK OVER"}</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            {isFocus ? "Focus Completed! 🎯" : "Break Completed! ☕"}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
+            {isFocus
+              ? "Your focus sprint is complete. Time for a well-deserved recharge!"
+              : "Your break is over. Feeling refreshed and ready for your next focus session?"}
+          </p>
+        </div>
+
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 gap-2.5 text-left">
+          <div className="p-3 rounded-2xl border border-blue-100 bg-blue-50/50">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-0.5">
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              <span>Session Length</span>
             </div>
-            <div className="text-xs font-semibold text-slate-500 mt-0.5 uppercase tracking-wider">
-              {dateString}
-            </div>
+            <p className="text-base font-black text-slate-900">{durationMins} mins</p>
           </div>
 
-          {/* Pulsing Alarm Hero Icon */}
-          <div className="relative mx-auto w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mb-4">
-            <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping" />
-            <div className="w-full h-full rounded-full flex items-center justify-center text-white shadow-xl bg-gradient-to-br from-purple-600 to-indigo-700">
-              {isFocus ? (
-                <Trophy className="w-10 h-10 sm:w-12 sm:h-12 drop-shadow" />
-              ) : (
-                <Coffee className="w-10 h-10 sm:w-12 sm:h-12 drop-shadow" />
-              )}
+          <div className="p-3 rounded-2xl border border-blue-100 bg-blue-50/50">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-0.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Total Today</span>
             </div>
-          </div>
-
-          {/* Alarm Title & Message */}
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
-              <BellRing className="w-3.5 h-3.5 animate-bounce" />
-              <span>{isFocus ? "Focus Sprint Accomplished" : "Break Over"}</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {isFocus ? "Focus Completed! 🎯" : "Break Completed! ☕"}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
-              {isFocus
-                ? `You completed ${durationMins} minutes of uninterrupted deep focus. Great discipline!`
-                : `Your break is over. Feeling refreshed and ready for your next focus session?`}
+            <p className="text-base font-black text-slate-900">
+              {Math.floor(todayTotalMinutes / 60)}h {todayTotalMinutes % 60}m
             </p>
           </div>
+        </div>
 
-          {/* Session Metrics Bar */}
-          <div className="grid grid-cols-2 gap-2.5 my-4 text-left">
-            <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-0.5">
-                <Clock className="w-3.5 h-3.5 text-purple-600" />
-                <span>Session Length</span>
-              </div>
-              <p className="text-base font-black text-slate-900">{durationMins} mins</p>
+        {/* Ringtone Track Card (Exact Match to Screen 3 Reference) */}
+        <div className="p-3 rounded-2xl border border-blue-100 bg-blue-50/40 flex items-center justify-between text-left">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+              <Music className="w-5 h-5" />
             </div>
-
-            <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-0.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Total Today</span>
-              </div>
-              <p className="text-base font-black text-slate-900">
-                {Math.floor(todayTotalMinutes / 60)}h {todayTotalMinutes % 60}m
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                {ringtoneName}
+              </p>
+              <p className="text-[11px] font-medium text-slate-500">
+                Alarm Ringtone
               </p>
             </div>
           </div>
 
-          {/* SNOOZE DURATION SELECTION CHIPS */}
-          <div className="mb-4">
-            <p className="text-[11px] font-bold text-slate-500 mb-1.5 text-left">Choose Snooze Interval:</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[5, 10, 15].map((mins) => (
-                <button
-                  key={mins}
-                  type="button"
-                  onClick={() => setSelectedSnoozeMinutes(mins)}
-                  className={`py-1.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                    selectedSnoozeMinutes === mins
-                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  {mins} mins
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* PRIMARY TOUCH-FRIENDLY SAMSUNG-STYLE CONTROLS */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 space-y-2.5">
-          {/* 1. Large Snooze & Dismiss Action Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* LARGE SNOOZE BUTTON */}
-            <button
-              type="button"
-              onClick={() => handleSnooze(selectedSnoozeMinutes)}
-              className="py-4 px-4 rounded-2xl bg-white border-2 border-purple-300 hover:border-purple-500 text-purple-800 font-extrabold text-sm sm:text-base shadow-sm hover:shadow transition active:scale-95 flex flex-col items-center justify-center gap-1 cursor-pointer"
-            >
-              <div className="flex items-center gap-1.5">
-                <RotateCcw className="w-4 h-4 text-purple-600" />
-                <span>Snooze</span>
-              </div>
-              <span className="text-[11px] font-medium text-slate-500">
-                Ring again in {selectedSnoozeMinutes}m
-              </span>
-            </button>
-
-            {/* LARGE DISMISS BUTTON */}
-            <button
-              type="button"
-              onClick={handleDismiss}
-              className="py-4 px-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-sm sm:text-base shadow-md hover:shadow-lg transition active:scale-95 flex flex-col items-center justify-center gap-1 cursor-pointer"
-            >
-              <div className="flex items-center gap-1.5">
-                <Check className="w-5 h-5 stroke-[2.5]" />
-                <span>Dismiss</span>
-              </div>
-              <span className="text-[11px] font-medium text-purple-100">
-                Stop alarm & record
-              </span>
-            </button>
-          </div>
-
-          {/* 2. Start Next Session CTA */}
+          {/* Play/Pause Button on Ringtone Card */}
           <button
             type="button"
-            onClick={handleStartNextSession}
-            className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            onClick={toggleAudio}
+            className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs hover:bg-blue-700 transition active:scale-95 shrink-0 cursor-pointer"
+            title={isPlayingAudio ? "Pause Alarm Audio" : "Play Alarm Audio"}
           >
-            <span>{isFocus ? "Start Next Break Now" : "Start Next Focus Session"}</span>
-            <ArrowRight className="w-4 h-4" />
+            {isPlayingAudio ? (
+              <Pause className="w-4 h-4 fill-white" />
+            ) : (
+              <Play className="w-4 h-4 fill-white translate-x-0.5" />
+            )}
           </button>
         </div>
+
+        {/* Snooze & Dismiss Action Buttons (Exact Match to Screen 3 Reference) */}
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {/* Snooze Button */}
+          <button
+            type="button"
+            onClick={() => handleSnooze(5)}
+            className="py-3 px-3 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold text-xs sm:text-sm shadow-xs hover:bg-slate-50 transition active:scale-95 flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 font-extrabold">
+              <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+              <span>Snooze</span>
+            </div>
+            <span className="text-[10px] font-medium text-slate-500">
+              Ring again in 5 mins
+            </span>
+          </button>
+
+          {/* Dismiss Button */}
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="py-3 px-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-95 flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 font-extrabold">
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>Dismiss</span>
+            </div>
+            <span className="text-[10px] font-medium text-blue-100">
+              Stop alarm & record
+            </span>
+          </button>
+        </div>
+
+        {/* Start Next Session Full-Width CTA */}
+        <button
+          type="button"
+          onClick={handleStartNextSession}
+          className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-black text-white font-extrabold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <span>{isFocus ? "Start Refreshing Break" : "Start Next Focus Session"}</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

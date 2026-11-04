@@ -35,7 +35,6 @@ export const RingtonePickerModal = ({
   const [volume, setVolume] = useState(currentVolume);
   const [isPlaying, setIsPlaying] = useState(false);
   const [customAudioRecord, setCustomAudioRecord] = useState(null);
-  const [customAudioUrl, setCustomAudioUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -55,10 +54,11 @@ export const RingtonePickerModal = ({
         const record = await customRingtoneStorage.getRingtone(targetSlot);
         if (record) {
           setCustomAudioRecord(record);
-          setCustomAudioUrl(record.url);
+          if (record.data) {
+            soundManager.preloadCustomAudio(targetSlot, record.data);
+          }
         } else {
           setCustomAudioRecord(null);
-          setCustomAudioUrl(null);
         }
       } catch (e) {
         console.warn("Could not load ringtone:", e);
@@ -73,7 +73,7 @@ export const RingtonePickerModal = ({
     };
   }, [isOpen, targetSlot, currentSound, currentVolume]);
 
-  // Handle Play/Stop preview
+  // Handle Play/Stop preview (Uses same Web Audio engine as actual alarm)
   const handleTogglePreview = (soundId) => {
     if (isPlaying && selectedSound === soundId) {
       soundManager.stop();
@@ -85,8 +85,8 @@ export const RingtonePickerModal = ({
     setSelectedSound(soundId);
     setIsPlaying(true);
 
-    if (soundId === "custom" && customAudioUrl) {
-      soundManager.previewCustomAudio(customAudioUrl, volume, () => {
+    if (soundId === "custom" && customAudioRecord) {
+      soundManager.previewCustomAudio(customAudioRecord, volume, () => {
         setIsPlaying(false);
       });
     } else {
@@ -102,8 +102,8 @@ export const RingtonePickerModal = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      toast.warn("Audio file is too large. Please select an audio track under 15MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      toast.warn("Audio file is too large. Please select an audio track under 25MB.");
       return;
     }
 
@@ -113,13 +113,14 @@ export const RingtonePickerModal = ({
       if (record) {
         const fullRec = await customRingtoneStorage.getRingtone(targetSlot);
         setCustomAudioRecord(fullRec);
-        setCustomAudioUrl(fullRec.url);
         setSelectedSound("custom");
-        toast.success(`Loaded "${file.name}" as your ringtone!`);
+        if (fullRec.data) {
+          await soundManager.preloadCustomAudio(targetSlot, fullRec.data);
+        }
       }
     } catch (err) {
       console.error("Custom audio error:", err);
-      toast.error("Could not load the audio file. Please ensure it's a valid MP3/WAV/M4A file.");
+      toast.error("Could not load audio file. Ensure it is a valid MP3, WAV, M4A, or OGG file.");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -132,14 +133,12 @@ export const RingtonePickerModal = ({
     setIsPlaying(false);
     await customRingtoneStorage.deleteRingtone(targetSlot);
     setCustomAudioRecord(null);
-    setCustomAudioUrl(null);
     if (selectedSound === "custom") {
       setSelectedSound("chime");
     }
-    toast.info("Custom audio removed. Restored default ringtone.");
   };
 
-  // Save changes
+  // Save changes (Silent update: no intrusive routine success toasts!)
   const handleSave = () => {
     soundManager.stop();
     setIsPlaying(false);
@@ -147,6 +146,7 @@ export const RingtonePickerModal = ({
     onSave({
       soundId: selectedSound,
       volume,
+      customAudioRecord: selectedSound === "custom" ? customAudioRecord : null,
       customAudioName: selectedSound === "custom" && customAudioRecord ? customAudioRecord.name : null,
     });
   };
@@ -162,7 +162,9 @@ export const RingtonePickerModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           soundManager.stop();
@@ -171,7 +173,7 @@ export const RingtonePickerModal = ({
       }}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[90vh] animate-scaleUp"
+        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[88vh] animate-scaleUp"
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-blue-50 bg-blue-50/40 shrink-0">
@@ -202,7 +204,7 @@ export const RingtonePickerModal = ({
 
         {/* Modal Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          {/* Custom Audio Upload Section (User's Own Music) */}
+          {/* Custom Audio Upload Section (Screen 2 Reference) */}
           <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/50 space-y-2.5 transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
@@ -224,15 +226,15 @@ export const RingtonePickerModal = ({
                   className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1"
                   onClick={() => setSelectedSound("custom")}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
-                    🎵
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs shrink-0">
+                    <Music className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900 truncate">
+                    <p className="text-xs font-extrabold text-slate-900 truncate">
                       {customAudioRecord.name}
                     </p>
                     <p className="text-[10px] text-slate-400">
-                      {(customAudioRecord.size / (1024 * 1024)).toFixed(1)} MB · Ready for alarms
+                      {(customAudioRecord.size / (1024 * 1024)).toFixed(1)} MB • Selected
                     </p>
                   </div>
                 </div>
@@ -241,7 +243,7 @@ export const RingtonePickerModal = ({
                   <button
                     type="button"
                     onClick={() => handleTogglePreview("custom")}
-                    className="p-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                    className="p-2 rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 transition cursor-pointer"
                     title={isPlaying && selectedSound === "custom" ? "Stop Preview" : "Preview Music"}
                   >
                     {isPlaying && selectedSound === "custom" ? (
@@ -253,7 +255,7 @@ export const RingtonePickerModal = ({
                   <button
                     type="button"
                     onClick={handleRemoveCustomAudio}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+                    className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition cursor-pointer"
                     title="Remove custom audio"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -367,8 +369,8 @@ export const RingtonePickerModal = ({
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/70 shrink-0">
+        {/* Modal Footer with Safe Area Padding */}
+        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/90 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={() => {

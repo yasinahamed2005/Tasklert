@@ -257,6 +257,8 @@ class DeviceAlarmManager {
     volume = 80,
     vibration = true,
     customAudioUrl = null,
+    customAudioRecord = null,
+    customAudioName = null,
   }) {
     if (!targetEndAt) return;
     const focusId = String(id || "active-focus-session");
@@ -269,6 +271,11 @@ class DeviceAlarmManager {
 
     // If alarm expired in the past (> 60s ago), skip
     if (delayMs < -60000) return;
+
+    // Preload audio into Web Audio memory buffer so playback at 0:00 is instant with zero latency
+    if (customAudioRecord?.data) {
+      soundManager.preloadCustomAudio(mode, customAudioRecord.data);
+    }
 
     // Start Web Audio silent keep-alive to keep AudioContext active in background tabs
     soundManager.startKeepAlive();
@@ -290,7 +297,6 @@ class DeviceAlarmManager {
             description: "High-priority alarms with sound and vibration for Focus sessions",
             importance: 5,
             visibility: 1, // Public lockscreen visibility
-            sound: "alarm_bell.wav",
             vibration: Boolean(vibration),
             lights: true,
           }).catch(() => {});
@@ -304,7 +310,6 @@ class DeviceAlarmManager {
                 body: notifBody,
                 schedule: { at: schedDate, allowWhileIdle: true }, // exact alarm across Android Doze / screen-off
                 channelId: "tasklert-focus-alarms",
-                sound: "alarm_bell.wav",
                 extra: {
                   isFocusAlarm: true,
                   focusId,
@@ -312,6 +317,7 @@ class DeviceAlarmManager {
                   durationMinutes: mins,
                   sound,
                   volume,
+                  customAudioName: customAudioName || (customAudioRecord?.name || null),
                 },
               },
             ],
@@ -335,6 +341,8 @@ class DeviceAlarmManager {
           volume,
           vibration,
           customAudioUrl,
+          customAudioRecord,
+          customAudioName,
         });
       }, delayMs);
       this.activeTimers.set(timerKey, timer);
@@ -349,6 +357,8 @@ class DeviceAlarmManager {
         volume,
         vibration,
         customAudioUrl,
+        customAudioRecord,
+        customAudioName,
       });
     }
   }
@@ -390,9 +400,11 @@ class DeviceAlarmManager {
     volume = 80,
     vibration = true,
     customAudioUrl = null,
+    customAudioRecord = null,
+    customAudioName = null,
   }) {
-    // A. Start Audio Playback via SoundManager (Web Audio with OS hardware scheduling)
-    soundManager.playAlarm(sound, volume, customAudioUrl);
+    // A. Start Audio Playback via SoundManager (Web Audio with OS hardware scheduling & custom binary buffer)
+    soundManager.playAlarm(sound, volume, customAudioUrl, customAudioRecord);
 
     // B. Trigger Device Vibration
     if (vibration !== false && typeof navigator !== "undefined" && navigator.vibrate) {
@@ -445,6 +457,8 @@ class DeviceAlarmManager {
             durationSeconds,
             sound,
             volume,
+            customAudioRecord,
+            customAudioName: customAudioName || (customAudioRecord?.name || null),
             scheduledAt: new Date().toISOString(),
           },
         })

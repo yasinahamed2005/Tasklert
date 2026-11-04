@@ -14,7 +14,7 @@ let dbInstance = null;
 const memoryFallback = new Map();
 
 const openDatabase = () => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (dbInstance) {
       return resolve(dbInstance);
     }
@@ -50,7 +50,7 @@ const openDatabase = () => {
 
 export const customRingtoneStorage = {
   /**
-   * Save a user audio file for a specific mode/slot ('focus', 'short_break', 'long_break', etc.)
+   * Save a user audio file for a specific mode/slot ('focus', 'short_break', 'long_break')
    */
   async saveRingtone(key, file) {
     if (!file) return null;
@@ -72,7 +72,7 @@ export const customRingtoneStorage = {
         return record;
       }
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         try {
           const tx = db.transaction(STORE_NAME, "readwrite");
           const store = tx.objectStore(STORE_NAME);
@@ -98,10 +98,10 @@ export const customRingtoneStorage = {
   },
 
   /**
-   * Retrieve a stored ringtone with a playback URL
+   * Retrieve a stored ringtone with raw ArrayBuffer data and blob URL
    */
   async getRingtone(key) {
-    const k = String(key);
+    const k = String(key || "focus");
 
     try {
       let record = memoryFallback.get(k);
@@ -123,6 +123,11 @@ export const customRingtoneStorage = {
         }
       }
 
+      // If slot specific audio not found, check 'focus' as general custom fallback
+      if ((!record || !record.data) && k !== "focus") {
+        return this.getRingtone("focus");
+      }
+
       if (!record || !record.data) return null;
 
       const blob = new Blob([record.data], { type: record.type || "audio/mpeg" });
@@ -133,6 +138,7 @@ export const customRingtoneStorage = {
         name: record.name,
         type: record.type,
         size: record.size,
+        data: record.data, // Raw persistent ArrayBuffer for Web Audio decoding
         blob,
         url: objectUrl,
       };
@@ -146,7 +152,7 @@ export const customRingtoneStorage = {
    * Get metadata only without allocating blob URLs
    */
   async getRingtoneMetadata(key) {
-    const k = String(key);
+    const k = String(key || "focus");
     try {
       let record = memoryFallback.get(k);
       if (!record) {
@@ -164,6 +170,10 @@ export const customRingtoneStorage = {
             }
           });
         }
+      }
+
+      if (!record && k !== "focus") {
+        return this.getRingtoneMetadata("focus");
       }
 
       if (!record) return null;
@@ -182,7 +192,7 @@ export const customRingtoneStorage = {
    * Delete a custom ringtone
    */
   async deleteRingtone(key) {
-    const k = String(key);
+    const k = String(key || "focus");
     memoryFallback.delete(k);
 
     const db = await openDatabase();
@@ -202,3 +212,4 @@ export const customRingtoneStorage = {
   },
 };
 
+export default customRingtoneStorage;

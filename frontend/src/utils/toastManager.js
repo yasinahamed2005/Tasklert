@@ -7,9 +7,10 @@ import { toast } from "react-toastify";
  * 1. Mobile screen constraint: strictly max 1 visible toast card with smooth replacement.
  * 2. Desktop screen constraint: max 3 visible toasts.
  * 3. Automatic deduplication: identical messages / IDs never duplicate or stack.
- * 4. Consistent auto-dismiss duration (4000ms).
- * 5. Keyboard and screen reader accessible.
- * 6. Preserves persistent database notifications independently of toast dismissal.
+ * 4. Routine Notification Filtering: ONLY login/authentication success messages are shown.
+ *    Routine success banners (settings saved, ringtone saved, timer settings, etc.) are silently suppressed.
+ * 5. Important error messages and warnings are ALWAYS preserved.
+ * 6. Consistent auto-dismiss duration (4000ms).
  */
 
 const MAX_DESKTOP_TOASTS = 3;
@@ -44,6 +45,23 @@ const enforceToastLimit = () => {
 
 const dispatchToast = (type, message, options = {}) => {
   if (!message) return null;
+
+  // STRICT REQUIREMENT (PART 7): ONLY show the login-success notification after successful login.
+  // Suppress routine success toast notifications (ringtone saved, focus settings saved, general preferences, etc.)
+  if (type === "success") {
+    const isAuthSuccess = Boolean(
+      options.isAuthSuccess ||
+      options.toastId?.includes("welcome") ||
+      options.toastId?.includes("login") ||
+      options.toastId?.includes("oauth") ||
+      /welcome|signed in|logged in|registration successful/i.test(message)
+    );
+
+    if (!isAuthSuccess) {
+      // Silently return without creating an intrusive mobile toast banner
+      return null;
+    }
+  }
 
   const id = options.toastId || generateToastId(type, message);
 

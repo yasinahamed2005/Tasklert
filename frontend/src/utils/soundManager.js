@@ -3,10 +3,11 @@
  * 
  * Generates 100% offline, zero-asset, high-fidelity alarm tones using the Web Audio API.
  * Supports:
+ * - Direct Web Audio API binary decoding & playback for Custom MP3/WAV/M4A/OGG ringtones
+ * - Immune to browser background autoplay restrictions via pre-decoded AudioBuffer & active AudioContext
  * - Silent AudioContext keep-alive during active timers to prevent background tab audio suspension
- * - OS audio hardware pre-scheduling (immune to browser background tab throttling)
+ * - OS audio hardware pre-scheduling for non-throttled continuous background ringing
  * - Looping alarm playback, previewing, volume gain control, and clean instant stop
- * - Custom audio track playback (HTML5 Audio + Web Audio fallback)
  */
 
 class SoundManager {
@@ -19,6 +20,8 @@ class SoundManager {
     this.customAudio = null;
     this.masterGain = null;
     this.keepAliveNode = null;
+    this.customBufferSource = null;
+    this.customAudioBuffers = new Map(); // slot -> AudioBuffer
   }
 
   /**
@@ -33,7 +36,7 @@ class SoundManager {
     }
     if (this.audioCtx && this.audioCtx.state === "suspended") {
       this.audioCtx.resume().catch((err) => {
-        console.warn("AudioContext resume attempted:", err);
+        console.warn("[SoundManager] AudioContext resume attempted:", err);
       });
     }
     return this.audioCtx;
@@ -41,11 +44,8 @@ class SoundManager {
 
   /**
    * Silent Keep-Alive Audio Node
-   * 
-   * When a timer starts, modern browsers (Chrome/Edge/Firefox) can suspend the AudioContext
-   * if it remains silent for more than 30 seconds, and later refuse to resume it from a background tab.
-   * By looping an inaudible buffer, the browser recognizes the audio stream as active and keeps
-   * the audio hardware pipeline open and ready for immediate, loud playback when the timer completes.
+   * Loops an inaudible buffer to keep the browser OS audio pipeline active
+   * and prevent Chromium from suspending the AudioContext during background tabs.
    */
   startKeepAlive() {
     try {
@@ -71,7 +71,7 @@ class SoundManager {
 
       this.keepAliveNode = { source, silentGain };
     } catch (err) {
-      console.warn("Could not start audio keep-alive:", err);
+      console.warn("[SoundManager] Could not start audio keep-alive:", err);
     }
   }
 
@@ -86,6 +86,27 @@ class SoundManager {
         this.keepAliveNode.silentGain.disconnect();
       } catch (_) {}
       this.keepAliveNode = null;
+    }
+  }
+
+  /**
+   * Pre-loads and decodes custom audio bytes into an in-memory AudioBuffer.
+   * This guarantees that when the timer completes, playback starts instantly with 0ms delay,
+   * without disk read or browser autoplay promise blocks.
+   */
+  async preloadCustomAudio(slot, arrayBuffer) {
+    if (!arrayBuffer) return null;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return null;
+      const bufferCopy = arrayBuffer.slice(0);
+      const decoded = await ctx.decodeAudioData(bufferCopy);
+      this.customAudioBuffers.set(String(slot || "focus"), decoded);
+      console.log(`[SoundManager] Pre-decoded custom audio buffer for slot: ${slot}`);
+      return decoded;
+    } catch (err) {
+      console.warn("[SoundManager] Could not pre-decode custom audio buffer:", err);
+      return null;
     }
   }
 
@@ -132,7 +153,6 @@ class SoundManager {
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(freq, startTime);
 
-      // Rapid tremolo oscillation (simulates vibrating bell clapper)
       tremolo.type = "sine";
       tremolo.frequency.setValueAtTime(14, startTime);
       tremoloGain.gain.setValueAtTime(25, startTime);
@@ -271,33 +291,78 @@ class SoundManager {
 
   /**
    * Play continuous looping alarm until explicitly stopped.
-   * Supports built-in synthesizer sounds OR custom user audio URLs.
+   * Priority 1: Plays exact custom MP3 via Web Audio BufferSource (100% immune to autoplay block)
+   * Priority 2: Built-in high-fidelity synthesizer alarm with OS hardware scheduling
    */
-  playAlarm(soundName = "digital", volume = 80, customAudioUrl = null) {
+  async playAlarm(soundName = "digital", volume = 80, customData = null, slot = "focus") {
     this.stop(); // Stop any existing playback
 
-    // A. Custom User Audio Track
-    if (customAudioUrl || soundName === "custom") {
-      const src = customAudioUrl || this.customAudioUrl;
-      if (src) {
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
+
+    // A. Custom User Audio Track (Web Audio BufferSource)
+    if (soundName === "custom" || customData) {
+      const slotKey = String(slot || "focus");
+      let audioBuffer = this.customAudioBuffers.get(slotKey);
+
+      // If not yet in cache, check if raw ArrayBuffer is provided in customData
+      if (!audioBuffer && customData?.data) {
+        audioBuffer = await this.preloadCustomAudio(slotKey, customData.data);
+      }
+
+      // If still not in cache, check if focus slot has custom audio
+      if (!audioBuffer && slotKey !== "focus") {
+        audioBuffer = this.customAudioBuffers.get("focus");
+      }
+
+      // If we have an AudioBuffer, play via Web Audio BufferSource
+      if (audioBuffer) {
         try {
-          const audio = new Audio(src);
+          this.isPlaying = true;
+          this.currentSound = "custom";
+
+          const masterGain = ctx.createGain();
+          masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
+          masterGain.connect(ctx.destination);
+          this.masterGain = masterGain;
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.loop = true;
+          source.connect(masterGain);
+          source.start(0);
+
+          this.customBufferSource = source;
+          console.log("[SoundManager] Playing custom ringtone via Web Audio BufferSource (100% active)");
+          return;
+        } catch (e) {
+          console.warn("[SoundManager] BufferSource playback error:", e);
+        }
+      }
+
+      // Secondary fallback: HTML5 Audio if URL string provided
+      const srcUrl = typeof customData === "string" ? customData : customData?.url;
+      if (srcUrl) {
+        try {
+          const audio = new Audio(srcUrl);
           audio.loop = true;
-          audio.volume = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
+          audio.volume = normalizedVol;
           this.customAudio = audio;
           this.isPlaying = true;
           this.currentSound = "custom";
-          
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-              console.warn("Custom audio autoplay restricted, falling back to synthesizer alarm:", err);
+
+          const p = audio.play();
+          if (p !== undefined) {
+            p.catch((err) => {
+              console.warn("[SoundManager] Custom HTML5 audio blocked, using synth fallback:", err);
               this.playSynthAlarm("chime", volume);
             });
           }
           return;
         } catch (e) {
-          console.warn("Could not load custom audio:", e);
+          console.warn("[SoundManager] Could not start HTML5 custom audio:", e);
         }
       }
     }
@@ -333,14 +398,13 @@ class SoundManager {
     };
     const repeatSec = intervals[soundName] || 1.0;
 
-    // Schedule 30 iterations ahead on Web Audio's hardware clock (ctx.currentTime + i * repeatSec)
-    // Audio hardware processes this independently of JS setInterval background throttling!
+    // Schedule 35 iterations ahead on Web Audio hardware clock
     const preScheduleCount = 35;
     for (let i = 0; i < preScheduleCount; i++) {
       this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime + i * repeatSec);
     }
 
-    // Background replenishment interval (every 10 seconds, schedule the next batch)
+    // Background replenishment interval
     this.loopInterval = setInterval(() => {
       if (!this.isPlaying || !this.audioCtx || !this.masterGain) return;
       const curTime = this.audioCtx.currentTime;
@@ -351,32 +415,68 @@ class SoundManager {
   }
 
   /**
-   * Preview custom user audio
+   * Preview custom user audio directly using Web Audio or HTML5 Audio
    */
-  previewCustomAudio(url, volume = 80, onEnd = null) {
+  async previewCustomAudio(recordOrUrl, volume = 80, onEnd = null) {
     this.stop();
-    if (!url) return;
+    if (!recordOrUrl) return;
 
-    try {
-      const audio = new Audio(url);
-      audio.volume = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
-      this.customAudio = audio;
-      this.isPlaying = true;
-      this.currentSound = "custom_preview";
+    const ctx = this.getAudioContext();
+    const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
 
-      audio.onended = () => {
-        this.stop();
-        if (onEnd) onEnd();
-      };
+    // 1. If record with raw ArrayBuffer data is available, preview via Web Audio
+    if (recordOrUrl?.data && ctx) {
+      try {
+        const audioBuffer = await this.preloadCustomAudio(recordOrUrl.key || "preview", recordOrUrl.data);
+        if (audioBuffer) {
+          this.isPlaying = true;
+          this.currentSound = "custom_preview";
 
-      const p = audio.play();
-      if (p !== undefined) {
-        p.catch((err) => {
-          console.warn("Preview audio play failed:", err);
-        });
+          const masterGain = ctx.createGain();
+          masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
+          masterGain.connect(ctx.destination);
+          this.masterGain = masterGain;
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(masterGain);
+          source.onended = () => {
+            this.stop();
+            if (onEnd) onEnd();
+          };
+          source.start(0);
+          this.customBufferSource = source;
+          return;
+        }
+      } catch (e) {
+        console.warn("[SoundManager] Web Audio preview fallback:", e);
       }
-    } catch (e) {
-      console.warn("Could not preview custom audio:", e);
+    }
+
+    // 2. Fallback to Audio element with URL
+    const url = typeof recordOrUrl === "string" ? recordOrUrl : recordOrUrl?.url;
+    if (url) {
+      try {
+        const audio = new Audio(url);
+        audio.volume = normalizedVol;
+        this.customAudio = audio;
+        this.isPlaying = true;
+        this.currentSound = "custom_preview";
+
+        audio.onended = () => {
+          this.stop();
+          if (onEnd) onEnd();
+        };
+
+        const p = audio.play();
+        if (p !== undefined) {
+          p.catch((err) => {
+            console.warn("[SoundManager] Preview audio play failed:", err);
+          });
+        }
+      } catch (e) {
+        console.warn("[SoundManager] Could not preview custom audio:", e);
+      }
     }
   }
 
@@ -415,9 +515,16 @@ class SoundManager {
     this.isPlaying = false;
     this.currentSound = null;
 
+    if (this.customBufferSource) {
+      try {
+        this.customBufferSource.stop();
+        this.customBufferSource.disconnect();
+      } catch (_) {}
+      this.customBufferSource = null;
+    }
+
     if (this.masterGain && this.audioCtx) {
       try {
-        // Cancel all scheduled future audio bursts and mute instantly
         this.masterGain.gain.cancelScheduledValues(this.audioCtx.currentTime);
         this.masterGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
         this.masterGain.disconnect();

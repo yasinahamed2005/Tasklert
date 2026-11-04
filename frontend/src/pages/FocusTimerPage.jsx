@@ -586,17 +586,22 @@ export const FocusTimerPage = () => {
         }
       }
 
-      // 1. Play Alarm Sound
+      // 1. Play Alarm Sound (Web Audio binary decoding + custom MP3)
+      let customAudioRecord = null;
       try {
         let customAudioUrl = null;
         if (customRingtoneStorage) {
           const stored = await customRingtoneStorage.getRingtone(currentMode);
-          if (stored?.url) customAudioUrl = stored.url;
+          if (stored) {
+            customAudioRecord = stored;
+            if (stored.url) customAudioUrl = stored.url;
+          }
         }
         soundManager.playAlarm(
           currentSettings.alarmSound || "chime",
           currentSettings.alarmVolume || 80,
-          customAudioUrl
+          customAudioUrl,
+          customAudioRecord
         );
       } catch (_) {}
 
@@ -633,6 +638,10 @@ export const FocusTimerPage = () => {
             : currentMode === "short_break"
             ? currentSettings.shortBreakDuration
             : currentSettings.longBreakDuration,
+        customAudioRecord,
+        customAudioName: customAudioRecord?.name || null,
+        soundName: currentSettings.alarmSound || "chime",
+        volume: currentSettings.alarmVolume || 80,
       });
       setShowCompletionModal(true);
 
@@ -708,10 +717,17 @@ export const FocusTimerPage = () => {
     setIsPaused(false);
 
     let customAudioUrl = null;
+    let customAudioRecord = null;
     if (customRingtoneStorage) {
       try {
         const stored = await customRingtoneStorage.getRingtone(sessionType);
-        if (stored?.url) customAudioUrl = stored.url;
+        if (stored) {
+          customAudioRecord = stored;
+          if (stored.url) customAudioUrl = stored.url;
+          if (stored.data) {
+            soundManager.preloadCustomAudio(sessionType, stored.data);
+          }
+        }
       } catch (_) {}
     }
 
@@ -725,6 +741,8 @@ export const FocusTimerPage = () => {
       volume: settings.alarmVolume || 80,
       vibration: settings.vibration !== false,
       customAudioUrl,
+      customAudioRecord,
+      customAudioName: customAudioRecord?.name || null,
     });
 
     toast.info(`Alarm snoozed for ${snoozeMinutes} minutes. 💤`);
@@ -967,24 +985,21 @@ export const FocusTimerPage = () => {
       setIsRunning(true);
       setIsPaused(false);
 
-      let resumeCustomAudioUrl = null;
+      // 2. Fetch custom audio and preload binary bytes into Web Audio memory buffer
+      let customAudioUrl = null;
+      let customAudioRecord = null;
       if (customRingtoneStorage) {
         try {
           const stored = await customRingtoneStorage.getRingtone(sessionType);
-          if (stored?.url) resumeCustomAudioUrl = stored.url;
+          if (stored) {
+            customAudioRecord = stored;
+            if (stored.url) customAudioUrl = stored.url;
+            if (stored.data) {
+              soundManager.preloadCustomAudio(sessionType, stored.data);
+            }
+          }
         } catch (_) {}
       }
-
-      deviceAlarmManager.scheduleFocusAlarm({
-        id: activeSession?._id || "active-focus-session",
-        mode: sessionType,
-        durationSeconds: remainingSeconds,
-        targetEndAt: targetEndTimestamp,
-        sound: settings.alarmSound || "chime",
-        volume: settings.alarmVolume || 80,
-        vibration: settings.vibration !== false,
-        customAudioUrl: resumeCustomAudioUrl,
-      });
 
       const token = localStorage.getItem("token");
       if (token) {
@@ -1010,15 +1025,7 @@ export const FocusTimerPage = () => {
         }
       }
 
-      // 3. Schedule exact alarm with deviceAlarmManager (Android AlarmManager + Web Alarm)
-      let customAudioUrl = null;
-      if (customRingtoneStorage) {
-        try {
-          const stored = await customRingtoneStorage.getRingtone(sessionType);
-          if (stored?.url) customAudioUrl = stored.url;
-        } catch (_) {}
-      }
-
+      // 3. Schedule exact alarm with deviceAlarmManager (Android AlarmManager + Web Audio KeepAlive)
       deviceAlarmManager.scheduleFocusAlarm({
         id: localSession.id,
         mode: sessionType,
@@ -1028,6 +1035,8 @@ export const FocusTimerPage = () => {
         volume: settings.alarmVolume || 80,
         vibration: settings.vibration !== false,
         customAudioUrl,
+        customAudioRecord,
+        customAudioName: customAudioRecord?.name || null,
       });
 
       deviceAlarmManager.requestNotificationPermission();
@@ -1036,12 +1045,6 @@ export const FocusTimerPage = () => {
         type: "FOCUS_SESSION_STARTED",
         payload: localSession,
       });
-
-      toast.info(
-        sessionType === "focus"
-          ? "Focus sprint started! Time to get in the zone. 🚀"
-          : "Break started! Stretch, breathe, and recharge. ☕"
-      );
     } catch (err) {
       console.error(err);
       toast.error("Could not sync with server, running in local mode.");
@@ -1118,6 +1121,35 @@ export const FocusTimerPage = () => {
       setIsRunning(true);
       setIsPaused(false);
 
+      // Preload custom audio bytes & reschedule exact alarm across background/screen-off
+      let resumeCustomAudioUrl = null;
+      let resumeCustomRecord = null;
+      if (customRingtoneStorage) {
+        try {
+          const stored = await customRingtoneStorage.getRingtone(sessionType);
+          if (stored) {
+            resumeCustomRecord = stored;
+            if (stored.url) resumeCustomAudioUrl = stored.url;
+            if (stored.data) {
+              soundManager.preloadCustomAudio(sessionType, stored.data);
+            }
+          }
+        } catch (_) {}
+      }
+
+      deviceAlarmManager.scheduleFocusAlarm({
+        id: activeSession?._id || "active-focus-session",
+        mode: sessionType,
+        durationSeconds: remainingSeconds,
+        targetEndAt: targetEndTimestamp,
+        sound: settings.alarmSound || "chime",
+        volume: settings.alarmVolume || 80,
+        vibration: settings.vibration !== false,
+        customAudioUrl: resumeCustomAudioUrl,
+        customAudioRecord: resumeCustomRecord,
+        customAudioName: resumeCustomRecord?.name || null,
+      });
+
       const token = localStorage.getItem("token");
       if (activeSession?._id && token) {
         try {
@@ -1171,7 +1203,6 @@ export const FocusTimerPage = () => {
           ? settings.shortBreakDuration * 60
           : settings.longBreakDuration * 60
       );
-      toast.info("Timer reset.");
       fetchHistory();
     } catch (err) {
       toast.error("Could not cancel session on server.");
@@ -1196,16 +1227,13 @@ export const FocusTimerPage = () => {
         setSessionType("long_break");
         setRemainingSeconds(settings.longBreakDuration * 60);
         setCycleCount(0);
-        toast.info("Skipped to Long Break. Rest well! 🛋️");
       } else {
         setSessionType("short_break");
         setRemainingSeconds(settings.shortBreakDuration * 60);
-        toast.info("Skipped to Short Break. Take a breath! ☕");
       }
     } else {
       setSessionType("focus");
       setRemainingSeconds(settings.focusDuration * 60);
-      toast.info("Ready for deep focus sprint! 🎯");
     }
   };
 
@@ -1231,14 +1259,19 @@ export const FocusTimerPage = () => {
       setIsAudioPreviewPlaying(true);
       try {
         let customUrl = null;
+        let customRecord = null;
         if (customRingtoneMeta) {
           const stored = await customRingtoneStorage.getRingtone(sessionType || "focus");
-          if (stored?.url) customUrl = stored.url;
+          if (stored) {
+            customRecord = stored;
+            if (stored.url) customUrl = stored.url;
+          }
         }
         soundManager.playAlarm(
           settings.alarmSound || "chime",
           settings.alarmVolume || 80,
-          customUrl
+          customUrl,
+          customRecord
         );
         setTimeout(() => {
           setIsAudioPreviewPlaying(false);
@@ -1276,7 +1309,6 @@ export const FocusTimerPage = () => {
     }
     setRemainingSeconds(mins * 60);
     setShowCustomDurationModal(false);
-    toast.success(`Duration set to ${mins} minutes`);
   };
 
   // Total planned duration
@@ -2199,7 +2231,6 @@ export const FocusTimerPage = () => {
           });
           refreshCustomRingtoneMeta();
           setShowRingtoneModal(false);
-          toast.success("Ringtone settings saved!");
         }}
       />
 
@@ -2210,7 +2241,6 @@ export const FocusTimerPage = () => {
         settings={settings}
         onSaveSettings={(newSettings) => {
           updateSettings(newSettings);
-          toast.success("Settings saved!");
         }}
         onOpenRingtonePicker={() => {
           setShowSettingsModal(false);
