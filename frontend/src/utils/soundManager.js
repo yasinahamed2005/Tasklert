@@ -22,6 +22,8 @@ class SoundManager {
     this.masterGain = null;
     this.keepAliveNode = null;
     this.customBufferSource = null;
+    this.activeBufferSources = new Set();
+    this.activeAudioElements = new Set();
     this.customAudioBuffers = new Map(); // slot -> { buffer: AudioBuffer, name: string }
   }
 
@@ -406,7 +408,9 @@ class SoundManager {
           source.loop = true;
           source.connect(masterGain);
 
+          this.activeBufferSources.add(source);
           source.onended = () => {
+            this.activeBufferSources.delete(source);
             if (this.customBufferSource === source) {
               this.isPlaying = false;
               console.info(`[SoundManager] Playback lifecycle: source ended for "${ringtoneName}"`);
@@ -435,6 +439,10 @@ class SoundManager {
           const audio = new Audio(srcUrl);
           audio.loop = true;
           audio.volume = normalizedVol;
+          this.activeAudioElements.add(audio);
+          audio.onended = () => {
+            this.activeAudioElements.delete(audio);
+          };
           this.customAudio = audio;
           this.isPlaying = true;
           this.currentSound = "custom";
@@ -620,14 +628,26 @@ class SoundManager {
     this.isPlaying = false;
     this.currentSound = null;
 
+    // 1. Stop all registered AudioBufferSource nodes
+    if (this.activeBufferSources && this.activeBufferSources.size > 0) {
+      this.activeBufferSources.forEach((src) => {
+        try {
+          src.stop(0);
+          src.disconnect();
+        } catch (_) {}
+      });
+      this.activeBufferSources.clear();
+    }
+
     if (this.customBufferSource) {
       try {
-        this.customBufferSource.stop();
+        this.customBufferSource.stop(0);
         this.customBufferSource.disconnect();
       } catch (_) {}
       this.customBufferSource = null;
     }
 
+    // 2. Cancel and mute master gain immediately
     if (this.masterGain && this.audioCtx) {
       try {
         this.masterGain.gain.cancelScheduledValues(this.audioCtx.currentTime);
@@ -637,30 +657,59 @@ class SoundManager {
       this.masterGain = null;
     }
 
+    // 3. Stop and mute all HTML5 audio elements
+    if (this.activeAudioElements && this.activeAudioElements.size > 0) {
+      this.activeAudioElements.forEach((aud) => {
+        try {
+          aud.pause();
+          aud.currentTime = 0;
+          aud.src = "";
+        } catch (_) {}
+      });
+      this.activeAudioElements.clear();
+    }
+
     if (this.customAudio) {
       try {
         this.customAudio.pause();
         this.customAudio.currentTime = 0;
+        this.customAudio.src = "";
       } catch (_) {}
       this.customAudio = null;
     }
 
+    // 4. Cancel background interval replenishment
     if (this.loopInterval) {
       clearInterval(this.loopInterval);
       this.loopInterval = null;
     }
 
+    // 5. Stop all synth oscillators
     if (this.activeNodes.length > 0) {
       this.activeNodes.forEach((node) => {
         try {
-          node.stop();
+          node.stop(0);
           node.disconnect();
         } catch (_) {}
       });
       this.activeNodes = [];
     }
+
+    // 6. Suspend AudioContext to physically freeze hardware audio clock
+    if (this.audioCtx && this.audioCtx.state === "running") {
+      try {
+        this.audioCtx.suspend().catch(() => {});
+      } catch (_) {}
+    }
+
+    console.info("[SoundManager] All audio sources completely stopped and muted.");
   }
 }
 
 export const soundManager = new SoundManager();
+
+if (typeof window !== "undefined") {
+  window.tasklertStopAllAudio = () => soundManager.stop();
+}
+
 export default soundManager;

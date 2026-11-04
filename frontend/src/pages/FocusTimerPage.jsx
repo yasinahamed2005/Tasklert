@@ -2297,10 +2297,12 @@ export const FocusTimerPage = () => {
         todayTotalMinutes={historySummary.todayFocusMinutes || 0}
         onDismiss={() => {
           soundManager.stop();
+          deviceAlarmManager.cancelFocusAlarm();
           setShowCompletionModal(false);
         }}
         onStartNext={() => {
           soundManager.stop();
+          deviceAlarmManager.cancelFocusAlarm();
           setShowCompletionModal(false);
           handleStart();
         }}
