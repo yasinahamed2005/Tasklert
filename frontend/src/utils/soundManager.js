@@ -294,7 +294,7 @@ class SoundManager {
    * Priority 1: Plays exact custom MP3 via Web Audio BufferSource (100% immune to autoplay block)
    * Priority 2: Built-in high-fidelity synthesizer alarm with OS hardware scheduling
    */
-  async playAlarm(soundName = "digital", volume = 80, customData = null, slot = "focus") {
+  async playAlarm(soundName = "digital", volume = 80, customData = null, slotOrRecord = "focus") {
     this.stop(); // Stop any existing playback
 
     const ctx = this.getAudioContext();
@@ -302,17 +302,32 @@ class SoundManager {
 
     const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
 
+    // Resolve custom audio record and slot robustly
+    let customRecord = null;
+    let slotKey = "focus";
+
+    if (customData && typeof customData === "object" && customData.data) {
+      customRecord = customData;
+    } else if (slotOrRecord && typeof slotOrRecord === "object" && slotOrRecord.data) {
+      customRecord = slotOrRecord;
+    }
+
+    if (typeof slotOrRecord === "string") {
+      slotKey = slotOrRecord;
+    } else if (customRecord?.key) {
+      slotKey = customRecord.key;
+    }
+
     // A. Custom User Audio Track (Web Audio BufferSource)
-    if (soundName === "custom" || customData) {
-      const slotKey = String(slot || "focus");
+    if (soundName === "custom" || customRecord || customData) {
       let audioBuffer = this.customAudioBuffers.get(slotKey);
 
-      // If not yet in cache, check if raw ArrayBuffer is provided in customData
-      if (!audioBuffer && customData?.data) {
-        audioBuffer = await this.preloadCustomAudio(slotKey, customData.data);
+      // If not yet in cache, decode from raw ArrayBuffer in customRecord
+      if (!audioBuffer && customRecord?.data) {
+        audioBuffer = await this.preloadCustomAudio(slotKey, customRecord.data);
       }
 
-      // If still not in cache, check if focus slot has custom audio
+      // If still not in cache, check if focus slot has preloaded audio
       if (!audioBuffer && slotKey !== "focus") {
         audioBuffer = this.customAudioBuffers.get("focus");
       }
@@ -335,7 +350,7 @@ class SoundManager {
           source.start(0);
 
           this.customBufferSource = source;
-          console.log("[SoundManager] Playing custom ringtone via Web Audio BufferSource (100% active)");
+          console.log("[SoundManager] Playing exact custom ringtone via Web Audio BufferSource: " + (customRecord?.name || "Tere Vaaste.mp3"));
           return;
         } catch (e) {
           console.warn("[SoundManager] BufferSource playback error:", e);
@@ -343,7 +358,7 @@ class SoundManager {
       }
 
       // Secondary fallback: HTML5 Audio if URL string provided
-      const srcUrl = typeof customData === "string" ? customData : customData?.url;
+      const srcUrl = typeof customData === "string" ? customData : (customRecord?.url || customData?.url);
       if (srcUrl) {
         try {
           const audio = new Audio(srcUrl);

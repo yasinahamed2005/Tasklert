@@ -286,42 +286,57 @@ class DeviceAlarmManager {
       ? `Completed ${mins} minutes deep focus. Time for a well-deserved breather!`
       : `Recharge complete! Ready to start your next focus session?`;
 
-    // 1. Android Native Scheduling (Capacitor AlarmManager with allowWhileIdle)
+    // 1. Android Native Scheduling (TasklertAlarmEngine via setAlarmClock + LocalNotifications fallback)
     if (this.isNativePlatform()) {
       try {
-        const LocalNotifications = await this.getLocalNotificationsPlugin();
-        if (LocalNotifications?.schedule) {
-          await LocalNotifications.createChannel?.({
-            id: "tasklert-focus-alarms",
-            name: "Tasklert Focus Alarms",
-            description: "High-priority alarms with sound and vibration for Focus sessions",
-            importance: 5,
-            visibility: 1, // Public lockscreen visibility
+        const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+        if (TasklertAlarmEngine) {
+          await TasklertAlarmEngine.scheduleAlarm({
+            id: focusId,
+            title: notifTitle,
+            mode,
+            targetEndAtMs: schedDate.getTime(),
+            sound,
+            volume,
             vibration: Boolean(vibration),
-            lights: true,
-          }).catch(() => {});
-
-          const notifIntId = this.hashStringToInt(`focus-${focusId}`);
-          await LocalNotifications.schedule({
-            notifications: [
-              {
-                id: notifIntId,
-                title: notifTitle,
-                body: notifBody,
-                schedule: { at: schedDate, allowWhileIdle: true }, // exact alarm across Android Doze / screen-off
-                channelId: "tasklert-focus-alarms",
-                extra: {
-                  isFocusAlarm: true,
-                  focusId,
-                  mode,
-                  durationMinutes: mins,
-                  sound,
-                  volume,
-                  customAudioName: customAudioName || (customAudioRecord?.name || null),
-                },
-              },
-            ],
+            ringtoneFileName: customAudioName || customAudioRecord?.name || "Tere Vaaste.mp3",
           });
+          console.log("[deviceAlarmManager] Exact alarm scheduled via TasklertAlarmEngine.setAlarmClock() for: " + schedDate.toISOString());
+        } else {
+          const LocalNotifications = await this.getLocalNotificationsPlugin();
+          if (LocalNotifications?.schedule) {
+            await LocalNotifications.createChannel?.({
+              id: "tasklert-focus-alarms",
+              name: "Tasklert Focus Alarms",
+              description: "High-priority alarms with sound and vibration for Focus sessions",
+              importance: 5,
+              visibility: 1, // Public lockscreen visibility
+              vibration: Boolean(vibration),
+              lights: true,
+            }).catch(() => {});
+
+            const notifIntId = this.hashStringToInt(`focus-${focusId}`);
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  id: notifIntId,
+                  title: notifTitle,
+                  body: notifBody,
+                  schedule: { at: schedDate, allowWhileIdle: true }, // exact alarm across Android Doze / screen-off
+                  channelId: "tasklert-focus-alarms",
+                  extra: {
+                    isFocusAlarm: true,
+                    focusId,
+                    mode,
+                    durationMinutes: mins,
+                    sound,
+                    volume,
+                    customAudioName: customAudioName || (customAudioRecord?.name || null),
+                  },
+                },
+              ],
+            });
+          }
         }
       } catch (err) {
         console.warn("Could not schedule native Android focus alarm:", err);
@@ -379,6 +394,10 @@ class DeviceAlarmManager {
 
     if (this.isNativePlatform()) {
       try {
+        const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+        if (TasklertAlarmEngine) {
+          await TasklertAlarmEngine.cancelAlarm({ id: focusId });
+        }
         const LocalNotifications = await this.getLocalNotificationsPlugin();
         if (LocalNotifications?.cancel) {
           const notifIntId = this.hashStringToInt(`focus-${focusId}`);
@@ -386,6 +405,90 @@ class DeviceAlarmManager {
         }
       } catch {}
     }
+  }
+
+  /**
+   * Save custom ringtone file directly to Android app's internal private storage
+   */
+  async saveCustomRingtoneNative(slot = "focus", file) {
+    if (!file) return null;
+    try {
+      const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+      if (TasklertAlarmEngine) {
+        const base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const res = await TasklertAlarmEngine.saveCustomRingtone({
+          slot,
+          fileName: file.name,
+          base64Data,
+        });
+        console.log("[deviceAlarmManager] Custom ringtone saved to native Android storage:", res);
+        return res;
+      }
+    } catch (err) {
+      console.warn("Could not save custom ringtone natively:", err);
+    }
+    return null;
+  }
+
+  /**
+   * Get diagnostic status for Developer Diagnostic Modal
+   */
+  async getDiagnosticStatus() {
+    try {
+      const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+      if (TasklertAlarmEngine) {
+        const nativeStatus = await TasklertAlarmEngine.getDiagnosticStatus();
+        return {
+          ...nativeStatus,
+          isNative: true,
+          platform: "Android Native (Capacitor App)",
+        };
+      }
+    } catch (err) {
+      console.warn("Native diagnostic error:", err);
+    }
+
+    const isStandalone = typeof window !== "undefined" && window.matchMedia?.("(display-mode: standalone)").matches;
+
+    return {
+      isNative: false,
+      platform: isStandalone ? "Android PWA (Chrome WebAPK)" : "Web Browser (Chrome/Desktop)",
+      isNativeEngineActive: false,
+      canScheduleExactAlarms: false,
+      hasNotificationPermission: typeof Notification !== "undefined" && Notification.permission === "granted",
+      alarmActive: this.activeTimers.size > 0,
+      androidVersion: "N/A (Web Environment)",
+      apiLevel: 0,
+      limitationNotice: "PWA/Web running in browser cannot wake phone screen or bypass Android Doze mode. Real native alarm requires installed Tasklert APK.",
+    };
+  }
+
+  /**
+   * Test native alarm (fires 5 seconds from now)
+   */
+  async testNativeAlarm() {
+    try {
+      const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+      if (TasklertAlarmEngine) {
+        return await TasklertAlarmEngine.testAlarm();
+      }
+    } catch (err) {
+      console.warn("Test alarm error:", err);
+    }
+
+    return this.scheduleFocusAlarm({
+      id: "test-session",
+      title: "🔔 Test Native Alarm",
+      mode: "focus",
+      durationSeconds: 5,
+      targetEndAt: new Date(Date.now() + 5000),
+    });
   }
 
   /**

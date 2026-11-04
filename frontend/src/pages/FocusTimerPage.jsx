@@ -28,6 +28,7 @@ import {
   Check,
   Flame,
   Sprout,
+  Activity,
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
 import { deviceAlarmManager } from "../utils/deviceAlarmManager";
@@ -37,6 +38,7 @@ import { LiquidTimer } from "../components/focus/LiquidTimer";
 import { RingtonePickerModal } from "../components/focus/RingtonePickerModal";
 import { FocusCompletionModal } from "../components/focus/FocusCompletionModal";
 import { FocusSettingsModal } from "../components/focus/FocusSettingsModal";
+import { FocusDiagnosticsModal } from "../components/focus/FocusDiagnosticsModal";
 
 const LOCAL_STORAGE_SESSION_KEY = "tasklert_focus_session_v2";
 const LOCAL_STORAGE_SETTINGS_KEY = "tasklert_focus_settings";
@@ -209,6 +211,7 @@ export const FocusTimerPage = () => {
   // Modal open states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showRingtoneModal, setShowRingtoneModal] = useState(false);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [showCustomDurationModal, setShowCustomDurationModal] = useState(false);
   const [customMinutesInput, setCustomMinutesInput] = useState(30);
@@ -1492,6 +1495,17 @@ export const FocusTimerPage = () => {
             <Settings2 className="w-3.5 h-3.5" style={{ color: themePalette.primary }} />
             <span>Settings</span>
           </button>
+
+          {/* Engine Diagnostics Button */}
+          <button
+            type="button"
+            onClick={() => setShowDiagnosticsModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-xs font-bold text-purple-700 hover:bg-purple-100 transition cursor-pointer shadow-2xs"
+            title="Inspect Android Alarm Engine & Ringtone Capabilities"
+          >
+            <Activity className="w-3.5 h-3.5 text-purple-600" />
+            <span>Diagnostics</span>
+          </button>
         </div>
       </div>
 
@@ -2265,6 +2279,12 @@ export const FocusTimerPage = () => {
           handleStart();
         }}
         onSnooze={handleSnooze}
+      />
+
+      {/* 8. Developer Engine Diagnostics Modal */}
+      <FocusDiagnosticsModal
+        isOpen={showDiagnosticsModal}
+        onClose={() => setShowDiagnosticsModal(false)}
       />
     </div>
   );

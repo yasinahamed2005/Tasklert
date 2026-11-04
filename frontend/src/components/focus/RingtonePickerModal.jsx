@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { soundManager } from "../../utils/soundManager";
 import { customRingtoneStorage } from "../../utils/customRingtoneStorage";
+import { deviceAlarmManager } from "../../utils/deviceAlarmManager";
 import { toast } from "react-toastify";
 
 const BUILT_IN_SOUNDS = [
@@ -111,6 +112,9 @@ export const RingtonePickerModal = ({
     try {
       const record = await customRingtoneStorage.saveRingtone(targetSlot, file);
       if (record) {
+        // Also persist to native Android storage if running in Capacitor
+        deviceAlarmManager.saveCustomRingtoneNative(targetSlot, file).catch(() => {});
+
         const fullRec = await customRingtoneStorage.getRingtone(targetSlot);
         setCustomAudioRecord(fullRec);
         setSelectedSound("custom");
