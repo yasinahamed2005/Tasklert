@@ -13,15 +13,21 @@ import {
   CheckCircle,
   AlertTriangle,
   Info,
+  Layers,
+  Trash2,
+  Copy,
 } from "lucide-react";
 import { deviceAlarmManager } from "../../utils/deviceAlarmManager";
 import { customRingtoneStorage } from "../../utils/customRingtoneStorage";
+import { soundManager } from "../../utils/soundManager";
+import { toast } from "react-toastify";
 
 export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [testResult, setTestResult] = useState(null);
-  const [activeSlotMeta, setActiveSlotMeta] = useState(null);
+  const [allSlots, setAllSlots] = useState({});
+  const [soundDiag, setSoundDiag] = useState({});
 
   const fetchDiagnostics = async () => {
     setLoading(true);
@@ -29,8 +35,11 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
       const diag = await deviceAlarmManager.getDiagnosticStatus();
       setStatus(diag);
 
-      const focusRing = await customRingtoneStorage.getRingtoneMetadata("focus");
-      setActiveSlotMeta(focusRing);
+      const slots = await customRingtoneStorage.getAllSlotsMetadata();
+      setAllSlots(slots || {});
+
+      const smDiag = soundManager.getDiagnostics();
+      setSoundDiag(smDiag || {});
     } catch (e) {
       console.warn("Diagnostics error:", e);
     } finally {
@@ -45,12 +54,49 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
   }, [isOpen]);
 
   const handleRun5SecTest = async () => {
-    setTestResult("Scheduling 5-second test alarm... Lock your phone or leave app now!");
+    setTestResult("Arming 5-second precision test alarm... Lock phone or minimize browser now!");
     try {
+      await soundManager.unlockAudioContext();
       await deviceAlarmManager.testNativeAlarm();
       setTestResult("✅ 5-second test alarm armed! Check if alarm screen appears and sound plays.");
     } catch (err) {
       setTestResult("❌ Test alarm failed: " + err.message);
+    }
+  };
+
+  const handleCopyFocusToAll = async () => {
+    try {
+      const focusRec = await customRingtoneStorage.getRingtone("focus");
+      if (!focusRec || !focusRec.blob) {
+        toast.info("No Focus custom audio found to copy. Please upload a file first.");
+        return;
+      }
+
+      await customRingtoneStorage.saveRingtone("short_break", focusRec.blob);
+      await customRingtoneStorage.saveRingtone("long_break", focusRec.blob);
+
+      if (focusRec.data) {
+        soundManager.preloadCustomAudio("short_break", focusRec.data, focusRec.name);
+        soundManager.preloadCustomAudio("long_break", focusRec.data, focusRec.name);
+      }
+
+      await fetchDiagnostics();
+      toast.success(`Copied "${focusRec.name}" to Short Break & Long Break!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to copy ringtone to all modes.");
+    }
+  };
+
+  const handleWipeStaleCache = async () => {
+    try {
+      await customRingtoneStorage.clearAllRingtones();
+      soundManager.clearBuffers();
+      await fetchDiagnostics();
+      toast.success("Ringtone cache completely wiped! Please re-select your preferred track.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not wipe ringtone cache.");
     }
   };
 
@@ -71,7 +117,7 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
             </div>
             <div>
               <h2 className="text-base font-extrabold tracking-tight">Focus Alarm Diagnostics</h2>
-              <p className="text-[11px] text-slate-400">Hardware & Native Engine Inspection</p>
+              <p className="text-[11px] text-slate-400">AudioContext, Slots & Engine Inspection</p>
             </div>
           </div>
           <button
@@ -104,7 +150,7 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
                     <span className="text-[11px] opacity-80">
                       {status?.isNative
                         ? "Native Android AlarmManager (setAlarmClock active)"
-                        : "Web / Chrome PWA (Subject to browser background throttling)"}
+                        : "Web Browser / Chrome PWA (Web Audio + Web Worker precision)"}
                     </span>
                   </div>
                 </div>
@@ -113,20 +159,90 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
                 </span>
               </div>
 
-              {/* Warning if running in browser/PWA */}
-              {!status?.isNative && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-                    <span>Real-device background limitation detected</span>
-                  </div>
-                  <p className="text-[11px] text-rose-700 leading-relaxed">
-                    You are accessing Tasklert through a browser or Chrome PWA shortcut. Android kernel Doze mode suspends Chrome when the screen is locked. To get guaranteed lock-screen wake and exact alarms without keeping the phone unlocked, the compiled <strong>Tasklert Android APK</strong> must be installed.
-                  </p>
+              {/* AudioContext Health Check */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-purple-600" />
+                    Web Audio Context State:
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full font-extrabold text-[10px] uppercase border ${
+                      soundDiag.audioContextState === "running"
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                        : "bg-amber-100 text-amber-800 border-amber-300"
+                    }`}
+                  >
+                    {soundDiag.audioContextState || "uninitialized"}
+                  </span>
                 </div>
-              )}
+                <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                  <span>Silent Keep-Alive Node:</span>
+                  <span className="font-bold text-slate-800">
+                    {soundDiag.keepAliveActive ? "Active (Engaged)" : "Standby"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                  <span>Last Played Track:</span>
+                  <span className="font-bold text-purple-700">
+                    {soundDiag.currentRingtoneName || "Tere Vaaste.mp3"}
+                  </span>
+                </div>
+              </div>
 
-              {/* Permissions Grid */}
+              {/* Ringtone Slots Forensic Breakdown */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-blue-600" />
+                    Ringtone Slot Integrity:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyFocusToAll}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Focus to All</span>
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                    <span className="font-bold text-slate-700">🍅 Focus:</span>
+                    <span className="font-extrabold text-blue-700 truncate max-w-[200px]">
+                      {allSlots.focus?.name || "None (Default Chime)"}
+                    </span>
+                  </div>
+
+                  <div className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                    <span className="font-bold text-slate-700">☕ Short Break:</span>
+                    <span className="font-extrabold text-blue-700 truncate max-w-[200px]">
+                      {allSlots.short_break?.name || "None (Inherits Focus)"}
+                    </span>
+                  </div>
+
+                  <div className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                    <span className="font-bold text-slate-700">🛋️ Long Break:</span>
+                    <span className="font-extrabold text-blue-700 truncate max-w-[200px]">
+                      {allSlots.long_break?.name || "None (Inherits Focus)"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handleWipeStaleCache}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Wipe Stale Cache (Removes Alaaakaa Loova)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Permissions & Alarms */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-slate-500 font-medium block">Exact Alarms:</span>
@@ -153,44 +269,12 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
                 </div>
               </div>
 
-              {/* Custom Ringtone Integrity */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                    <Music className="w-4 h-4 text-purple-600" />
-                    Selected Ringtone:
-                  </span>
-                  <span className="font-extrabold text-slate-900">
-                    {activeSlotMeta?.name || status?.savedRingtoneName || "Tere Vaaste.mp3"}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500 flex items-center justify-between">
-                  <span>Storage Status:</span>
-                  <span className="text-emerald-700 font-bold">
-                    {activeSlotMeta ? `IndexedDB (${(activeSlotMeta.size / 1024 / 1024).toFixed(2)} MB)` : "Verified"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Next Scheduled Alarm State */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-                <span className="text-slate-500 font-medium block">Next Scheduled Alarm:</span>
-                <div className="font-bold text-slate-900 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-blue-600" />
-                  <span>
-                    {status?.alarmActive && status?.targetEndAtMs
-                      ? new Date(status.targetEndAtMs).toLocaleTimeString()
-                      : "None currently scheduled"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Live 5-Second Test Tool */}
+              {/* 5-Second Verification Tool */}
               <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-bold text-purple-950 block">Instant 5-Second Verification</span>
-                    <span className="text-[11px] text-purple-700">Arms an alarm to fire in 5 seconds to test lock-screen wake</span>
+                    <span className="text-[11px] text-purple-700">Fires in 5 seconds to test background ringing</span>
                   </div>
                   <button
                     type="button"

@@ -39,6 +39,7 @@ import { RingtonePickerModal } from "../components/focus/RingtonePickerModal";
 import { FocusCompletionModal } from "../components/focus/FocusCompletionModal";
 import { FocusSettingsModal } from "../components/focus/FocusSettingsModal";
 import { FocusDiagnosticsModal } from "../components/focus/FocusDiagnosticsModal";
+import { precisionTimerWorker } from "../utils/timerWorker";
 
 const LOCAL_STORAGE_SESSION_KEY = "tasklert_focus_session_v2";
 const LOCAL_STORAGE_SETTINGS_KEY = "tasklert_focus_settings";
@@ -560,6 +561,8 @@ export const FocusTimerPage = () => {
     isCompletingRef.current = true;
     setActionLoading(true);
 
+    precisionTimerWorker.stop();
+
     const currentMode = sessionTypeRef.current;
     const currentTaskId = selectedTaskIdRef.current;
     const currentSettings = settingsRef.current;
@@ -960,7 +963,7 @@ export const FocusTimerPage = () => {
   // START SESSION
   const handleStart = async () => {
     try {
-      soundManager.getAudioContext();
+      await soundManager.unlockAudioContext();
     } catch (_) {}
 
     setActionLoading(true);
@@ -972,22 +975,6 @@ export const FocusTimerPage = () => {
       const now = Date.now();
       const targetEndTimestamp = now + plannedSec * 1000;
 
-      const localSession = {
-        id: `local-${now}`,
-        sessionType,
-        plannedDuration: plannedSec,
-        startTime: now,
-        targetEndTimestamp,
-        accumulatedSeconds: 0,
-        status: "running",
-        taskId: selectedTaskId || null,
-      };
-
-      localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(localSession));
-      setRemainingSeconds(plannedSec);
-      setIsRunning(true);
-      setIsPaused(false);
-
       // 2. Fetch custom audio and preload binary bytes into Web Audio memory buffer
       let customAudioUrl = null;
       let customAudioRecord = null;
@@ -998,11 +985,35 @@ export const FocusTimerPage = () => {
             customAudioRecord = stored;
             if (stored.url) customAudioUrl = stored.url;
             if (stored.data) {
-              soundManager.preloadCustomAudio(sessionType, stored.data);
+              await soundManager.preloadCustomAudio(sessionType, stored.data, stored.name);
             }
           }
         } catch (_) {}
       }
+
+      const localSession = {
+        id: `local-${now}`,
+        sessionType,
+        plannedDuration: plannedSec,
+        startTime: now,
+        targetEndTimestamp,
+        accumulatedSeconds: 0,
+        status: "running",
+        taskId: selectedTaskId || null,
+        ringtoneName: customAudioRecord?.name || settings.alarmSound,
+      };
+
+      localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(localSession));
+      setRemainingSeconds(plannedSec);
+      setIsRunning(true);
+      setIsPaused(false);
+
+      // Start precision background Web Worker countdown
+      precisionTimerWorker.start(
+        targetEndTimestamp,
+        (rem) => setRemainingSeconds(rem),
+        () => handleCompleteRef.current?.()
+      );
 
       const token = localStorage.getItem("token");
       if (token) {
@@ -1058,6 +1069,8 @@ export const FocusTimerPage = () => {
 
   // PAUSE SESSION
   const handlePause = async () => {
+    precisionTimerWorker.stop();
+    soundManager.stopKeepAlive();
     setActionLoading(true);
     try {
       const now = Date.now();
@@ -1105,7 +1118,7 @@ export const FocusTimerPage = () => {
   // RESUME SESSION
   const handleResume = async () => {
     try {
-      soundManager.getAudioContext();
+      await soundManager.unlockAudioContext();
     } catch (_) {}
 
     setActionLoading(true);
@@ -1124,6 +1137,13 @@ export const FocusTimerPage = () => {
       setIsRunning(true);
       setIsPaused(false);
 
+      // Start precision background Web Worker countdown
+      precisionTimerWorker.start(
+        targetEndTimestamp,
+        (rem) => setRemainingSeconds(rem),
+        () => handleCompleteRef.current?.()
+      );
+
       // Preload custom audio bytes & reschedule exact alarm across background/screen-off
       let resumeCustomAudioUrl = null;
       let resumeCustomRecord = null;
@@ -1134,7 +1154,7 @@ export const FocusTimerPage = () => {
             resumeCustomRecord = stored;
             if (stored.url) resumeCustomAudioUrl = stored.url;
             if (stored.data) {
-              soundManager.preloadCustomAudio(sessionType, stored.data);
+              await soundManager.preloadCustomAudio(sessionType, stored.data, stored.name);
             }
           }
         } catch (_) {}
@@ -1177,6 +1197,8 @@ export const FocusTimerPage = () => {
 
   // RESET SESSION
   const handleReset = async () => {
+    precisionTimerWorker.stop();
+    soundManager.stopKeepAlive();
     soundManager.stop();
     deviceAlarmManager.cancelFocusAlarm(activeSession?._id || "active-focus-session");
     setActionLoading(true);
@@ -1216,6 +1238,8 @@ export const FocusTimerPage = () => {
 
   // SKIP TO NEXT SESSION MODE
   const handleSkip = () => {
+    precisionTimerWorker.stop();
+    soundManager.stopKeepAlive();
     soundManager.stop();
     deviceAlarmManager.cancelFocusAlarm(activeSession?._id || "active-focus-session");
     localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
@@ -1260,6 +1284,7 @@ export const FocusTimerPage = () => {
       setIsAudioPreviewPlaying(false);
     } else {
       setIsAudioPreviewPlaying(true);
+      await soundManager.unlockAudioContext();
       try {
         let customUrl = null;
         let customRecord = null;
@@ -1286,12 +1311,13 @@ export const FocusTimerPage = () => {
   };
 
   // Test sound helper in header
-  const handleTestSound = () => {
+  const handleTestSound = async () => {
     if (isPlayingTestSound) {
       soundManager.stop();
       setIsPlayingTestSound(false);
     } else {
       setIsPlayingTestSound(true);
+      await soundManager.unlockAudioContext();
       soundManager.preview(settings.alarmSound || "chime", settings.alarmVolume || 80);
       setTimeout(() => {
         setIsPlayingTestSound(false);
@@ -2238,12 +2264,12 @@ export const FocusTimerPage = () => {
         targetSlot={sessionType}
         currentSound={settings.alarmSound || "chime"}
         currentVolume={settings.alarmVolume || 80}
-        onSave={(data) => {
+        onSave={async (data) => {
           updateSettings({
             alarmSound: data.soundId,
             alarmVolume: data.volume,
           });
-          refreshCustomRingtoneMeta();
+          await refreshCustomRingtoneMeta();
           setShowRingtoneModal(false);
         }}
       />

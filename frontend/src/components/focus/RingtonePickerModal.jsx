@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Trash2,
   FileAudio,
+  CheckCheck,
 } from "lucide-react";
 import { soundManager } from "../../utils/soundManager";
 import { customRingtoneStorage } from "../../utils/customRingtoneStorage";
@@ -32,50 +33,57 @@ export const RingtonePickerModal = ({
   currentVolume = 80,
   onSave,
 }) => {
+  const [activeSlot, setActiveSlot] = useState(targetSlot || "focus");
   const [selectedSound, setSelectedSound] = useState(currentSound);
   const [volume, setVolume] = useState(currentVolume);
   const [isPlaying, setIsPlaying] = useState(false);
   const [customAudioRecord, setCustomAudioRecord] = useState(null);
+  const [allSlotsMeta, setAllSlotsMeta] = useState({});
+  const [applyToAll, setApplyToAll] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Load custom audio from IndexedDB on modal open
+  // Sync active slot with targetSlot on open
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setActiveSlot(targetSlot || "focus");
+      setSelectedSound(currentSound || "chime");
+      setVolume(currentVolume || 80);
+      loadSlotData(targetSlot || "focus");
+    } else {
       soundManager.stop();
       setIsPlaying(false);
-      return;
     }
-
-    setSelectedSound(currentSound || "chime");
-    setVolume(currentVolume || 80);
-
-    const loadCustom = async () => {
-      try {
-        const record = await customRingtoneStorage.getRingtone(targetSlot);
-        if (record) {
-          setCustomAudioRecord(record);
-          if (record.data) {
-            soundManager.preloadCustomAudio(targetSlot, record.data);
-          }
-        } else {
-          setCustomAudioRecord(null);
-        }
-      } catch (e) {
-        console.warn("Could not load ringtone:", e);
-      }
-    };
-
-    loadCustom();
-
-    return () => {
-      soundManager.stop();
-      setIsPlaying(false);
-    };
   }, [isOpen, targetSlot, currentSound, currentVolume]);
 
-  // Handle Play/Stop preview (Uses same Web Audio engine as actual alarm)
-  const handleTogglePreview = (soundId) => {
+  const loadSlotData = async (slot) => {
+    try {
+      const allMeta = await customRingtoneStorage.getAllSlotsMetadata();
+      setAllSlotsMeta(allMeta);
+
+      const record = await customRingtoneStorage.getRingtone(slot);
+      if (record) {
+        setCustomAudioRecord(record);
+        if (record.data) {
+          soundManager.preloadCustomAudio(slot, record.data, record.name);
+        }
+      } else {
+        setCustomAudioRecord(null);
+      }
+    } catch (e) {
+      console.warn("Could not load ringtone data:", e);
+    }
+  };
+
+  const handleSwitchSlot = (slot) => {
+    soundManager.stop();
+    setIsPlaying(false);
+    setActiveSlot(slot);
+    loadSlotData(slot);
+  };
+
+  // Play / Stop preview with explicit user-gesture AudioContext unlock
+  const handleTogglePreview = async (soundId) => {
     if (isPlaying && selectedSound === soundId) {
       soundManager.stop();
       setIsPlaying(false);
@@ -83,6 +91,8 @@ export const RingtonePickerModal = ({
     }
 
     soundManager.stop();
+    await soundManager.unlockAudioContext();
+
     setSelectedSound(soundId);
     setIsPlaying(true);
 
@@ -94,11 +104,11 @@ export const RingtonePickerModal = ({
       soundManager.preview(soundId, volume);
       setTimeout(() => {
         setIsPlaying(false);
-      }, 3000);
+      }, 3500);
     }
   };
 
-  // Handle custom audio file upload from device
+  // Upload audio file with option to apply to all modes
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -109,21 +119,36 @@ export const RingtonePickerModal = ({
     }
 
     setIsUploading(true);
-    try {
-      const record = await customRingtoneStorage.saveRingtone(targetSlot, file);
-      if (record) {
-        // Also persist to native Android storage if running in Capacitor
-        deviceAlarmManager.saveCustomRingtoneNative(targetSlot, file).catch(() => {});
+    await soundManager.unlockAudioContext();
 
-        const fullRec = await customRingtoneStorage.getRingtone(targetSlot);
-        setCustomAudioRecord(fullRec);
-        setSelectedSound("custom");
-        if (fullRec.data) {
-          await soundManager.preloadCustomAudio(targetSlot, fullRec.data);
-        }
+    try {
+      if (applyToAll) {
+        // Save to focus, short_break, and long_break
+        await customRingtoneStorage.saveRingtone("focus", file, true);
+
+        // Save natively for all slots
+        deviceAlarmManager.saveCustomRingtoneNative("focus", file).catch(() => {});
+        deviceAlarmManager.saveCustomRingtoneNative("short_break", file).catch(() => {});
+        deviceAlarmManager.saveCustomRingtoneNative("long_break", file).catch(() => {});
+
+        // Preload for all slots
+        const buffer = await file.arrayBuffer();
+        soundManager.preloadCustomAudio("focus", buffer, file.name);
+        soundManager.preloadCustomAudio("short_break", buffer, file.name);
+        soundManager.preloadCustomAudio("long_break", buffer, file.name);
+      } else {
+        await customRingtoneStorage.saveRingtone(activeSlot, file, false);
+        deviceAlarmManager.saveCustomRingtoneNative(activeSlot, file).catch(() => {});
+
+        const buffer = await file.arrayBuffer();
+        soundManager.preloadCustomAudio(activeSlot, buffer, file.name);
       }
+
+      await loadSlotData(activeSlot);
+      setSelectedSound("custom");
+
     } catch (err) {
-      console.error("Custom audio error:", err);
+      console.error("Custom audio upload error:", err);
       toast.error("Could not load audio file. Ensure it is a valid MP3, WAV, M4A, or OGG file.");
     } finally {
       setIsUploading(false);
@@ -131,18 +156,31 @@ export const RingtonePickerModal = ({
     }
   };
 
-  // Remove custom audio
+  // Remove custom audio for current slot
   const handleRemoveCustomAudio = async () => {
     soundManager.stop();
     setIsPlaying(false);
-    await customRingtoneStorage.deleteRingtone(targetSlot);
-    setCustomAudioRecord(null);
+    await customRingtoneStorage.deleteRingtone(activeSlot);
+    soundManager.customAudioBuffers.delete(activeSlot);
+    await loadSlotData(activeSlot);
     if (selectedSound === "custom") {
       setSelectedSound("chime");
     }
   };
 
-  // Save changes (Silent update: no intrusive routine success toasts!)
+  // Wipe all custom ringtones across all slots
+  const handleClearAllCustom = async () => {
+    soundManager.stop();
+    setIsPlaying(false);
+    await customRingtoneStorage.clearAllRingtones();
+    soundManager.clearBuffers();
+    await loadSlotData(activeSlot);
+    if (selectedSound === "custom") {
+      setSelectedSound("chime");
+    }
+  };
+
+  // Save changes
   const handleSave = () => {
     soundManager.stop();
     setIsPlaying(false);
@@ -150,19 +188,14 @@ export const RingtonePickerModal = ({
     onSave({
       soundId: selectedSound,
       volume,
+      slot: activeSlot,
       customAudioRecord: selectedSound === "custom" ? customAudioRecord : null,
       customAudioName: selectedSound === "custom" && customAudioRecord ? customAudioRecord.name : null,
+      applyToAll,
     });
   };
 
   if (!isOpen) return null;
-
-  const modeDisplayName =
-    targetSlot === "short_break"
-      ? "Short Break"
-      : targetSlot === "long_break"
-      ? "Long Break"
-      : "Focus Session";
 
   return (
     <div
@@ -176,9 +209,7 @@ export const RingtonePickerModal = ({
         }
       }}
     >
-      <div
-        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[88vh] animate-scaleUp"
-      >
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[90vh] animate-scaleUp">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-blue-50 bg-blue-50/40 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -190,7 +221,7 @@ export const RingtonePickerModal = ({
                 Alarm & Ringtone
               </h3>
               <p className="text-xs text-slate-500">
-                Choose sound for {modeDisplayName}
+                Configure audio for Focus and Break intervals
               </p>
             </div>
           </div>
@@ -206,9 +237,59 @@ export const RingtonePickerModal = ({
           </button>
         </div>
 
+        {/* Mode Selector Tabs (Focus, Short Break, Long Break) */}
+        <div className="px-5 pt-3 bg-slate-50 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-xl text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => handleSwitchSlot("focus")}
+              className={`flex-1 py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
+                activeSlot === "focus"
+                  ? "bg-white text-blue-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>🍅</span>
+              <span>Focus</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSwitchSlot("short_break")}
+              className={`flex-1 py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
+                activeSlot === "short_break"
+                  ? "bg-white text-blue-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>☕</span>
+              <span>Short Break</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSwitchSlot("long_break")}
+              className={`flex-1 py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
+                activeSlot === "long_break"
+                  ? "bg-white text-blue-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>🛋️</span>
+              <span>Long Break</span>
+            </button>
+          </div>
+          <div className="py-2 text-[11px] text-slate-500 flex items-center justify-between">
+            <span>Configuring: <strong className="text-slate-800 uppercase">{activeSlot.replace("_", " ")}</strong></span>
+            {customAudioRecord && (
+              <span className="text-blue-600 font-bold truncate max-w-[180px]">
+                {customAudioRecord.name}
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Modal Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          {/* Custom Audio Upload Section (Screen 2 Reference) */}
+          {/* Custom Audio Upload Card */}
           <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/50 space-y-2.5 transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
@@ -238,7 +319,7 @@ export const RingtonePickerModal = ({
                       {customAudioRecord.name}
                     </p>
                     <p className="text-[10px] text-slate-400">
-                      {(customAudioRecord.size / (1024 * 1024)).toFixed(1)} MB • Selected
+                      {(customAudioRecord.size / (1024 * 1024)).toFixed(1)} MB • {activeSlot.replace("_", " ")} slot
                     </p>
                   </div>
                 </div>
@@ -248,74 +329,89 @@ export const RingtonePickerModal = ({
                     type="button"
                     onClick={() => handleTogglePreview("custom")}
                     className="p-2 rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 transition cursor-pointer"
-                    title={isPlaying && selectedSound === "custom" ? "Stop Preview" : "Preview Music"}
+                    title={isPlaying && selectedSound === "custom" ? "Stop Preview" : "Play Preview"}
                   >
                     {isPlaying && selectedSound === "custom" ? (
-                      <Square className="w-4 h-4 fill-blue-600" />
+                      <Square className="w-4 h-4 fill-current" />
                     ) : (
-                      <Play className="w-4 h-4 fill-blue-600" />
+                      <Play className="w-4 h-4 fill-current" />
                     )}
                   </button>
+
                   <button
                     type="button"
                     onClick={handleRemoveCustomAudio}
-                    className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition cursor-pointer"
-                    title="Remove custom audio"
+                    className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    title="Remove this file"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             ) : (
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="audio/*,.mp3,.wav,.m4a,.ogg"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+              <div className="py-2.5 text-center">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="w-full py-2.5 px-3 rounded-xl border border-dashed border-blue-300 bg-white text-blue-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>{isUploading ? "Loading Audio..." : "Select Music from Device..."}</span>
+                  <span>{isUploading ? "Reading Audio..." : "Select Music File (Tere Vaaste.mp3)"}</span>
                 </button>
               </div>
             )}
+
+            {/* Apply To All Modes Checkbox */}
+            <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={applyToAll}
+                onChange={(e) => setApplyToAll(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs text-slate-700 font-semibold">
+                Apply this custom ringtone to all modes (Focus & Breaks)
+              </span>
+            </label>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*,.mp3,.wav,.m4a,.ogg"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
 
-          {/* Built-in Synthesizer Alarms */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block px-1">
+          {/* Preset Sounds */}
+          <div className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
               Tasklert Preset Tones
-            </label>
-            <div className="space-y-1.5">
-              {BUILT_IN_SOUNDS.map((item) => {
-                const isSelected = selectedSound === item.id;
-                const isItemPlaying = isPlaying && selectedSound === item.id;
+            </span>
 
+            <div className="space-y-1.5">
+              {BUILT_IN_SOUNDS.map((sound) => {
+                const isSelected = selectedSound === sound.id;
                 return (
                   <div
-                    key={item.id}
-                    onClick={() => setSelectedSound(item.id)}
-                    className={`p-3 rounded-2xl border flex items-center justify-between gap-2 transition cursor-pointer ${
+                    key={sound.id}
+                    onClick={() => setSelectedSound(sound.id)}
+                    className={`p-3 rounded-xl border flex items-center justify-between transition cursor-pointer ${
                       isSelected
-                        ? "bg-blue-50/70 border-blue-400 shadow-2xs"
-                        : "bg-white hover:bg-slate-50 border-slate-200"
+                        ? "bg-blue-50/70 border-blue-400 ring-1 ring-blue-400"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-lg shrink-0">{item.icon}</span>
+                      <span className="text-lg">{sound.icon}</span>
                       <div className="min-w-0">
-                        <p className={`text-xs font-bold truncate ${isSelected ? "text-blue-900" : "text-slate-800"}`}>
-                          {item.name}
+                        <p className="text-xs font-bold text-slate-900 truncate">
+                          {sound.name}
                         </p>
-                        <p className="text-[10px] text-slate-500 truncate">
-                          {item.desc}
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {sound.desc}
                         </p>
                       </div>
                     </div>
@@ -325,27 +421,26 @@ export const RingtonePickerModal = ({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleTogglePreview(item.id);
+                          handleTogglePreview(sound.id);
                         }}
-                        className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                          isItemPlaying
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-100"
-                        }`}
-                        title={isItemPlaying ? "Stop" : "Preview"}
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                       >
-                        {isItemPlaying ? (
+                        {isPlaying && selectedSound === sound.id ? (
                           <Square className="w-3.5 h-3.5 fill-current" />
                         ) : (
                           <Play className="w-3.5 h-3.5 fill-current" />
                         )}
                       </button>
 
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      )}
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                     </div>
                   </div>
                 );
@@ -354,58 +449,57 @@ export const RingtonePickerModal = ({
           </div>
 
           {/* Volume Slider */}
-          <div className="p-3.5 rounded-2xl border border-blue-100 bg-blue-50/30 space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-              <span className="flex items-center gap-1.5">
-                <Volume2 className="w-4 h-4 text-blue-600" /> Alarm Volume
+          <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4 text-slate-600" />
+                Alarm Volume
               </span>
-              <span className="font-mono text-blue-700">{volume}%</span>
+              <span className="font-extrabold text-blue-600">{volume}%</span>
             </div>
+
             <input
               type="range"
               min="10"
               max="100"
-              step="5"
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
               className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
           </div>
+
+          {/* Stale Ringtone Cache Cleanup */}
+          <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Slots: Focus ({allSlotsMeta.focus?.name ? "✓" : "—"}), Short Break ({allSlotsMeta.short_break?.name ? "✓" : "—"}), Long Break ({allSlotsMeta.long_break?.name ? "✓" : "—"})</span>
+            <button
+              type="button"
+              onClick={handleClearAllCustom}
+              className="text-rose-600 hover:underline font-bold transition cursor-pointer"
+            >
+              Clear All Slots
+            </button>
+          </div>
         </div>
 
-        {/* Modal Footer with Safe Area Padding */}
-        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/90 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+        {/* Modal Footer */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2 shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={() => {
-              setSelectedSound("chime");
-              setVolume(80);
+              soundManager.stop();
+              onClose();
             }}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-white text-xs font-bold transition cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Default</span>
+            Cancel
           </button>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.stop();
-                onClose();
-              }}
-              className="px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-4 py-1.5 text-xs font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition active:scale-95 cursor-pointer"
-            >
-              Save Sound
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            Save Ringtone
+          </button>
         </div>
       </div>
     </div>

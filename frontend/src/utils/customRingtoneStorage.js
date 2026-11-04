@@ -51,50 +51,56 @@ const openDatabase = () => {
 export const customRingtoneStorage = {
   /**
    * Save a user audio file for a specific mode/slot ('focus', 'short_break', 'long_break')
+   * If applyToAll is true, saves the file across focus, short_break, and long_break.
    */
-  async saveRingtone(key, file) {
+  async saveRingtone(key, file, applyToAll = false) {
     if (!file) return null;
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const record = {
-        key: String(key),
-        name: file.name || "Custom Ringtone.mp3",
-        type: file.type || "audio/mpeg",
-        size: file.size || arrayBuffer.byteLength,
-        data: arrayBuffer,
-        updatedAt: Date.now(),
-      };
+      const slots = applyToAll ? ["focus", "short_break", "long_break"] : [String(key)];
 
       const db = await openDatabase();
-      if (!db) {
-        memoryFallback.set(String(key), record);
-        return record;
+
+      for (const slot of slots) {
+        const record = {
+          key: slot,
+          name: file.name || "Custom Ringtone.mp3",
+          type: file.type || "audio/mpeg",
+          size: file.size || arrayBuffer.byteLength,
+          data: arrayBuffer.slice(0),
+          updatedAt: Date.now(),
+        };
+
+        memoryFallback.set(slot, record);
+
+        if (db) {
+          await new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE_NAME, "readwrite");
+              const store = tx.objectStore(STORE_NAME);
+              store.put(record);
+              tx.oncomplete = () => resolve(true);
+              tx.onerror = () => resolve(false);
+            } catch {
+              resolve(false);
+            }
+          });
+        }
       }
 
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          store.put(record);
-
-          tx.oncomplete = () => {
-            memoryFallback.set(String(key), record);
-            resolve(record);
-          };
-          tx.onerror = () => {
-            memoryFallback.set(String(key), record);
-            resolve(record);
-          };
-        } catch {
-          memoryFallback.set(String(key), record);
-          resolve(record);
-        }
-      });
+      return memoryFallback.get(String(key)) || null;
     } catch (err) {
       console.error("Failed to save custom ringtone:", err);
       return null;
     }
+  },
+
+  /**
+   * Save an audio file to all slots (focus, short_break, long_break)
+   */
+  async saveRingtoneToAll(file) {
+    return this.saveRingtone("focus", file, true);
   },
 
   /**
@@ -203,6 +209,67 @@ export const customRingtoneStorage = {
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
         store.delete(k);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch {
+        resolve(true);
+      }
+    });
+  },
+
+  /**
+   * Get metadata for all three slots without falling back between them
+   */
+  async getAllSlotsMetadata() {
+    const slots = ["focus", "short_break", "long_break"];
+    const result = {};
+
+    const db = await openDatabase();
+
+    for (const slot of slots) {
+      let rec = memoryFallback.get(slot);
+      if (!rec && db) {
+        rec = await new Promise((resolve) => {
+          try {
+            const tx = db.transaction(STORE_NAME, "readonly");
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(slot);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+
+      if (rec) {
+        result[slot] = {
+          key: slot,
+          name: rec.name,
+          size: rec.size,
+          updatedAt: rec.updatedAt,
+        };
+      } else {
+        result[slot] = null;
+      }
+    }
+
+    return result;
+  },
+
+  /**
+   * Clear all ringtones across all slots
+   */
+  async clearAllRingtones() {
+    memoryFallback.clear();
+    const db = await openDatabase();
+    if (!db) return true;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
         tx.oncomplete = () => resolve(true);
         tx.onerror = () => resolve(false);
       } catch {

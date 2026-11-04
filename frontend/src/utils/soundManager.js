@@ -17,29 +17,45 @@ class SoundManager {
     this.loopInterval = null;
     this.isPlaying = false;
     this.currentSound = null;
+    this.currentRingtoneName = null;
     this.customAudio = null;
     this.masterGain = null;
     this.keepAliveNode = null;
     this.customBufferSource = null;
-    this.customAudioBuffers = new Map(); // slot -> AudioBuffer
+    this.customAudioBuffers = new Map(); // slot -> { buffer: AudioBuffer, name: string }
   }
 
   /**
-   * Initializes or resumes the AudioContext from a user interaction gesture
+   * Safe getter: returns or instantiates the AudioContext WITHOUT calling resume() passively.
+   * This strictly eliminates the browser console warning:
+   * "AudioContext was not allowed to start. It must be resumed or created after a user gesture."
    */
   getAudioContext() {
-    if (!this.audioCtx) {
+    if (!this.audioCtx && typeof window !== "undefined") {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.audioCtx = new AudioCtx();
       }
     }
-    if (this.audioCtx && this.audioCtx.state === "suspended") {
-      this.audioCtx.resume().catch((err) => {
-        console.warn("[SoundManager] AudioContext resume attempted:", err);
-      });
-    }
     return this.audioCtx;
+  }
+
+  /**
+   * Explicit User-Gesture Unlocker
+   * MUST be invoked inside genuine user click/touch event handlers (Start, Resume, Preview, Test Alert).
+   */
+  async unlockAudioContext() {
+    const ctx = this.getAudioContext();
+    if (!ctx) return false;
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+        console.log(`[SoundManager] AudioContext successfully resumed on user gesture. State: ${ctx.state}`);
+      } catch (err) {
+        console.warn("[SoundManager] AudioContext resume failed:", err);
+      }
+    }
+    return ctx.state === "running";
   }
 
   /**
@@ -50,26 +66,26 @@ class SoundManager {
   startKeepAlive() {
     try {
       const ctx = this.getAudioContext();
-      if (!ctx) return;
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
+      if (!ctx || this.keepAliveNode) return;
+
+      // Only engage keepalive node if the context is running
+      if (ctx.state === "running") {
+        const buffer = ctx.createBuffer(1, Math.max(1, ctx.sampleRate), ctx.sampleRate);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+
+        const silentGain = ctx.createGain();
+        // 100% inaudible (0.00001 gain), but keeps the OS hardware audio pipeline engaged
+        silentGain.gain.setValueAtTime(0.00001, ctx.currentTime);
+
+        source.connect(silentGain);
+        silentGain.connect(ctx.destination);
+        source.start(0);
+
+        this.keepAliveNode = { source, silentGain };
+        console.log("[SoundManager] Silent audio keep-alive engaged (Context: running)");
       }
-      if (this.keepAliveNode) return;
-
-      const buffer = ctx.createBuffer(1, Math.max(1, ctx.sampleRate), ctx.sampleRate);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      const silentGain = ctx.createGain();
-      // Near-zero gain: 100% inaudible to human ear, but keeps the OS audio thread alive
-      silentGain.gain.setValueAtTime(0.00001, ctx.currentTime);
-
-      source.connect(silentGain);
-      silentGain.connect(ctx.destination);
-      source.start(0);
-
-      this.keepAliveNode = { source, silentGain };
     } catch (err) {
       console.warn("[SoundManager] Could not start audio keep-alive:", err);
     }
@@ -90,19 +106,34 @@ class SoundManager {
   }
 
   /**
-   * Pre-loads and decodes custom audio bytes into an in-memory AudioBuffer.
-   * This guarantees that when the timer completes, playback starts instantly with 0ms delay,
-   * without disk read or browser autoplay promise blocks.
+   * Clear all pre-decoded buffers (called when user saves or deletes ringtones)
    */
-  async preloadCustomAudio(slot, arrayBuffer) {
+  clearBuffers() {
+    this.customAudioBuffers.clear();
+    console.log("[SoundManager] Cleared all pre-decoded audio buffers.");
+  }
+
+  /**
+   * Pre-loads and decodes custom audio bytes into an in-memory AudioBuffer.
+   * Associates the buffer with its slot and human-readable track name.
+   */
+  async preloadCustomAudio(slot, arrayBuffer, fileName = "Custom Ringtone.mp3") {
     if (!arrayBuffer) return null;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return null;
       const bufferCopy = arrayBuffer.slice(0);
       const decoded = await ctx.decodeAudioData(bufferCopy);
-      this.customAudioBuffers.set(String(slot || "focus"), decoded);
-      console.log(`[SoundManager] Pre-decoded custom audio buffer for slot: ${slot}`);
+      const slotKey = String(slot || "focus");
+
+      this.customAudioBuffers.set(slotKey, {
+        buffer: decoded,
+        name: fileName,
+        byteLength: arrayBuffer.byteLength,
+        decodedAt: Date.now(),
+      });
+
+      console.log(`[SoundManager] Pre-decoded custom audio buffer for slot: ${slotKey} ("${fileName}")`);
       return decoded;
     } catch (err) {
       console.warn("[SoundManager] Could not pre-decode custom audio buffer:", err);
@@ -300,6 +331,16 @@ class SoundManager {
     const ctx = this.getAudioContext();
     if (!ctx) return;
 
+    // Check AudioContext state and attempt resume if suspended
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+        console.log(`[SoundManager] AudioContext resumed prior to alarm playback. State: ${ctx.state}`);
+      } catch (resumeErr) {
+        console.warn("[SoundManager] Context resume before alarm was blocked:", resumeErr);
+      }
+    }
+
     const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
 
     // Resolve custom audio record and slot robustly
@@ -320,23 +361,28 @@ class SoundManager {
 
     // A. Custom User Audio Track (Web Audio BufferSource)
     if (soundName === "custom" || customRecord || customData) {
-      let audioBuffer = this.customAudioBuffers.get(slotKey);
+      let cached = this.customAudioBuffers.get(slotKey);
 
       // If not yet in cache, decode from raw ArrayBuffer in customRecord
-      if (!audioBuffer && customRecord?.data) {
-        audioBuffer = await this.preloadCustomAudio(slotKey, customRecord.data);
+      if (!cached && customRecord?.data) {
+        await this.preloadCustomAudio(slotKey, customRecord.data, customRecord.name || "Custom Ringtone.mp3");
+        cached = this.customAudioBuffers.get(slotKey);
       }
 
       // If still not in cache, check if focus slot has preloaded audio
-      if (!audioBuffer && slotKey !== "focus") {
-        audioBuffer = this.customAudioBuffers.get("focus");
+      if (!cached && slotKey !== "focus") {
+        cached = this.customAudioBuffers.get("focus");
       }
+
+      const audioBuffer = cached?.buffer || cached;
+      const ringtoneName = customRecord?.name || cached?.name || "Tere Vaaste.mp3";
 
       // If we have an AudioBuffer, play via Web Audio BufferSource
       if (audioBuffer) {
         try {
           this.isPlaying = true;
           this.currentSound = "custom";
+          this.currentRingtoneName = ringtoneName;
 
           const masterGain = ctx.createGain();
           masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
@@ -347,10 +393,17 @@ class SoundManager {
           source.buffer = audioBuffer;
           source.loop = true;
           source.connect(masterGain);
-          source.start(0);
 
+          source.onended = () => {
+            if (this.customBufferSource === source) {
+              this.isPlaying = false;
+            }
+          };
+
+          source.start(0);
           this.customBufferSource = source;
-          console.log("[SoundManager] Playing exact custom ringtone via Web Audio BufferSource: " + (customRecord?.name || "Tere Vaaste.mp3"));
+
+          console.log(`[SoundManager] Audio playback started: "${ringtoneName}" | AudioContext state: "${ctx.state}" | Volume: ${volume}%`);
           return;
         } catch (e) {
           console.warn("[SoundManager] BufferSource playback error:", e);
@@ -367,6 +420,7 @@ class SoundManager {
           this.customAudio = audio;
           this.isPlaying = true;
           this.currentSound = "custom";
+          this.currentRingtoneName = ringtoneName;
 
           const p = audio.play();
           if (p !== undefined) {
@@ -383,7 +437,25 @@ class SoundManager {
     }
 
     // B. Built-in Synthesizer
+    this.currentRingtoneName = soundName;
     this.playSynthAlarm(soundName, volume);
+  }
+
+  /**
+   * Diagnostic inspector for Developer Diagnostic Screen
+   */
+  getDiagnostics() {
+    return {
+      isPlaying: this.isPlaying,
+      currentSound: this.currentSound,
+      currentRingtoneName: this.currentRingtoneName,
+      audioContextState: this.audioCtx ? this.audioCtx.state : "uninitialized",
+      keepAliveActive: Boolean(this.keepAliveNode),
+      cachedSlots: Array.from(this.customAudioBuffers.entries()).map(([k, v]) => ({
+        slot: k,
+        trackName: v?.name || "Custom Track",
+      })),
+    };
   }
 
   /**
