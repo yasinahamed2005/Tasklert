@@ -108,10 +108,19 @@ export const RingtonePickerModal = ({
     setSelectedSound(soundId);
     setIsPlaying(true);
 
-    if (soundId === "custom" && customAudioRecord) {
-      soundManager.previewCustomAudio(customAudioRecord, volume, () => {
+    if (soundId === "custom") {
+      let record = customAudioRecord;
+      if (!record) {
+        record = await customRingtoneStorage.getRingtone(activeSlot);
+        if (record) setCustomAudioRecord(record);
+      }
+      if (record) {
+        soundManager.previewCustomAudio(record, volume, () => {
+          setIsPlaying(false);
+        });
+      } else {
         setIsPlaying(false);
-      });
+      }
     } else {
       soundManager.preview(soundId, volume);
       setTimeout(() => {

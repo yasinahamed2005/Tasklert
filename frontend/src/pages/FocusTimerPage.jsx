@@ -1286,24 +1286,23 @@ export const FocusTimerPage = () => {
       setIsAudioPreviewPlaying(true);
       await soundManager.unlockAudioContext();
       try {
-        let customUrl = null;
         let customRecord = null;
-        if (customRingtoneMeta) {
+        if (settings.alarmSound === "custom" || customRingtoneMeta) {
           const stored = await customRingtoneStorage.getRingtone(sessionType || "focus");
           if (stored) {
             customRecord = stored;
-            if (stored.url) customUrl = stored.url;
           }
         }
-        soundManager.playAlarm(
-          settings.alarmSound || "chime",
-          settings.alarmVolume || 80,
-          customUrl,
-          customRecord
-        );
-        setTimeout(() => {
-          setIsAudioPreviewPlaying(false);
-        }, 4000);
+        if (settings.alarmSound === "custom" && customRecord) {
+          soundManager.previewCustomAudio(customRecord, settings.alarmVolume || 80, () => {
+            setIsAudioPreviewPlaying(false);
+          });
+        } else {
+          soundManager.preview(settings.alarmSound || "chime", settings.alarmVolume || 80);
+          setTimeout(() => {
+            setIsAudioPreviewPlaying(false);
+          }, 3500);
+        }
       } catch (_) {
         setIsAudioPreviewPlaying(false);
       }
@@ -1318,6 +1317,17 @@ export const FocusTimerPage = () => {
     } else {
       setIsPlayingTestSound(true);
       await soundManager.unlockAudioContext();
+      if (settings.alarmSound === "custom") {
+        try {
+          const stored = await customRingtoneStorage.getRingtone(sessionType || "focus");
+          if (stored) {
+            soundManager.previewCustomAudio(stored, settings.alarmVolume || 80, () => {
+              setIsPlayingTestSound(false);
+            });
+            return;
+          }
+        } catch (_) {}
+      }
       soundManager.preview(settings.alarmSound || "chime", settings.alarmVolume || 80);
       setTimeout(() => {
         setIsPlayingTestSound(false);

@@ -67,6 +67,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   };
 
   const handleDismiss = async () => {
+    soundManager.stop();
     setLoadingAction(true);
     setErrorMessage(null);
     try {
@@ -93,7 +94,6 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
         );
       }
 
-      soundManager.stop();
       onActionCompleted?.({
         dismissed: true,
         taskId: alarm.taskId,
@@ -107,11 +107,13 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
         "Failed to dismiss alarm on server. Please try again.";
       setErrorMessage(msg);
     } finally {
+      soundManager.stop();
       setLoadingAction(false);
     }
   };
 
   const handleSnooze = async () => {
+    soundManager.stop();
     setLoadingAction(true);
     setErrorMessage(null);
     try {

@@ -49,25 +49,39 @@ class SoundManager {
   /**
    * Explicit User-Gesture Unlocker
    * MUST be invoked inside genuine user click/touch event handlers (Start, Resume, Preview, Test Alert).
+   * Unlocks both Web Audio and HTML5 Audio on mobile browsers (Android & iOS).
    */
   async unlockAudioContext() {
     const ctx = this.getAudioContext();
-    if (!ctx) return false;
 
-    if (ctx.state === "closed") {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) this.audioCtx = new AudioCtx();
-    }
+    if (ctx) {
+      if (ctx.state === "closed") {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) this.audioCtx = new AudioCtx();
+      }
 
-    if (ctx.state === "suspended" || ctx.state === "interrupted") {
-      try {
-        await ctx.resume();
-        console.info(`[SoundManager] AudioContext successfully resumed via user gesture. State: "${ctx.state}"`);
-      } catch (err) {
-        console.warn("[SoundManager] AudioContext resume failed:", err);
+      if (ctx.state === "suspended" || ctx.state === "interrupted") {
+        try {
+          await ctx.resume();
+          console.info(`[SoundManager] AudioContext successfully resumed via user gesture. State: "${ctx.state}"`);
+        } catch (err) {
+          console.warn("[SoundManager] AudioContext resume failed:", err);
+        }
       }
     }
-    return ctx.state === "running";
+
+    // Prime HTML5 Audio element permissions on mobile
+    if (typeof window !== "undefined") {
+      try {
+        const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+        const p = silentAudio.play();
+        if (p !== undefined) {
+          p.then(() => silentAudio.pause()).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    return ctx ? ctx.state === "running" : true;
   }
 
   /**
@@ -334,17 +348,14 @@ class SoundManager {
 
   /**
    * Play continuous looping alarm until explicitly stopped.
-   * Priority 1: Plays exact custom MP3 via Web Audio BufferSource (100% immune to autoplay block)
+   * Priority 1: Plays exact custom MP3 via HTML5 Audio / Web Audio BufferSource (100% immune to mobile latency & memory limits)
    * Priority 2: Built-in high-fidelity synthesizer alarm with OS hardware scheduling
    */
   async playAlarm(soundName = "digital", volume = 80, customData = null, slotOrRecord = "focus") {
     this.stop(); // Stop any existing playback
 
     const ctx = this.getAudioContext();
-    if (!ctx) return;
-
-    // Check AudioContext state and attempt resume if suspended
-    if (ctx.state === "suspended") {
+    if (ctx && ctx.state === "suspended") {
       try {
         await ctx.resume();
         console.log(`[SoundManager] AudioContext resumed prior to alarm playback. State: ${ctx.state}`);
@@ -359,9 +370,9 @@ class SoundManager {
     let customRecord = null;
     let slotKey = "focus";
 
-    if (customData && typeof customData === "object" && customData.data) {
+    if (customData && typeof customData === "object" && (customData.data || customData.url || customData.blob)) {
       customRecord = customData;
-    } else if (slotOrRecord && typeof slotOrRecord === "object" && slotOrRecord.data) {
+    } else if (slotOrRecord && typeof slotOrRecord === "object" && (slotOrRecord.data || slotOrRecord.url || slotOrRecord.blob)) {
       customRecord = slotOrRecord;
     }
 
@@ -371,88 +382,52 @@ class SoundManager {
       slotKey = customRecord.key;
     }
 
-    // A. Custom User Audio Track (Web Audio BufferSource)
+    // A. Custom User Audio Track
     if (soundName === "custom" || customRecord || customData) {
-      let cached = this.customAudioBuffers.get(slotKey);
+      const ringtoneName = customRecord?.name || "Custom Ringtone.mp3";
 
-      // If not yet in cache, decode from raw ArrayBuffer in customRecord
-      if (!cached && customRecord?.data) {
-        await this.preloadCustomAudio(slotKey, customRecord.data, customRecord.name || "Custom Ringtone.mp3");
-        cached = this.customAudioBuffers.get(slotKey);
-      }
-
-      // If still not in cache, check if focus slot has preloaded audio
-      if (!cached && slotKey !== "focus") {
-        cached = this.customAudioBuffers.get("focus");
-      }
-
-      const audioBuffer = cached?.buffer || cached;
-      const ringtoneName = customRecord?.name || cached?.name || "Tere Vaaste.mp3";
-
-      // If we have an AudioBuffer, play via Web Audio BufferSource
-      if (audioBuffer) {
+      // 1. Resolve direct playable URL (blob: or http:)
+      let playUrl = null;
+      if (typeof customData === "string" && customData.length > 0) {
+        playUrl = customData;
+      } else if (customRecord?.url) {
+        playUrl = customRecord.url;
+      } else if (customRecord?.blob) {
         try {
-          this.stop(); // Stop any competing playback source first
+          playUrl = URL.createObjectURL(customRecord.blob);
+        } catch (_) {}
+      } else if (customRecord?.data) {
+        try {
+          const blob = customRecord.data instanceof Blob
+            ? customRecord.data
+            : new Blob([customRecord.data], { type: customRecord.type || "audio/mpeg" });
+          playUrl = URL.createObjectURL(blob);
+        } catch (_) {}
+      }
 
+      // Fast-path for mobile & desktop: Stream custom MP3 via HTML5 Audio element
+      if (playUrl) {
+        try {
+          const audio = new Audio(playUrl);
+          audio.loop = true;
+          audio.volume = normalizedVol;
+          this.customAudio = audio;
+          this.activeAudioElements.add(audio);
           this.isPlaying = true;
           this.currentSound = "custom";
           this.currentRingtoneName = ringtoneName;
 
-          const masterGain = ctx.createGain();
-          masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
-          masterGain.connect(ctx.destination);
-          this.masterGain = masterGain;
-
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.loop = true;
-          source.connect(masterGain);
-
-          this.activeBufferSources.add(source);
-          source.onended = () => {
-            this.activeBufferSources.delete(source);
-            if (this.customBufferSource === source) {
-              this.isPlaying = false;
-              console.info(`[SoundManager] Playback lifecycle: source ended for "${ringtoneName}"`);
-            }
-          };
-
-          console.info(`[SoundManager] BufferSource created for track: "${ringtoneName}". Requesting start(0)...`);
-          source.start(0);
-          this.customBufferSource = source;
-
-          if (ctx.state === "running") {
-            console.info(`[SoundManager] Playback confirmed active: "${ringtoneName}" | State: "${ctx.state}" | Volume: ${volume}%`);
-          } else {
-            console.warn(`[SoundManager] Playback requested but AudioContext state is "${ctx.state}" (requires user gesture to unmute hardware)`);
-          }
-          return;
-        } catch (e) {
-          console.error("[SoundManager] BufferSource playback failure:", e);
-        }
-      }
-
-      // Secondary fallback: HTML5 Audio if URL string provided
-      const srcUrl = typeof customData === "string" ? customData : (customRecord?.url || customData?.url);
-      if (srcUrl) {
-        try {
-          const audio = new Audio(srcUrl);
-          audio.loop = true;
-          audio.volume = normalizedVol;
-          this.activeAudioElements.add(audio);
           audio.onended = () => {
             this.activeAudioElements.delete(audio);
           };
-          this.customAudio = audio;
-          this.isPlaying = true;
-          this.currentSound = "custom";
-          this.currentRingtoneName = ringtoneName;
 
           const p = audio.play();
           if (p !== undefined) {
-            p.catch((err) => {
-              console.warn("[SoundManager] Custom HTML5 audio blocked, using synth fallback:", err);
-              this.playSynthAlarm("chime", volume);
+            p.then(() => {
+              console.info(`[SoundManager] Custom audio active via HTML5 streaming: "${ringtoneName}" | Volume: ${volume}%`);
+            }).catch(async (playErr) => {
+              console.warn("[SoundManager] HTML5 play failed or blocked, trying Web Audio BufferSource fallback:", playErr);
+              await this.playCustomBufferSource(customRecord, slotKey, normalizedVol, ringtoneName, volume);
             });
           }
           return;
@@ -460,11 +435,76 @@ class SoundManager {
           console.warn("[SoundManager] Could not start HTML5 custom audio:", e);
         }
       }
+
+      // Fallback: Web Audio BufferSource
+      if (ctx) {
+        const played = await this.playCustomBufferSource(customRecord, slotKey, normalizedVol, ringtoneName, volume);
+        if (played) return;
+      }
     }
 
     // B. Built-in Synthesizer
     this.currentRingtoneName = soundName;
     this.playSynthAlarm(soundName, volume);
+  }
+
+  /**
+   * Helper to play custom audio via Web Audio BufferSource
+   */
+  async playCustomBufferSource(customRecord, slotKey, normalizedVol, ringtoneName, volume, onEnd = null) {
+    const ctx = this.getAudioContext();
+    if (!ctx) return false;
+
+    try {
+      let cached = this.customAudioBuffers.get(slotKey);
+
+      // If not in cache, decode from raw data
+      if (!cached && customRecord?.data) {
+        await this.preloadCustomAudio(slotKey, customRecord.data, ringtoneName);
+        cached = this.customAudioBuffers.get(slotKey);
+      }
+
+      if (!cached && slotKey !== "focus") {
+        cached = this.customAudioBuffers.get("focus");
+      }
+
+      const audioBuffer = cached?.buffer || cached;
+      if (!audioBuffer) return false;
+
+      this.stop(); // Stop any other nodes
+
+      this.isPlaying = true;
+      this.currentSound = "custom";
+      this.currentRingtoneName = ringtoneName;
+
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
+      masterGain.connect(ctx.destination);
+      this.masterGain = masterGain;
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.loop = !onEnd; // Loop if alarm, single play if preview
+      source.connect(masterGain);
+
+      this.activeBufferSources.add(source);
+      source.onended = () => {
+        this.activeBufferSources.delete(source);
+        if (this.customBufferSource === source) {
+          this.isPlaying = false;
+          console.info(`[SoundManager] BufferSource ended for "${ringtoneName}"`);
+        }
+        if (onEnd) onEnd();
+      };
+
+      source.start(0);
+      this.customBufferSource = source;
+      console.info(`[SoundManager] BufferSource playback confirmed active: "${ringtoneName}" | Volume: ${volume}%`);
+      return true;
+    } catch (err) {
+      console.error("[SoundManager] playCustomBufferSource failure:", err);
+      return false;
+    }
   }
 
   /**
@@ -528,69 +568,68 @@ class SoundManager {
   }
 
   /**
-   * Preview custom user audio directly using Web Audio or HTML5 Audio
+   * Preview custom user audio directly using HTML5 Audio (instant playback on mobile)
+   * with fallback to Web Audio BufferSource.
    */
   async previewCustomAudio(recordOrUrl, volume = 80, onEnd = null) {
     this.stop();
     if (!recordOrUrl) return;
 
-    const ctx = this.getAudioContext();
     const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
 
-    // 1. If record with raw ArrayBuffer data is available, preview via Web Audio
-    if (recordOrUrl?.data && ctx) {
+    // Resolve direct playable URL (blob: or http:)
+    let playUrl = null;
+    if (typeof recordOrUrl === "string") {
+      playUrl = recordOrUrl;
+    } else if (recordOrUrl?.url) {
+      playUrl = recordOrUrl.url;
+    } else if (recordOrUrl?.blob) {
       try {
-        const audioBuffer = await this.preloadCustomAudio(recordOrUrl.key || "preview", recordOrUrl.data);
-        if (audioBuffer) {
-          this.isPlaying = true;
-          this.currentSound = "custom_preview";
-
-          const masterGain = ctx.createGain();
-          masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
-          masterGain.connect(ctx.destination);
-          this.masterGain = masterGain;
-
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(masterGain);
-          source.onended = () => {
-            this.stop();
-            if (onEnd) onEnd();
-          };
-          source.start(0);
-          this.customBufferSource = source;
-          return;
-        }
-      } catch (e) {
-        console.warn("[SoundManager] Web Audio preview fallback:", e);
-      }
+        playUrl = URL.createObjectURL(recordOrUrl.blob);
+      } catch (_) {}
+    } else if (recordOrUrl?.data) {
+      try {
+        const blob = recordOrUrl.data instanceof Blob
+          ? recordOrUrl.data
+          : new Blob([recordOrUrl.data], { type: recordOrUrl.type || "audio/mpeg" });
+        playUrl = URL.createObjectURL(blob);
+      } catch (_) {}
     }
 
-    // 2. Fallback to Audio element with URL
-    const url = typeof recordOrUrl === "string" ? recordOrUrl : recordOrUrl?.url;
-    if (url) {
+    // Fast-path for mobile: HTML5 Audio streams instantly within user tap gesture window
+    if (playUrl) {
       try {
-        const audio = new Audio(url);
+        const audio = new Audio(playUrl);
         audio.volume = normalizedVol;
         this.customAudio = audio;
+        this.activeAudioElements.add(audio);
         this.isPlaying = true;
         this.currentSound = "custom_preview";
+        this.currentRingtoneName = recordOrUrl?.name || "Custom Track";
 
         audio.onended = () => {
+          this.activeAudioElements.delete(audio);
           this.stop();
           if (onEnd) onEnd();
         };
 
         const p = audio.play();
         if (p !== undefined) {
-          p.catch((err) => {
-            console.warn("[SoundManager] Preview audio play failed:", err);
+          p.then(() => {
+            console.info(`[SoundManager] Previewing custom audio via HTML5: "${this.currentRingtoneName}"`);
+          }).catch(async (err) => {
+            console.warn("[SoundManager] HTML5 preview blocked, trying Web Audio fallback:", err);
+            await this.playCustomBufferSource(recordOrUrl, recordOrUrl?.key || "preview", normalizedVol, this.currentRingtoneName, volume, onEnd);
           });
         }
+        return;
       } catch (e) {
-        console.warn("[SoundManager] Could not preview custom audio:", e);
+        console.warn("[SoundManager] Could not preview custom audio via HTML5:", e);
       }
     }
+
+    // Secondary fallback: Web Audio BufferSource
+    await this.playCustomBufferSource(recordOrUrl, recordOrUrl?.key || "preview", normalizedVol, recordOrUrl?.name || "Custom Track", volume, onEnd);
   }
 
   previewSound(soundName = "digital", volume = 80) {
@@ -606,16 +645,26 @@ class SoundManager {
     const ctx = this.getAudioContext();
     if (!ctx) return;
 
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+
+    this.isPlaying = true;
+    this.currentSound = soundName;
+
     const masterGain = ctx.createGain();
     const normalizedVol = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
     masterGain.gain.setValueAtTime(normalizedVol, ctx.currentTime);
     masterGain.connect(ctx.destination);
+    this.masterGain = masterGain;
 
     this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
 
     if (["digital", "classic"].includes(soundName)) {
       setTimeout(() => {
-        this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
+        if (this.isPlaying && this.masterGain && this.audioCtx) {
+          this.triggerSoundPattern(soundName, this.audioCtx, this.masterGain, this.audioCtx.currentTime);
+        }
       }, 700);
     }
   }
@@ -695,12 +744,9 @@ class SoundManager {
       this.activeNodes = [];
     }
 
-    // 6. Suspend AudioContext to physically freeze hardware audio clock
-    if (this.audioCtx && this.audioCtx.state === "running") {
-      try {
-        this.audioCtx.suspend().catch(() => {});
-      } catch (_) {}
-    }
+    // NOTE: AudioContext is NOT suspended here to prevent freezing the hardware audio clock
+    // on mobile browsers (Android Chrome & iOS Safari). Muting the gain and stopping sources
+    // provides 100% immediate silence while keeping the context eligible for background alarms.
 
     console.info("[SoundManager] All audio sources completely stopped and muted.");
   }
