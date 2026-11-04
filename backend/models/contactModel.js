@@ -77,6 +77,11 @@ const contactSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     notes: {
       type: String,
       default: "",

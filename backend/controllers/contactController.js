@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Contact from "../models/contactModel.js";
 import Message from "../models/messageModel.js";
 
@@ -121,23 +122,13 @@ const inferChannels = ({ whatsappPhone, phone, telegramUsername, email }) => {
 
 /**
  * GET /api/contacts
- * Returns contacts for current authenticated user.
- * Auto-seeds initial contacts if the user has none.
+ * Returns real contacts for current authenticated user.
+ * Does NOT auto-seed fictional production contacts.
  */
 export const getContacts = async (req, res) => {
   try {
     const owner = req.user.id;
     const { channel, search } = req.query;
-
-    let count = await Contact.countDocuments({ owner });
-    if (count === 0) {
-      // Seed default contacts for smooth out-of-the-box chat UX
-      const seedData = SEED_CONTACTS.map((c) => ({
-        ...c,
-        owner,
-      }));
-      await Contact.insertMany(seedData);
-    }
 
     const filter = { owner };
 
@@ -330,6 +321,65 @@ export const deleteContact = async (req, res) => {
 };
 
 /**
+ * GET /api/contacts/:id
+ * Retrieves a single contact by ID. If query param `channel` is provided,
+ * also returns associated conversation messages for seamless client compatibility.
+ */
+export const getContactById = async (req, res) => {
+  try {
+    const owner = req.user.id;
+    const { id } = req.params;
+    const { channel } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid contact ID format" });
+    }
+
+    const contact = await Contact.findOne({ _id: id, owner }).lean();
+    if (!contact) {
+      return res.status(404).json({ success: false, message: "Contact not found" });
+    }
+
+    let messages = [];
+    if (channel) {
+      const identifiers = [
+        contact.whatsappPhone,
+        contact.phone,
+        contact.telegramUsername ? `@${contact.telegramUsername}` : null,
+        contact.telegramUsername,
+        contact.telegramChatId,
+        contact.email,
+      ].filter(Boolean);
+
+      const messageQuery = {
+        owner,
+        $or: [
+          { contact: contact._id },
+          { recipient: { $in: identifiers } },
+        ],
+      };
+
+      if (channel !== "all") {
+        messageQuery.channel = channel;
+      }
+
+      messages = await Message.find(messageQuery)
+        .sort({ createdAt: 1 })
+        .lean();
+    }
+
+    res.json({
+      success: true,
+      contact,
+      ...(channel ? { messages } : {}),
+    });
+  } catch (err) {
+    console.error("getContactById error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
  * GET /api/contacts/:id/conversation
  * Retrieves the full chronological chat thread between the user and this contact
  * for the selected channel (or all channels).
@@ -378,6 +428,57 @@ export const getContactConversation = async (req, res) => {
     });
   } catch (err) {
     console.error("getContactConversation error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /api/contacts/demo/seed
+ * Explicitly loads labeled preview demo contacts for interface testing
+ */
+export const seedDemoContacts = async (req, res) => {
+  try {
+    const owner = req.user.id;
+    // Wipe previous demo contacts to prevent duplicates
+    await Contact.deleteMany({ owner, isDemo: true });
+
+    const demoData = SEED_CONTACTS.map((c) => ({
+      ...c,
+      owner,
+      name: `[Demo] ${c.name}`,
+      lastMessage: `[Sample] ${c.lastMessage}`,
+      isDemo: true,
+    }));
+
+    const inserted = await Contact.insertMany(demoData);
+
+    res.json({
+      success: true,
+      message: `Created ${inserted.length} labeled demo contacts for interface preview`,
+      contacts: inserted,
+    });
+  } catch (err) {
+    console.error("seedDemoContacts error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * DELETE /api/contacts/demo
+ * Removes all demo contacts for this user
+ */
+export const clearDemoContacts = async (req, res) => {
+  try {
+    const owner = req.user.id;
+    const result = await Contact.deleteMany({ owner, isDemo: true });
+
+    res.json({
+      success: true,
+      message: `Cleared ${result.deletedCount} demo contacts`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    console.error("clearDemoContacts error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

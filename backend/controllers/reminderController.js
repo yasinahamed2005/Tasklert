@@ -24,17 +24,35 @@ export const createReminder = async (req, res) => {
       taskId,
       title,
       message,
+      notes,
       scheduledAt,
+      scheduledDate,
+      scheduledTime,
       timeZone,
       alarmEnabled,
+      notificationEnabled,
+      vibrationEnabled,
       sound,
+      soundType,
+      soundUri,
       volume,
       repeat,
+      recurrence,
       snoozeDuration,
       advanceNoticeMinutes,
       channels,
       priority,
+      source,
     } = req.body;
+
+    const isCalendarSource = !taskId || source === "calendar" || source === "calendar_reminder" || Boolean(req.body.isCalendar);
+    const finalSource = isCalendarSource ? "calendar_reminder" : (source || "task");
+
+    const finalMessage = notes || message || "";
+    const finalSound = sound || soundType || "digital";
+    const finalRepeat = ["never", "daily", "weekly", "monthly", "yearly", "custom"].includes(repeat) ? repeat : "never";
+    const finalSchedDate = scheduledDate || (scheduledAt ? new Date(scheduledAt).toISOString().split("T")[0] : "");
+    const finalSchedTime = scheduledTime || (scheduledAt ? new Date(scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
     let linkedTask = null;
     if (taskId) {
@@ -49,16 +67,19 @@ export const createReminder = async (req, res) => {
         });
       }
     } else {
-      // Standalone alarm: create underlying Task so all cron and aggregation systems work seamlessly
+      // Standalone calendar alarm: create underlying Task marked explicitly as calendar event with NO email alerts
       const fallbackDueDate = scheduledAt ? new Date(scheduledAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
       linkedTask = new Task({
         title: title || "Alarm Reminder",
-        description: message || "Scheduled alarm",
+        description: finalMessage || "Scheduled alarm",
         dueDate: fallbackDueDate,
         owner: userId,
         priority: priority || "Medium",
-        reminderEnabled: alarmEnabled !== undefined ? Boolean(alarmEnabled) : true,
-        reminderAt: scheduledAt ? new Date(scheduledAt) : new Date(),
+        isCalendarEvent: true,
+        source: "calendar_reminder",
+        reminderEnabled: false, // Explicitly false so smart reminder emails NEVER trigger for calendar events
+        reminderAt: null,       // Explicitly null so no email triggers
+        sentPriorityAlerts: ["smart_reminder", "low_18", "medium_24", "high_32", "high_18"], // Strictly disable advance emails
       });
       await linkedTask.save();
     }
@@ -67,8 +88,8 @@ export const createReminder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Exact reminder scheduledAt date/time is required." });
     }
 
-    const scheduledDate = new Date(scheduledAt);
-    if (isNaN(scheduledDate.getTime())) {
+    const scheduledDateObj = new Date(scheduledAt);
+    if (isNaN(scheduledDateObj.getTime())) {
       return res.status(400).json({ success: false, message: "Invalid date format for scheduledAt." });
     }
 
@@ -93,7 +114,7 @@ export const createReminder = async (req, res) => {
 
     // Channel credentials warning check
     const warnings = [];
-    const pushRequested = channels?.push !== false;
+    const pushRequested = notificationEnabled !== undefined ? Boolean(notificationEnabled) : (channels?.push !== false);
     const emailRequested = Boolean(channels?.email);
 
     if (pushRequested && !isVapidConfigured()) {
@@ -115,37 +136,55 @@ export const createReminder = async (req, res) => {
       owner: userId,
       task: linkedTask._id,
       title: title || linkedTask.title,
-      message: message || linkedTask.description || "",
-      scheduledAt: scheduledDate,
+      message: finalMessage,
+      notes: finalMessage,
+      scheduledDate: finalSchedDate,
+      scheduledTime: finalSchedTime,
+      scheduledAt: scheduledDateObj,
       timeZone: safeTz,
       alarmEnabled: alarmEnabled !== undefined ? Boolean(alarmEnabled) : true,
-      sound: sound || "digital",
+      notificationEnabled: notificationEnabled !== undefined ? Boolean(notificationEnabled) : true,
+      vibrationEnabled: vibrationEnabled !== undefined ? Boolean(vibrationEnabled) : true,
+      sound: finalSound,
+      soundType: finalSound,
+      soundUri: soundUri || "",
       volume: volume !== undefined ? Math.max(0, Math.min(100, Number(volume))) : 80,
-      repeat: ["never", "daily", "weekly"].includes(repeat) ? repeat : "never",
+      repeat: finalRepeat,
+      recurrence: recurrence || { frequency: finalRepeat, interval: 1, daysOfWeek: [] },
       snoozeDuration: validSnooze.includes(snooze) ? snooze : 5,
       advanceNoticeMinutes: advanceNoticeMinutes ? Number(advanceNoticeMinutes) : 0,
       channels: {
         push: pushRequested,
         inApp: channels?.inApp !== undefined ? Boolean(channels.inApp) : true,
-        email: emailRequested,
+        email: isCalendarSource ? false : emailRequested,
       },
+      source: finalSource,
       status: "scheduled",
       priority: priority || linkedTask.priority || "Medium",
       deliveryAttempts: 0,
       nextRetryAt: null,
       isClaimed: false,
+      history: [
+        {
+          action: "created",
+          timestamp: new Date(),
+          details: `Reminder created for ${scheduledDateObj.toLocaleString()}`,
+        },
+      ],
     });
 
     const saved = await reminder.save();
 
-    // Sync back to Task document
-    await Task.updateOne(
-      { _id: linkedTask._id },
-      {
-        reminderEnabled: saved.alarmEnabled,
-        reminderAt: saved.scheduledAt,
-      }
-    );
+    // Sync back to Task document (only for main tasks, NEVER for calendar events)
+    if (!isCalendarSource) {
+      await Task.updateOne(
+        { _id: linkedTask._id },
+        {
+          reminderEnabled: saved.alarmEnabled,
+          reminderAt: saved.scheduledAt,
+        }
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -162,7 +201,7 @@ export const createReminder = async (req, res) => {
 export const getReminders = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-    const { status, filter } = req.query;
+    const { status, filter, date } = req.query;
 
     const query = { owner: userId };
 
@@ -172,15 +211,25 @@ export const getReminders = async (req, res) => {
       query.status = { $in: ["scheduled", "snoozed", "failed_retryable"] };
       query.alarmEnabled = true;
     } else if (filter === "history") {
-      query.status = { $in: ["dispatched", "dismissed", "completed", "cancelled", "failed"] };
+      query.status = { $in: ["dispatched", "dismissed", "completed", "cancelled", "failed", "snoozed"] };
+    } else if (filter === "snoozed") {
+      query.status = "snoozed";
+    } else if (filter === "dismissed") {
+      query.status = "dismissed";
+    } else if (filter === "completed") {
+      query.status = "completed";
+    }
+
+    if (date) {
+      query.scheduledDate = date;
     }
 
     const reminders = await Reminder.find(query)
       .sort({ scheduledAt: 1 })
       .populate("task", "title dueDate priority completed");
 
-    // Filter out reminders whose tasks were deleted
-    const validReminders = reminders.filter((r) => r.task);
+    // Filter out reminders whose linked tasks were deleted (preserve standalone reminders)
+    const validReminders = reminders.filter((r) => !r.task || typeof r.task === "object");
 
     res.json({ success: true, reminders: validReminders });
   } catch (err) {
@@ -234,13 +283,16 @@ export const getReminderById = async (req, res) => {
 export const updateReminder = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-    const existing = await Reminder.findOne({ _id: req.params.id, owner: userId });
+    const existing = await Reminder.findOne({ _id: req.params.id, owner: userId }).populate("task");
 
     if (!existing) {
       return res.status(404).json({ success: false, message: "Reminder not found or not yours" });
     }
 
     const data = { ...req.body };
+    if (data.notes) {
+      data.message = data.notes;
+    }
     if (data.scheduledAt) {
       data.scheduledAt = new Date(data.scheduledAt);
       data.status = "scheduled";
@@ -249,6 +301,9 @@ export const updateReminder = async (req, res) => {
       data.snoozedUntil = null;
       data.nextRetryAt = null;
       data.deliveryAttempts = 0;
+      if (!data.scheduledDate) {
+        data.scheduledDate = data.scheduledAt.toISOString().split("T")[0];
+      }
     }
     if (data.timeZone) {
       if (!isValidTimeZone(data.timeZone)) {
@@ -256,15 +311,38 @@ export const updateReminder = async (req, res) => {
       }
       data.timeZone = sanitizeTimeZone(data.timeZone);
     }
+    if (data.notificationEnabled !== undefined) {
+      if (!data.channels) data.channels = {};
+      data.channels.push = Boolean(data.notificationEnabled);
+    }
+    if (data.sound && !data.soundType) {
+      data.soundType = data.sound;
+    }
+
+    const isCalendar = existing.source === "calendar_reminder" || existing.source === "calendar" || Boolean(existing.task?.isCalendarEvent);
+    if (isCalendar) {
+      if (!data.channels) data.channels = {};
+      data.channels.email = false;
+      data.source = "calendar_reminder";
+    }
 
     const updated = await Reminder.findOneAndUpdate(
       { _id: req.params.id, owner: userId },
-      data,
+      {
+        ...data,
+        $push: {
+          history: {
+            action: "updated",
+            timestamp: new Date(),
+            details: "Reminder updated",
+          },
+        },
+      },
       { new: true, runValidators: true }
     ).populate("task");
 
-    // Sync to Task
-    if (updated.task) {
+    // Sync to Task (only for main tasks, never for calendar reminders)
+    if (updated.task && !isCalendar) {
       await Task.updateOne(
         { _id: updated.task._id },
         {
@@ -341,6 +419,13 @@ export const snoozeReminder = async (req, res) => {
         claimedAt: null,
         nextRetryAt: null,
         $inc: { occurrenceCount: 1 },
+        $push: {
+          history: {
+            action: "snoozed",
+            timestamp: new Date(),
+            details: `Alarm snoozed for ${minutes} minutes until ${snoozedTime.toLocaleTimeString()}`,
+          },
+        },
       },
       { new: true }
     ).populate("task", "title");
@@ -377,7 +462,9 @@ export const dismissReminder = async (req, res) => {
     let targetTaskId = null;
     const linkedTaskId = reminder.task?._id || reminder.task;
 
-    if (linkedTaskId) {
+    const shouldCompleteTask = req.body.completeLinkedTask !== false && req.body.completeLinkedTask !== "false";
+
+    if (linkedTaskId && shouldCompleteTask) {
       targetTaskId = linkedTaskId;
       const task = await Task.findOne({ _id: linkedTaskId, owner: userId, isDeleted: { $ne: true } });
 
@@ -439,6 +526,11 @@ export const dismissReminder = async (req, res) => {
         reminder.nextRetryAt = null;
         reminder.deliveryAttempts = 0;
         reminder.occurrenceCount += 1;
+        reminder.history.push({
+          action: "dismissed",
+          timestamp: new Date(),
+          details: `Alarm dismissed; next recurring occurrence scheduled for ${nextOccurrence.toLocaleString()}`,
+        });
         await reminder.save();
 
         return res.json({
@@ -460,6 +552,11 @@ export const dismissReminder = async (req, res) => {
     reminder.claimedAt = null;
     reminder.snoozedUntil = null;
     reminder.nextRetryAt = null;
+    reminder.history.push({
+      action: "dismissed",
+      timestamp: new Date(),
+      details: "Alarm dismissed",
+    });
     await reminder.save();
 
     res.json({
@@ -469,6 +566,23 @@ export const dismissReminder = async (req, res) => {
       taskCompleted,
       taskId: targetTaskId,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET REMINDER HISTORY
+export const getReminderHistory = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const history = await Reminder.find({
+      owner: userId,
+      status: { $in: ["dispatched", "dismissed", "completed", "snoozed", "cancelled"] },
+    })
+      .sort({ updatedAt: -1, scheduledAt: -1 })
+      .populate("task", "title dueDate priority completed");
+
+    res.json({ success: true, history });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

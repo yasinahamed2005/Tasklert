@@ -49,10 +49,11 @@ self.addEventListener("push", (event) => {
       volume: data.volume || 80,
       priority: data.priority || "Medium",
       scheduledAt: data.scheduledAt || null,
+      isFocus: data.isFocus || (data.url && data.url.includes("focus")),
       timestamp: Date.now(),
     },
     actions: data.actions || [
-      { action: "open", title: "👉 Open Task" },
+      { action: "open", title: "👉 Open" },
       { action: "snooze", title: "💤 Snooze 5m" },
       { action: "dismiss", title: "✕ Dismiss" },
     ],
@@ -74,6 +75,7 @@ self.addEventListener("push", (event) => {
             volume: data.volume,
             priority: data.priority,
             scheduledAt: data.scheduledAt,
+            isFocus: data.isFocus,
           },
         });
       });
@@ -109,12 +111,23 @@ self.addEventListener("notificationclick", (event) => {
       .then((clientList) => {
         for (const client of clientList) {
           if (client.url && "focus" in client) {
-            client.postMessage({
-              type: "TASKLERT_NOTIFICATION_ACTION",
-              action,
-              alarmId: notifData.alarmId,
-              taskId: notifData.taskId,
-            });
+            // Send action to open client
+            if (notifData.isFocus || targetUrl.includes("/focus")) {
+              client.postMessage({
+                type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
+                action,
+                mode: notifData.mode,
+                focusId: notifData.focusId,
+              });
+            } else {
+              client.postMessage({
+                type: "TASKLERT_NOTIFICATION_ACTION",
+                action,
+                alarmId: notifData.alarmId,
+                taskId: notifData.taskId,
+              });
+            }
+
             if ("navigate" in client && targetUrl && !client.url.includes(targetUrl)) {
               try {
                 client.navigate(targetUrl);
@@ -129,5 +142,3 @@ self.addEventListener("notificationclick", (event) => {
       })
   );
 });
-
-

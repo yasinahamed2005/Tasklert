@@ -3,12 +3,15 @@ import twilio from "twilio";
 let client = null;
 
 const getClient = () => {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  const sid = (process.env.TWILIO_ACCOUNT_SID || "").trim();
+  const token = (process.env.TWILIO_AUTH_TOKEN || "").trim();
 
-  if (!sid || !token) {
+  const isGenuineSid = sid.startsWith("AC") && sid.length === 34 && !sid.toLowerCase().includes("your_");
+  const isGenuineToken = token.length >= 32 && !token.toLowerCase().includes("your_");
+
+  if (!isGenuineSid || !isGenuineToken) {
     throw new Error(
-      "SMS is not configured yet. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER to backend/.env"
+      "SMS provider is not configured. Add valid TWILIO_ACCOUNT_SID (must start with AC), TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER to backend/.env"
     );
   }
 

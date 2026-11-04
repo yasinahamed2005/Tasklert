@@ -5,6 +5,7 @@ import {
   deleteReminder,
   dismissReminder,
   getReminderById,
+  getReminderHistory,
   getReminders,
   getUpcomingAlarms,
   getUserPreferences,
@@ -23,6 +24,7 @@ reminderRouter.route("/")
 
 // Special routes (must be defined before /:id)
 reminderRouter.get("/upcoming", authMiddleware, getUpcomingAlarms);
+reminderRouter.get("/history", authMiddleware, getReminderHistory);
 reminderRouter.route("/preferences")
   .get(authMiddleware, getUserPreferences)
   .put(authMiddleware, updateUserPreferences);

@@ -12,6 +12,13 @@ import {
   getTemplates,
   retryMessage,
   sendMessage,
+  sendMessageNow,
+  markMessageSent,
+  testProviderConnection,
+  connectProvider,
+  disconnectProvider,
+  webhookWhatsAppGet,
+  webhookWhatsAppPost,
 } from "../controllers/messageController.js";
 
 const upload = multer({
@@ -21,8 +28,17 @@ const upload = multer({
 
 const messageRouter = express.Router();
 
-// Provider readiness status
+// Webhook endpoints (public, validated via Meta hub.verify_token / secrets)
+messageRouter.get("/webhook/whatsapp", webhookWhatsAppGet);
+messageRouter.post("/webhook/whatsapp", webhookWhatsAppPost);
+
+// Provider readiness status & live connection management
 messageRouter.get("/providers", authMiddleware, getProviders);
+messageRouter.post("/providers/test", authMiddleware, testProviderConnection);
+messageRouter.post("/providers/connect", authMiddleware, connectProvider);
+messageRouter.post("/providers/disconnect/:channel", authMiddleware, disconnectProvider);
+messageRouter.delete("/providers/disconnect/:channel", authMiddleware, disconnectProvider);
+messageRouter.delete("/providers/:channel", authMiddleware, disconnectProvider);
 
 // Templates
 messageRouter.get("/templates", authMiddleware, getTemplates);
@@ -46,6 +62,8 @@ messageRouter.post(
 );
 
 // Actions on individual messages
+messageRouter.post("/:id/send-now", authMiddleware, sendMessageNow);
+messageRouter.post("/:id/mark-sent", authMiddleware, markMessageSent);
 messageRouter.patch("/:id", authMiddleware, updateScheduledMessage);
 messageRouter.put("/:id", authMiddleware, updateScheduledMessage);
 messageRouter.post("/:id", authMiddleware, updateScheduledMessage);

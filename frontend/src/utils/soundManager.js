@@ -2,7 +2,11 @@
  * Tasklert Web Audio Alarm Synthesizer & Sound Manager
  * 
  * Generates 100% offline, zero-asset, high-fidelity alarm tones using the Web Audio API.
- * Supports looping alarm playback, previewing, volume gain control, and clean stop.
+ * Supports:
+ * - Silent AudioContext keep-alive during active timers to prevent background tab audio suspension
+ * - OS audio hardware pre-scheduling (immune to browser background tab throttling)
+ * - Looping alarm playback, previewing, volume gain control, and clean instant stop
+ * - Custom audio track playback (HTML5 Audio + Web Audio fallback)
  */
 
 class SoundManager {
@@ -12,8 +16,14 @@ class SoundManager {
     this.loopInterval = null;
     this.isPlaying = false;
     this.currentSound = null;
+    this.customAudio = null;
+    this.masterGain = null;
+    this.keepAliveNode = null;
   }
 
+  /**
+   * Initializes or resumes the AudioContext from a user interaction gesture
+   */
   getAudioContext() {
     if (!this.audioCtx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -22,9 +32,61 @@ class SoundManager {
       }
     }
     if (this.audioCtx && this.audioCtx.state === "suspended") {
-      this.audioCtx.resume().catch(() => {});
+      this.audioCtx.resume().catch((err) => {
+        console.warn("AudioContext resume attempted:", err);
+      });
     }
     return this.audioCtx;
+  }
+
+  /**
+   * Silent Keep-Alive Audio Node
+   * 
+   * When a timer starts, modern browsers (Chrome/Edge/Firefox) can suspend the AudioContext
+   * if it remains silent for more than 30 seconds, and later refuse to resume it from a background tab.
+   * By looping an inaudible buffer, the browser recognizes the audio stream as active and keeps
+   * the audio hardware pipeline open and ready for immediate, loud playback when the timer completes.
+   */
+  startKeepAlive() {
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      if (this.keepAliveNode) return;
+
+      const buffer = ctx.createBuffer(1, Math.max(1, ctx.sampleRate), ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const silentGain = ctx.createGain();
+      // Near-zero gain: 100% inaudible to human ear, but keeps the OS audio thread alive
+      silentGain.gain.setValueAtTime(0.00001, ctx.currentTime);
+
+      source.connect(silentGain);
+      silentGain.connect(ctx.destination);
+      source.start(0);
+
+      this.keepAliveNode = { source, silentGain };
+    } catch (err) {
+      console.warn("Could not start audio keep-alive:", err);
+    }
+  }
+
+  /**
+   * Stops the silent keepalive node
+   */
+  stopKeepAlive() {
+    if (this.keepAliveNode) {
+      try {
+        this.keepAliveNode.source.stop();
+        this.keepAliveNode.source.disconnect();
+        this.keepAliveNode.silentGain.disconnect();
+      } catch (_) {}
+      this.keepAliveNode = null;
+    }
   }
 
   /**
@@ -186,6 +248,7 @@ class SoundManager {
    * Render single sound iteration
    */
   triggerSoundPattern(soundName, ctx, masterGain, time) {
+    if (!ctx || !masterGain || !this.isPlaying) return;
     switch (soundName) {
       case "classic":
         this.playClassicBell(ctx, masterGain, time);
@@ -207,11 +270,47 @@ class SoundManager {
   }
 
   /**
-   * Play continuous looping alarm until explicitly stopped
+   * Play continuous looping alarm until explicitly stopped.
+   * Supports built-in synthesizer sounds OR custom user audio URLs.
    */
-  playAlarm(soundName = "digital", volume = 80) {
+  playAlarm(soundName = "digital", volume = 80, customAudioUrl = null) {
     this.stop(); // Stop any existing playback
 
+    // A. Custom User Audio Track
+    if (customAudioUrl || soundName === "custom") {
+      const src = customAudioUrl || this.customAudioUrl;
+      if (src) {
+        try {
+          const audio = new Audio(src);
+          audio.loop = true;
+          audio.volume = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
+          this.customAudio = audio;
+          this.isPlaying = true;
+          this.currentSound = "custom";
+          
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn("Custom audio autoplay restricted, falling back to synthesizer alarm:", err);
+              this.playSynthAlarm("chime", volume);
+            });
+          }
+          return;
+        } catch (e) {
+          console.warn("Could not load custom audio:", e);
+        }
+      }
+    }
+
+    // B. Built-in Synthesizer
+    this.playSynthAlarm(soundName, volume);
+  }
+
+  /**
+   * Plays built-in alarm using Web Audio with OS clock pre-scheduling
+   * Ensures alarms fire continuously even when the tab is in the background or minimized.
+   */
+  playSynthAlarm(soundName = "digital", volume = 80) {
     const ctx = this.getAudioContext();
     if (!ctx) return;
 
@@ -224,24 +323,65 @@ class SoundManager {
     masterGain.connect(ctx.destination);
     this.masterGain = masterGain;
 
-    // Determine loop cadence based on sound type
+    // Cadence intervals in seconds
     const intervals = {
-      digital: 900,
-      classic: 850,
-      chime: 1800,
-      bell: 2000,
-      soft: 1200,
+      digital: 0.9,
+      classic: 0.85,
+      chime: 1.8,
+      bell: 2.0,
+      soft: 1.2,
     };
-    const repeatMs = intervals[soundName] || 1000;
+    const repeatSec = intervals[soundName] || 1.0;
 
-    // Trigger initial sound
-    this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
+    // Schedule 30 iterations ahead on Web Audio's hardware clock (ctx.currentTime + i * repeatSec)
+    // Audio hardware processes this independently of JS setInterval background throttling!
+    const preScheduleCount = 35;
+    for (let i = 0; i < preScheduleCount; i++) {
+      this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime + i * repeatSec);
+    }
 
-    // Setup rhythmic loop
+    // Background replenishment interval (every 10 seconds, schedule the next batch)
     this.loopInterval = setInterval(() => {
-      if (!this.isPlaying) return;
-      this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
-    }, repeatMs);
+      if (!this.isPlaying || !this.audioCtx || !this.masterGain) return;
+      const curTime = this.audioCtx.currentTime;
+      for (let i = 0; i < 20; i++) {
+        this.triggerSoundPattern(soundName, this.audioCtx, this.masterGain, curTime + (i + 1) * repeatSec);
+      }
+    }, 10000);
+  }
+
+  /**
+   * Preview custom user audio
+   */
+  previewCustomAudio(url, volume = 80, onEnd = null) {
+    this.stop();
+    if (!url) return;
+
+    try {
+      const audio = new Audio(url);
+      audio.volume = Math.max(0.01, Math.min(1, Number(volume || 80) / 100));
+      this.customAudio = audio;
+      this.isPlaying = true;
+      this.currentSound = "custom_preview";
+
+      audio.onended = () => {
+        this.stop();
+        if (onEnd) onEnd();
+      };
+
+      const p = audio.play();
+      if (p !== undefined) {
+        p.catch((err) => {
+          console.warn("Preview audio play failed:", err);
+        });
+      }
+    } catch (e) {
+      console.warn("Could not preview custom audio:", e);
+    }
+  }
+
+  previewSound(soundName = "digital", volume = 80) {
+    this.preview(soundName, volume);
   }
 
   /**
@@ -260,7 +400,6 @@ class SoundManager {
 
     this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
 
-    // If fast pattern, do one second repeat for realistic preview
     if (["digital", "classic"].includes(soundName)) {
       setTimeout(() => {
         this.triggerSoundPattern(soundName, ctx, masterGain, ctx.currentTime);
@@ -269,11 +408,30 @@ class SoundManager {
   }
 
   /**
-   * Immediately stop all active audio playback
+   * Immediately stop all active audio playback (synth & custom files)
+   * Instantly mutes all scheduled future Web Audio hardware nodes.
    */
   stop() {
     this.isPlaying = false;
     this.currentSound = null;
+
+    if (this.masterGain && this.audioCtx) {
+      try {
+        // Cancel all scheduled future audio bursts and mute instantly
+        this.masterGain.gain.cancelScheduledValues(this.audioCtx.currentTime);
+        this.masterGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+        this.masterGain.disconnect();
+      } catch (_) {}
+      this.masterGain = null;
+    }
+
+    if (this.customAudio) {
+      try {
+        this.customAudio.pause();
+        this.customAudio.currentTime = 0;
+      } catch (_) {}
+      this.customAudio = null;
+    }
 
     if (this.loopInterval) {
       clearInterval(this.loopInterval);
@@ -288,13 +446,6 @@ class SoundManager {
         } catch (_) {}
       });
       this.activeNodes = [];
-    }
-
-    if (this.masterGain) {
-      try {
-        this.masterGain.disconnect();
-      } catch (_) {}
-      this.masterGain = null;
     }
   }
 }

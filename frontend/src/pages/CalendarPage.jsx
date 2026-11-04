@@ -37,6 +37,11 @@ import {
   Search,
 } from "lucide-react";
 import TaskModal from "../components/TaskModal";
+import axios from "axios";
+import { API_BASE_URL } from "../config/api";
+import ReminderModal from "../components/calendar/ReminderModal";
+import UpcomingEventsSection from "../components/calendar/UpcomingEventsSection";
+import { deviceAlarmManager } from "../utils/deviceAlarmManager";
 import { getPriorityBadgeColor } from "../assets/dummy";
 
 const isCompletedTask = (task) => {
@@ -75,6 +80,11 @@ const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState(null);
+  const [reminders, setReminders] = useState([]);
+  const [isLoadingReminders, setIsLoadingReminders] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderToEdit, setReminderToEdit] = useState(null);
+  const [sidebarTab, setSidebarTab] = useState("day"); // 'day' | 'history'
   const [showUnscheduled, setShowUnscheduled] = useState(false);
   const [showDayDrawer, setShowDayDrawer] = useState(false);
   const [, setThemeTick] = useState(0);
@@ -86,6 +96,43 @@ const CalendarPage = () => {
   const [showFilterBar, setShowFilterBar] = useState(false);
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
+
+  // Fetch reminders and sync local alarms
+  const fetchReminders = useCallback(async () => {
+    try {
+      setIsLoadingReminders(true);
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await axios.get(`${API_BASE_URL}/api/reminders`, { headers });
+      const list = res.data?.reminders || [];
+      setReminders(list);
+      deviceAlarmManager.syncUpcomingAlarms(list);
+    } catch (err) {
+      console.warn("Could not fetch reminders:", err);
+    } finally {
+      setIsLoadingReminders(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReminders();
+  }, [fetchReminders]);
+
+  // Group reminders by local date key
+  const remindersByDate = useMemo(() => {
+    const map = {};
+    reminders.forEach((r) => {
+      let key = r.scheduledDate;
+      if (!key && r.scheduledAt) {
+        key = toDateKey(r.scheduledAt);
+      }
+      if (key) {
+        if (!map[key]) map[key] = [];
+        map[key].push(r);
+      }
+    });
+    return map;
+  }, [reminders]);
 
   // Listen for accent theme changes to trigger instant calendar refresh
   useEffect(() => {
@@ -172,10 +219,18 @@ const CalendarPage = () => {
   }, []);
 
   // Open modal to create a task on a specific date
+  // Open ReminderModal to create a reminder on specific date (Main Calendar '+' action)
   const handleCreateOnDate = useCallback((date) => {
-    const dateStr = format(date, "yyyy-MM-dd");
-    setTaskToEdit({ dueDate: dateStr });
-    setShowTaskModal(true);
+    setSelectedDate(date);
+    setReminderToEdit(null);
+    setShowReminderModal(true);
+  }, []);
+
+  // Open ReminderModal to edit reminder
+  const handleEditReminder = useCallback((reminder, e) => {
+    if (e) e.stopPropagation();
+    setReminderToEdit(reminder);
+    setShowReminderModal(true);
   }, []);
 
   // Open modal to edit existing task
@@ -228,29 +283,32 @@ const CalendarPage = () => {
   };
 
   return (
-    <div className="p-1.5 sm:p-2.5 md:p-3.5 min-w-0 w-full space-y-2.5 sm:space-y-3">
+    <div className="p-1 sm:p-2 md:p-2.5 min-w-0 w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden space-y-2">
       {/* UNIFIED COMPACT HEADER & CONTROLS */}
       <div
-        className="bg-white rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 shadow-xs space-y-2.5"
-        style={{ borderColor: "var(--calendar-border)" }}
+        className="rounded-2xl border px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs space-y-2 shrink-0 transition-colors"
+        style={{ backgroundColor: "var(--cal-sidebar-bg)", borderColor: "var(--calendar-border)" }}
       >
         {/* Top Row: Title + Counts on Left, Add Task on Right */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div
               className="p-1.5 rounded-lg shrink-0"
-              style={{ backgroundColor: "var(--calendar-header-bg)", color: "var(--calendar-header-text)" }}
+              style={{ backgroundColor: "var(--cal-selected-bg)", color: "var(--primary)" }}
             >
               <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-800 tracking-tight">
+                <h1
+                  className="text-lg sm:text-xl font-bold tracking-tight"
+                  style={{ color: "var(--cal-cell-in-month-text)" }}
+                >
                   Calendar
                 </h1>
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{ backgroundColor: "var(--calendar-cell-alt)", color: "var(--calendar-header-text)" }}
+                  style={{ backgroundColor: "var(--cal-selected-bg)", color: "var(--primary)" }}
                 >
                   {allMonthTasksCount} scheduled
                 </span>
@@ -278,16 +336,33 @@ const CalendarPage = () => {
               )}
             </button>
 
-            {/* Add Task Button */}
+            {/* Add Reminder Button - Main Calendar Action */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDate(selectedDate || new Date());
+                setReminderToEdit(null);
+                setShowReminderModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-xs transition active:scale-95 cursor-pointer shrink-0 hover:opacity-90"
+              style={{ backgroundColor: "var(--primary)" }}
+              title="Create a new reminder and device alarm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Reminder</span>
+            </button>
+
+            {/* Add Task Button (Secondary) */}
             <button
               type="button"
               onClick={() => {
                 setTaskToEdit({ dueDate: format(selectedDate || new Date(), "yyyy-MM-dd") });
                 setShowTaskModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 text-gray-700 font-semibold text-xs transition hover:bg-gray-50 active:scale-95 cursor-pointer shrink-0"
+              title="Create a standard task"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Add Task</span>
             </button>
           </div>
@@ -388,7 +463,8 @@ const CalendarPage = () => {
             <button
               type="button"
               onClick={handleToday}
-              className="inline-flex px-2.5 py-1 text-xs font-bold rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 transition cursor-pointer"
+              className="inline-flex px-2.5 py-1 text-xs font-bold rounded-lg border transition cursor-pointer hover:bg-gray-50"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
             >
               Today
             </button>
@@ -398,59 +474,74 @@ const CalendarPage = () => {
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center sm:justify-end">
             {/* View Mode Tabs: Month, Week, Day, Agenda */}
             <div
-              className="inline-flex rounded-lg p-0.5 border text-xs font-semibold"
-              style={{ backgroundColor: "var(--calendar-header-bg)", borderColor: "var(--calendar-border)" }}
+              className="inline-flex rounded-xl p-0.5 border text-xs font-semibold shadow-xs"
+              style={{
+                backgroundColor: "var(--cal-tabs-bg)",
+                borderColor: "var(--cal-tabs-border)",
+              }}
             >
               <button
                 type="button"
                 onClick={() => setViewMode("month")}
-                className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
                   viewMode === "month"
-                    ? "bg-white shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "shadow-xs font-black"
+                    : "font-semibold hover:opacity-80"
                 }`}
-                style={{ color: viewMode === "month" ? "var(--calendar-header-text)" : undefined }}
+                style={{
+                  backgroundColor: viewMode === "month" ? "var(--cal-tab-active-bg)" : "transparent",
+                  color: viewMode === "month" ? "var(--cal-tab-active-text)" : "var(--cal-tab-inactive-text)",
+                }}
               >
-                <CalendarDays className="w-3 h-3" />
+                <CalendarDays className="w-3.5 h-3.5" />
                 <span>Month</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("week")}
-                className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
                   viewMode === "week"
-                    ? "bg-white shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "shadow-xs font-black"
+                    : "font-semibold hover:opacity-80"
                 }`}
-                style={{ color: viewMode === "week" ? "var(--calendar-header-text)" : undefined }}
+                style={{
+                  backgroundColor: viewMode === "week" ? "var(--cal-tab-active-bg)" : "transparent",
+                  color: viewMode === "week" ? "var(--cal-tab-active-text)" : "var(--cal-tab-inactive-text)",
+                }}
               >
-                <CalendarRange className="w-3 h-3" />
+                <CalendarRange className="w-3.5 h-3.5" />
                 <span>Week</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("day")}
-                className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
                   viewMode === "day"
-                    ? "bg-white shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "shadow-xs font-black"
+                    : "font-semibold hover:opacity-80"
                 }`}
-                style={{ color: viewMode === "day" ? "var(--calendar-header-text)" : undefined }}
+                style={{
+                  backgroundColor: viewMode === "day" ? "var(--cal-tab-active-bg)" : "transparent",
+                  color: viewMode === "day" ? "var(--cal-tab-active-text)" : "var(--cal-tab-inactive-text)",
+                }}
               >
-                <Sun className="w-3 h-3" />
+                <Sun className="w-3.5 h-3.5" />
                 <span>Day</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("agenda")}
-                className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
                   viewMode === "agenda"
-                    ? "bg-white shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "shadow-xs font-black"
+                    : "font-semibold hover:opacity-80"
                 }`}
-                style={{ color: viewMode === "agenda" ? "var(--calendar-header-text)" : undefined }}
+                style={{
+                  backgroundColor: viewMode === "agenda" ? "var(--cal-tab-active-bg)" : "transparent",
+                  color: viewMode === "agenda" ? "var(--cal-tab-active-text)" : "var(--cal-tab-inactive-text)",
+                }}
               >
-                <ListOrdered className="w-3 h-3" />
+                <ListOrdered className="w-3.5 h-3.5" />
                 <span>Agenda</span>
               </button>
             </div>
@@ -459,20 +550,23 @@ const CalendarPage = () => {
             <button
               type="button"
               onClick={() => setShowUnscheduled(!showUnscheduled)}
-              className={`text-xs font-semibold px-2 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
-                showUnscheduled
-                  ? "calendar-today-pill"
-                  : "hover:bg-[var(--calendar-cell-hover)]"
-              }`}
+              className="text-xs font-bold px-2.5 py-1 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
               style={{
-                borderColor: "var(--calendar-border)",
-                backgroundColor: showUnscheduled ? undefined : "var(--calendar-header-bg)",
-                color: showUnscheduled ? undefined : "var(--calendar-header-text)",
+                backgroundColor: showUnscheduled ? "var(--primary)" : "var(--cal-tabs-bg)",
+                borderColor: showUnscheduled ? "var(--primary)" : "var(--cal-tabs-border)",
+                color: showUnscheduled ? "#ffffff" : "var(--cal-tab-inactive-text)",
               }}
             >
-              <Inbox className="w-3 h-3" />
+              <Inbox className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Unscheduled</span>
-              <span>({unscheduledTasks.length})</span>
+              <span
+                className="font-bold"
+                style={{
+                  color: showUnscheduled ? "#ffffff" : "var(--primary)",
+                }}
+              >
+                ({unscheduledTasks.length})
+              </span>
             </button>
           </div>
         </div>
@@ -547,48 +641,46 @@ const CalendarPage = () => {
 
       {/* 1. MONTH VIEW */}
       {viewMode === "month" && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Chessboard Month Grid (3 cols on desktop) */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2.5 sm:gap-3 flex-1 min-h-0 overflow-hidden h-full">
+          {/* Theme-Reactive Chessboard Month Grid (3 cols on desktop) */}
           <div
-            className="lg:col-span-3 bg-white rounded-2xl border shadow-xs overflow-hidden flex flex-col"
-            style={{ borderColor: "var(--calendar-border)" }}
+            className="lg:col-span-3 rounded-2xl border shadow-xs overflow-hidden flex flex-col h-full min-h-0"
+            style={{ backgroundColor: "var(--cal-sidebar-bg)", borderColor: "var(--cal-grid-border)" }}
           >
-            {/* Weekday Headers (Monday to Sunday) */}
+            {/* Weekday Headers Bar (Monday to Sunday) */}
             <div
-              className="grid grid-cols-7 calendar-header-surface border-b text-center py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold tracking-wider uppercase"
-              style={{ borderColor: "var(--calendar-border)" }}
+              className="grid grid-cols-7 border-b text-center py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase shrink-0 transition-colors duration-200"
+              style={{
+                backgroundColor: "var(--cal-header-bg)",
+                color: "var(--cal-header-text)",
+                borderColor: "var(--cal-grid-border)",
+              }}
             >
               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
                 <div key={day}>{day}</div>
               ))}
             </div>
 
-            {/* Days 2D Chessboard Grid */}
+            {/* Days 2D Chessboard Grid: Alternating Cell A and Cell B */}
             <div
-              className="grid grid-cols-7 auto-rows-fr bg-[var(--calendar-border)] gap-[1px] border-b"
-              style={{ borderColor: "var(--calendar-border)" }}
+              className="grid grid-cols-7 auto-rows-fr flex-1 min-h-0 gap-[1px] border-b transition-colors duration-200"
+              style={{
+                backgroundColor: "var(--cal-grid-border)",
+                borderColor: "var(--cal-grid-border)",
+              }}
             >
               {monthDays.map((day, index) => {
                 const dateKey = toDateKey(day);
                 const dayTasks = tasksByDate[dateKey] || [];
+                const dayReminders = remindersByDate[dateKey] || [];
                 const inCurrentMonth = isSameMonth(day, currentDate);
                 const isSelected = isSameDay(day, selectedDate);
                 const dayIsToday = isToday(day);
 
-                // True 2D Chessboard Alternation
-                const row = Math.floor(index / 7);
-                const col = index % 7;
-                const isAltCell = (row + col) % 2 === 1;
-
-                const cellSurfaceClass = isSelected
-                  ? "calendar-cell-selected"
-                  : !inCurrentMonth
-                  ? isAltCell
-                    ? "calendar-cell-outside-alt text-gray-400"
-                    : "calendar-cell-outside text-gray-400"
-                  : isAltCell
-                  ? "calendar-cell-alt text-gray-800"
-                  : "calendar-cell-base text-gray-800";
+                // Alternating pattern across 7 columns:
+                // (row + col) % 2 === 0 -> Dim Tint Cell (Cell A)
+                // (row + col) % 2 === 1 -> Pure White Cell (Cell B)
+                const isDarkCell = (Math.floor(index / 7) + (index % 7)) % 2 === 0;
 
                 return (
                   <div
@@ -598,7 +690,6 @@ const CalendarPage = () => {
                     aria-label={`${format(day, "EEEE, MMMM d, yyyy")}${dayIsToday ? ", Today" : ""}${isSelected ? ", Selected" : ""}`}
                     onClick={() => {
                       setSelectedDate(day);
-                      // On mobile viewports, also toggle day drawer
                       if (window.innerWidth < 1024) {
                         setShowDayDrawer(true);
                       }
@@ -612,27 +703,51 @@ const CalendarPage = () => {
                         }
                       }
                     }}
-                    className={`min-h-[58px] sm:min-h-[66px] md:min-h-[74px] lg:min-h-[80px] p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer group calendar-cell-interactive relative ${cellSurfaceClass}`}
+                    className="h-full min-h-0 p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer group relative select-none overflow-hidden"
+                    style={{
+                      backgroundColor: isSelected
+                        ? "var(--cal-selected-bg)"
+                        : !inCurrentMonth
+                        ? "var(--cal-cell-outside)"
+                        : isDarkCell
+                        ? "var(--cal-cell-alt)"
+                        : "var(--cal-cell-in-month)",
+                      color: !inCurrentMonth
+                        ? "var(--cal-cell-outside-text)"
+                        : "var(--cal-cell-in-month-text)",
+                      boxShadow: isSelected ? "inset 0 0 0 2px var(--cal-selected-border)" : undefined,
+                      zIndex: isSelected ? 10 : 1,
+                    }}
                   >
                     {/* Top of Cell: Day number & Quick add */}
                     <div className="flex items-center justify-between mb-0.5">
                       <div className="flex items-center gap-1 min-w-0">
                         <span
-                          className={`text-[11px] font-bold w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0 ${
-                            dayIsToday
-                              ? "calendar-today-badge"
-                              : isSelected
-                              ? "calendar-selected-badge"
-                              : inCurrentMonth
-                              ? "text-gray-700"
-                              : "text-gray-400"
+                          className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                            dayIsToday ? "ring-2 ring-white/80 shadow-xs" : ""
                           }`}
+                          style={{
+                            backgroundColor: dayIsToday ? "var(--cal-today-badge)" : undefined,
+                            color: dayIsToday
+                              ? "var(--cal-today-text)"
+                              : isSelected
+                              ? "var(--cal-selected-border)"
+                              : inCurrentMonth
+                              ? "var(--cal-cell-in-month-text)"
+                              : "var(--cal-cell-outside-text)",
+                          }}
                         >
                           {format(day, "d")}
                         </span>
                         {dayIsToday && (
-                          <span className="hidden md:inline-block calendar-today-pill text-[8px] uppercase font-bold tracking-wider px-1 py-0.2 rounded leading-none shrink-0">
-                            Today
+                          <span
+                            className="hidden md:inline-block text-[8px] uppercase font-black tracking-wider px-1 py-0.5 rounded leading-none shrink-0"
+                            style={{
+                              color: "var(--primary)",
+                              backgroundColor: "var(--cal-selected-bg)",
+                            }}
+                          >
+                            TODAY
                           </span>
                         )}
                       </div>
@@ -644,19 +759,28 @@ const CalendarPage = () => {
                           e.stopPropagation();
                           handleCreateOnDate(day);
                         }}
-                        aria-label={`Add task on ${dateKey}`}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--calendar-cell-hover)] rounded transition cursor-pointer"
-                        style={{ color: "var(--primary)" }}
-                        title="Add task on this date"
+                        aria-label={`Add reminder on ${dateKey}`}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                        style={{
+                          color: "var(--cal-cell-outside-text)",
+                        }}
+                        title="Add reminder on this date"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
                     {/* Mobile: Compact Colored Dots */}
-                    {dayTasks.length > 0 && (
+                    {(dayReminders.length > 0 || dayTasks.length > 0) && (
                       <div className="flex sm:hidden items-center justify-center gap-0.5 mt-0.5">
-                        {dayTasks.slice(0, 3).map((task, i) => {
+                        {dayReminders.slice(0, 2).map((r, i) => (
+                          <span
+                            key={`rem-dot-${i}`}
+                            className="w-1.5 h-1.5 rounded-full bg-purple-600 ring-1 ring-purple-300"
+                            title={`Alarm: ${r.title}`}
+                          />
+                        ))}
+                        {dayTasks.slice(0, 2).map((task, i) => {
                           const completed = isCompletedTask(task);
                           const overdue = isTaskOverdue(task, todayKey);
                           return (
@@ -677,30 +801,55 @@ const CalendarPage = () => {
                           );
                         })}
                         {dayTasks.length > 3 && (
-                          <span className="text-[8px] font-bold text-gray-500">+{dayTasks.length - 3}</span>
+                          <span
+                            className="text-[8px] font-bold"
+                            style={{
+                              color: "var(--cal-cell-outside-text)",
+                            }}
+                          >
+                            +{dayTasks.length - 3}
+                          </span>
                         )}
                       </div>
                     )}
 
-                    {/* Desktop: Real Task Pills */}
+                    {/* Desktop: Real Task Badges with Dynamic Contrast */}
                     <div className="hidden sm:block space-y-0.5 flex-1 overflow-hidden mt-0.5">
-                      {dayTasks.slice(0, 2).map((task) => {
+                      {/* Reminders badges */}
+                      {dayReminders.slice(0, 2).map((r) => (
+                        <div
+                          key={r._id}
+                          onClick={(e) => handleEditReminder(r, e)}
+                          className="px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer bg-purple-50/90 border border-purple-200 text-purple-900 font-semibold hover:bg-purple-100 shadow-2xs"
+                          title={`Alarm: ${r.title} (${r.scheduledTime || "Scheduled"})`}
+                        >
+                          <span className="truncate flex items-center gap-0.5">
+                            <Bell className="w-2.5 h-2.5 text-purple-600 shrink-0" />
+                            <span className="truncate">{r.title}</span>
+                          </span>
+                          <span className="text-[9px] text-purple-700 font-bold shrink-0">
+                            {r.scheduledTime || (r.scheduledAt ? format(new Date(r.scheduledAt), "hh:mm a") : "")}
+                          </span>
+                        </div>
+                      ))}
+                      {/* Tasks badges */}
+                      {dayTasks.slice(0, Math.max(1, 3 - dayReminders.length)).map((task) => {
                         const completed = isCompletedTask(task);
                         const overdue = isTaskOverdue(task, todayKey);
                         return (
                           <div
                             key={task._id}
                             onClick={(e) => handleEditTask(task, e)}
-                            className={`px-1 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer ${
                               completed
-                                ? "bg-green-50 text-green-700 line-through opacity-75"
+                                ? "bg-emerald-50 border border-emerald-200 text-emerald-800 line-through opacity-85"
                                 : overdue
-                                ? "bg-rose-50 text-rose-700 font-semibold border border-rose-200"
+                                ? "bg-rose-50 border border-rose-200 text-rose-800 font-semibold"
                                 : task.priority === "High"
-                                ? "bg-rose-50 text-rose-700 font-medium"
+                                ? "bg-rose-50 border border-rose-200 text-rose-800 font-medium"
                                 : task.priority === "Medium"
-                                ? "bg-amber-50 text-amber-700 font-medium"
-                                : "bg-blue-50 text-blue-700 font-medium"
+                                ? "bg-amber-50 border border-amber-200 text-amber-800 font-medium"
+                                : "bg-blue-50 border border-blue-200 text-blue-800 font-medium"
                             }`}
                             title={`${task.title} (${task.priority} Priority${overdue ? ", Overdue" : ""})`}
                           >
@@ -708,9 +857,9 @@ const CalendarPage = () => {
                               <span
                                 className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                                   completed
-                                    ? "bg-green-500"
+                                    ? "bg-emerald-500"
                                     : overdue
-                                    ? "bg-rose-600"
+                                    ? "bg-rose-500"
                                     : task.priority === "High"
                                     ? "bg-rose-500"
                                     : task.priority === "Medium"
@@ -721,7 +870,12 @@ const CalendarPage = () => {
                               <span className="truncate">{task.title}</span>
                             </div>
                             {task.reminderEnabled && task.reminderAt && (
-                              <Bell className="w-2.5 h-2.5 text-purple-600 shrink-0" />
+                              <Bell
+                                className="w-2.5 h-2.5 shrink-0"
+                                style={{
+                                  color: "var(--primary)",
+                                }}
+                              />
                             )}
                           </div>
                         );
@@ -737,7 +891,9 @@ const CalendarPage = () => {
                             setShowDayDrawer(true);
                           }}
                           className="text-[9px] font-bold pl-0.5 leading-none hover:underline cursor-pointer block text-left"
-                          style={{ color: "var(--primary)" }}
+                          style={{
+                            color: "var(--primary)",
+                          }}
                         >
                           +{dayTasks.length - 2} more
                         </button>
@@ -751,59 +907,163 @@ const CalendarPage = () => {
 
           {/* Selected Date Inspector Sidebar (1 col on desktop) */}
           <div
-            className="lg:col-span-1 bg-white rounded-2xl border p-3 sm:p-4 shadow-xs flex flex-col justify-between"
-            style={{ borderColor: "var(--calendar-border)" }}
+            className="hidden lg:flex lg:col-span-1 rounded-2xl border p-3.5 shadow-xs flex-col justify-between h-full min-h-0 overflow-hidden transition-colors"
+            style={{ backgroundColor: "var(--cal-sidebar-bg)", borderColor: "var(--cal-card-border)" }}
           >
-            <div className="space-y-3">
-              <div
-                className="flex items-center justify-between border-b pb-2.5"
-                style={{ borderColor: "var(--calendar-border)" }}
-              >
-                <div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-wider"
-                    style={{ color: "var(--primary)" }}
-                  >
-                    Selected Day
-                  </span>
-                  <h3 className="text-xs sm:text-sm font-bold text-gray-800 leading-tight">
-                    {format(selectedDate, "EEE, MMM d, yyyy")}
-                  </h3>
-                </div>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden space-y-2">
+              {/* Tab Switcher: Selected Day vs History */}
+              <div className="flex rounded-xl bg-gray-100 dark:bg-slate-800 p-0.5 shrink-0 border border-gray-200/50 dark:border-slate-700">
                 <button
                   type="button"
-                  onClick={() => handleCreateOnDate(selectedDate)}
-                  className="p-1 sm:p-1.5 rounded-lg transition text-xs font-semibold flex items-center gap-1 cursor-pointer calendar-today-pill hover:opacity-90"
-                  title="Add task to this date"
+                  onClick={() => setSidebarTab("day")}
+                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                    sidebarTab === "day"
+                      ? "bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 shadow-2xs"
+                      : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                  }`}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden xl:inline text-[10px]">Add</span>
+                  Selected Day ({(remindersByDate[selectedDateKey] || []).length + selectedDateTasks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab("history")}
+                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                    sidebarTab === "history"
+                      ? "bg-white dark:bg-slate-700 shadow-2xs"
+                      : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                  }`}
+                  style={{ color: sidebarTab === "history" ? "var(--primary)" : undefined }}
+                >
+                  Alarms & History ({reminders.length})
                 </button>
               </div>
 
-              {/* Tasks List for Selected Day */}
-              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
-                {selectedDateTasks.length === 0 ? (
-                  <div className="text-center py-8 px-2">
-                    <CalendarIcon
-                      className="w-7 h-7 mx-auto mb-1.5 opacity-40"
-                      style={{ color: "var(--primary)" }}
-                    />
-                    <p className="text-xs font-semibold text-gray-600">No tasks due</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      You have no tasks scheduled for this date.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleCreateOnDate(selectedDate)}
-                      className="mt-2.5 text-xs font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
-                      style={{ color: "var(--primary)" }}
-                    >
-                      <Plus className="w-3 h-3" /> Schedule task
-                    </button>
+              {sidebarTab === "history" ? (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <UpcomingEventsSection
+                    reminders={reminders}
+                    onEditReminder={handleEditReminder}
+                    onReminderDeleted={fetchReminders}
+                    onReminderToggled={fetchReminders}
+                    onRefresh={fetchReminders}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="flex items-center justify-between border-b pb-2 shrink-0"
+                    style={{ borderColor: "var(--cal-card-border)" }}
+                  >
+                    <div>
+                      <span
+                        className="text-[9px] font-black uppercase tracking-wider block"
+                        style={{ color: "var(--primary)" }}
+                      >
+                        SELECTED DAY
+                      </span>
+                      <h3
+                        className="text-xs sm:text-sm font-bold leading-tight mt-0.5"
+                        style={{ color: "var(--cal-cell-in-month-text)" }}
+                      >
+                        {format(selectedDate, "EEE, MMM d, yyyy")}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleCreateOnDate(selectedDate)}
+                        className="px-2.5 py-1 rounded-lg transition text-xs font-bold flex items-center gap-1 cursor-pointer text-white shadow-2xs hover:opacity-90"
+                        style={{ backgroundColor: "var(--primary)" }}
+                        title="Add reminder & phone alarm"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add</span>
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  selectedDateTasks.map((task) => {
+
+                  {/* Day items list: Reminders & Tasks */}
+                  <div className="flex-1 min-h-0 space-y-2.5 overflow-y-auto pr-0.5 tg-custom-scrollbar">
+                    {/* SECTION: REMINDERS & ALARMS */}
+                    {(remindersByDate[selectedDateKey] || []).length > 0 && (
+                      <div className="space-y-1.5">
+                        <div
+                          className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          <span className="flex items-center gap-1">
+                            <Bell className="w-3 h-3" /> Reminders & Alarms ({(remindersByDate[selectedDateKey] || []).length})
+                          </span>
+                        </div>
+                        {(remindersByDate[selectedDateKey] || []).map((r) => (
+                          <div
+                            key={r._id}
+                            onClick={(e) => handleEditReminder(r, e)}
+                            className="p-2.5 rounded-xl border transition-all cursor-pointer shadow-2xs space-y-1"
+                            style={{
+                              backgroundColor: "var(--cal-cell-hover)",
+                              borderColor: "var(--cal-card-border)",
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className="text-xs font-bold truncate"
+                                style={{ color: "var(--cal-cell-in-month-text)" }}
+                              >
+                                {r.title}
+                              </span>
+                              <span
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                style={{
+                                  backgroundColor: "var(--cal-selected-bg)",
+                                  color: "var(--primary)",
+                                }}
+                              >
+                                {r.scheduledTime || (r.scheduledAt ? format(new Date(r.scheduledAt), "hh:mm a") : "")}
+                              </span>
+                            </div>
+                            {(r.notes || r.message) && (
+                              <p className="text-[10px] text-gray-500 line-clamp-1 italic">{r.notes || r.message}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* SECTION: TASKS DUE */}
+                    {selectedDateTasks.length === 0 && (remindersByDate[selectedDateKey] || []).length === 0 ? (
+                      <div className="text-center py-8 px-2 flex flex-col items-center justify-center my-auto">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          <CalendarIcon className="w-8 h-8 opacity-75" />
+                        </div>
+                        <p
+                          className="text-xs font-bold"
+                          style={{ color: "var(--cal-cell-in-month-text)" }}
+                        >
+                          No tasks due
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          You have no tasks scheduled for this date.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleCreateOnDate(selectedDate)}
+                          className="mt-2 text-xs font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          <Plus className="w-3 h-3" /> Schedule task
+                        </button>
+                      </div>
+                    ) : (
+                      selectedDateTasks.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                            <span>Tasks Due ({selectedDateTasks.length})</span>
+                          </div>
+                          {selectedDateTasks.map((task) => {
                     const completed = isCompletedTask(task);
                     const overdue = isTaskOverdue(task, todayKey);
                     const accentBorder = task.priority === "High"
@@ -879,14 +1139,17 @@ const CalendarPage = () => {
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Quick summary footer */}
+                  })}
+                </div>
+              )
+            )}
+          </div>
+        </>
+      )}
+    </div>
+    {/* Quick summary footer */}
             <div
-              className="pt-2 border-t text-[11px] text-gray-500 flex justify-between items-center"
+              className="pt-2 border-t text-[11px] text-gray-500 flex justify-between items-center shrink-0"
               style={{ borderColor: "var(--calendar-border)" }}
             >
               <span>{selectedDateTasks.length} task(s)</span>
@@ -903,7 +1166,7 @@ const CalendarPage = () => {
 
       {/* 2. WEEK VIEW */}
       {viewMode === "week" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 flex-1 min-h-0 overflow-y-auto tg-custom-scrollbar p-0.5">
           {weekDays.map((day, idx) => {
             const dateKey = toDateKey(day);
             const dayTasks = tasksByDate[dateKey] || [];
@@ -1069,7 +1332,7 @@ const CalendarPage = () => {
       {/* 3. DAY VIEW */}
       {viewMode === "day" && (
         <div
-          className="bg-white rounded-2xl border p-4 sm:p-5 shadow-xs space-y-3 max-w-3xl mx-auto"
+          className="bg-white rounded-2xl border p-4 sm:p-5 shadow-xs space-y-3 max-w-3xl mx-auto flex-1 min-h-0 overflow-y-auto tg-custom-scrollbar w-full"
           style={{ borderColor: "var(--calendar-border)" }}
         >
           <div
@@ -1219,7 +1482,7 @@ const CalendarPage = () => {
       {/* 4. AGENDA VIEW (Mobile-friendly chronological list) */}
       {viewMode === "agenda" && (
         <div
-          className="bg-white rounded-2xl border p-3.5 sm:p-5 shadow-xs space-y-4 max-w-3xl mx-auto"
+          className="bg-white rounded-2xl border p-3.5 sm:p-5 shadow-xs space-y-4 max-w-3xl mx-auto flex-1 min-h-0 overflow-y-auto tg-custom-scrollbar w-full"
           style={{ borderColor: "var(--calendar-border)" }}
         >
           <div
@@ -1474,6 +1737,24 @@ const CalendarPage = () => {
           </div>
         </div>
       )}
+
+            {/* Modal for Creating or Editing Reminders */}
+      <ReminderModal
+        isOpen={showReminderModal}
+        initialDate={selectedDate}
+        reminderToEdit={reminderToEdit}
+        onClose={() => {
+          setShowReminderModal(false);
+          setReminderToEdit(null);
+        }}
+        onReminderSaved={() => {
+          fetchReminders();
+          refreshTasks();
+        }}
+        onReminderDeleted={() => {
+          fetchReminders();
+        }}
+      />
 
       {/* Modal for Creating or Editing Tasks */}
       <TaskModal

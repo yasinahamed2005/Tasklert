@@ -418,7 +418,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overscroll-none overflow-hidden animate-fadeIn"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs overscroll-none overflow-hidden animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -430,22 +430,19 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-modal-title"
-        className="bg-white border border-purple-100 rounded-t-3xl sm:rounded-2xl max-w-xl w-full shadow-2xl relative max-h-[92vh] max-h-[92dvh] flex flex-col overflow-hidden"
+        className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl relative max-h-[90vh] max-h-[90dvh] flex flex-col overflow-hidden my-auto"
       >
-        {/* Mobile Pull Indicator */}
-        <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
-
         {/* Fixed Header */}
-        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-purple-100 bg-white/95 backdrop-blur-xs z-10 sm:rounded-t-2xl shrink-0">
-          <h2 id="task-modal-title" className="text-lg sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-            {taskData.id ? <Save className='text-purple-500 w-5 h-5 shrink-0' /> : <PlusCircle className='text-purple-500 w-5 h-5 shrink-0' />}
+        <div className="flex justify-between items-center px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100 bg-white z-10 shrink-0">
+          <h2 id="task-modal-title" className="text-base sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+            {taskData.id ? <Save className='text-purple-600 w-5 h-5 shrink-0' /> : <PlusCircle className='text-purple-600 w-5 h-5 shrink-0' />}
             <span className="truncate">{taskData.id ? 'Edit Task' : 'Create New Task'}</span>
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 rounded-lg text-gray-500 hover:text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer shrink-0"
+            className="p-1.5 sm:p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -453,7 +450,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
         {/* FORM */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="overflow-y-auto overscroll-contain modal-content-scroll p-4 sm:p-6 space-y-4 flex-1 min-h-0">
+          <div className="overflow-y-auto overscroll-contain tg-custom-scrollbar px-4 py-4 sm:px-6 sm:py-5 space-y-4 flex-1 min-h-0">
           {error && (
             <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
@@ -1179,8 +1176,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
           </div>
 
-          {/* Stable Footer Action Buttons */}
-          <div className="p-3.5 sm:p-5 border-t border-purple-100 bg-gray-50/95 sm:rounded-b-2xl z-10 flex items-center justify-end gap-2.5 sm:gap-3 shrink-0 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] sm:pb-5">
+          {/* Stable Fixed Footer Action Buttons */}
+          <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-100 bg-gray-50/95 z-10 flex items-center justify-end gap-2.5 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}

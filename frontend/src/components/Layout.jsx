@@ -406,9 +406,18 @@ const Layout = ({ onLogout, user }) => {
       }
     };
 
+    const handleAlarmEvent = (e) => {
+      if (e.detail) {
+        console.log("⏰ Tasklert device alarm triggered:", e.detail);
+        setActiveAlarm(e.detail);
+      }
+    };
+
     navigator.serviceWorker.addEventListener("message", handleMessage);
+    window.addEventListener("tasklert:triggerAlarm", handleAlarmEvent);
     return () => {
       navigator.serviceWorker.removeEventListener("message", handleMessage);
+      window.removeEventListener("tasklert:triggerAlarm", handleAlarmEvent);
     };
   }, [fetchTasks, fetchNotifications]);
 
@@ -540,8 +549,12 @@ const Layout = ({ onLogout, user }) => {
       </div>
     );
 
+  const isMessagesPage = location.pathname === "/messages";
+  const isCalendarPage = location.pathname === "/calendar";
+  const isFixedViewportPage = isMessagesPage || isCalendarPage;
+
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-gray-50">
+    <div className={`min-h-screen w-full ${isFixedViewportPage ? "h-screen overflow-hidden" : "overflow-x-hidden"} bg-gray-50`}>
       <Navbar
         user={user}
         onLogout={onLogout}
@@ -566,10 +579,14 @@ const Layout = ({ onLogout, user }) => {
           sidebarCollapsed
             ? "ml-0 md:ml-20 lg:ml-20 xl:ml-20"
             : "ml-0 md:ml-20 lg:ml-64 xl:ml-64"
-        } pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 transition-all duration-300`}
+        } ${
+          isFixedViewportPage
+            ? "pt-[var(--app-header-height)] px-1 sm:px-2 md:px-4 pb-14 md:pb-0 h-screen overflow-hidden flex flex-col"
+            : "pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8"
+        } transition-all duration-300`}
       >
         {isFullWidthPage ? (
-          <div className="w-full min-w-0 animate-page-enter">
+          <div className={`w-full min-w-0 ${isFixedViewportPage ? "h-full flex-1 min-h-0 flex flex-col overflow-hidden" : "animate-page-enter"}`}>
             <ErrorBoundary>
               <Outlet context={outletContext} />
             </ErrorBoundary>

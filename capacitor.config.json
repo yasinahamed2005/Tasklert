@@ -1,0 +1,19 @@
+{
+  "appId": "com.tasklert.app",
+  "appName": "Tasklert",
+  "webDir": "frontend/dist",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_alarm",
+      "iconColor": "#9333EA",
+      "sound": "alarm_bell.wav"
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
+

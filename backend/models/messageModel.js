@@ -69,7 +69,7 @@ const messageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["draft", "scheduled", "processing", "sent", "failed", "cancelled", "queued"],
+      enum: ["draft", "scheduled", "processing", "sent", "failed", "cancelled", "queued", "ready"],
       default: "queued",
       index: true,
     },

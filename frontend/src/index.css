@@ -192,52 +192,318 @@ body.modal-scroll-locked {
   --text-strong: color-mix(in srgb, var(--primary) 58%, black);
   --text-muted: color-mix(in srgb, var(--primary) 42%, black);
 
-  /* Calendar Dynamic Surface Tokens */
-  --calendar-cell-bg: #ffffff;
-  --calendar-cell-alt: color-mix(in srgb, var(--primary) 4.5%, white);
-  --calendar-cell-hover: color-mix(in srgb, var(--primary) 9%, white);
-  --calendar-cell-selected: color-mix(in srgb, var(--primary) 14%, white);
-  --calendar-cell-selected-border: var(--primary);
-  --calendar-cell-selected-ring: color-mix(in srgb, var(--primary) 32%, transparent);
-  --calendar-cell-outside: color-mix(in srgb, var(--primary) 2%, #fafafa);
-  --calendar-cell-outside-alt: color-mix(in srgb, var(--primary) 4.5%, #f4f4f5);
-  --calendar-border: color-mix(in srgb, var(--primary) 18%, white);
-  --calendar-header-bg: color-mix(in srgb, var(--primary) 7.5%, white);
-  --calendar-header-text: color-mix(in srgb, var(--primary) 72%, black);
-  --calendar-today-badge-bg: var(--primary);
-  --calendar-today-badge-text: #ffffff;
-  --calendar-today-pill-bg: color-mix(in srgb, var(--primary) 18%, white);
-  --calendar-today-pill-text: color-mix(in srgb, var(--primary) 75%, black);
+  /* ============================================================
+     CALENDAR DYNAMIC TOKENS (Multi-Theme Adaptive)
+     Each theme provides its own complete palette for:
+     - Weekday headers bar (MON TUE WED THU FRI SAT SUN)
+     - View mode switcher (Month | Week | Day | Agenda)
+     - Unscheduled button & day cells
+     Strictly NO black/navy in light themes; only .theme-dark is dark!
+     ============================================================ */
+  --cal-header-bg: #faf5ff;
+  --cal-header-text: #7c3aed;
+  --cal-grid-border: #ede9fe;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #1e1b4b;
+  --cal-cell-outside: #faf5ff;
+  --cal-cell-outside-text: #a5b4fc;
+  --cal-cell-hover: #f5f3ff;
+  --cal-selected-bg: #f3e8ff;
+  --cal-selected-border: #8b5cf6;
+  --cal-today-badge: #8b5cf6;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #faf5ff;
+  --cal-tabs-border: #ddd6fe;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #6d28d9;
+  --cal-tab-inactive-text: #6b7280;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #ede9fe;
+  --calendar-border: #ede9fe;
 }
 
-/* Accessible high-contrast text overrides for light accent themes */
+/* 1. Ocean Blue Theme */
+.theme-blue {
+  --primary: #1e88e5;
+  --cal-header-bg: #f0f9ff;
+  --cal-header-text: #0369a1;
+  --cal-grid-border: #bae6fd;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #0f172a;
+  --cal-cell-outside: #f8fafc;
+  --cal-cell-outside-text: #94a3b8;
+  --cal-cell-hover: #f0f7ff;
+  --cal-selected-bg: #e0f2fe;
+  --cal-selected-border: #0284c7;
+  --cal-today-badge: #1e88e5;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #f0f9ff;
+  --cal-tabs-border: #bae6fd;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #0284c7;
+  --cal-tab-inactive-text: #0369a1;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #bae6fd;
+  --calendar-border: #bae6fd;
+}
+
+/* 2. Emerald Green Theme */
 .theme-green {
-  --calendar-today-badge-text: #14532d;
-  --calendar-today-pill-text: #14532d;
+  --primary: #16a34a;
+  --cal-header-bg: #f0fdf4;
+  --cal-header-text: #15803d;
+  --cal-grid-border: #dcfce7;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #052e16;
+  --cal-cell-outside: #f0fdf4;
+  --cal-cell-outside-text: #86efac;
+  --cal-cell-hover: #f0fdf4;
+  --cal-selected-bg: #dcfce7;
+  --cal-selected-border: #16a34a;
+  --cal-today-badge: #16a34a;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #f0fdf4;
+  --cal-tabs-border: #bbf7d0;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #15803d;
+  --cal-tab-inactive-text: #166534;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #dcfce7;
+  --calendar-border: #dcfce7;
+}
+
+/* 3. Warm Peach Theme (Adjusted completely to warm peach & terracotta, zero black) */
+.theme-peach {
+  --primary: #ea580c;
+  --cal-header-bg: #fff7ed;
+  --cal-header-text: #c2410c;
+  --cal-grid-border: #fed7aa;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #431407;
+  --cal-cell-outside: #fff7ed;
+  --cal-cell-outside-text: #a8a29e;
+  --cal-cell-hover: #fef3e2;
+  --cal-selected-bg: #ffedd5;
+  --cal-selected-border: #ea580c;
+  --cal-today-badge: #ea580c;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #fff7ed;
+  --cal-tabs-border: #fed7aa;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #c2410c;
+  --cal-tab-inactive-text: #9a3412;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #fed7aa;
+  --calendar-border: #fed7aa;
+}
+
+/* 4. Lavender Purple Theme */
+.theme-lavender {
+  --primary: #8b5cf6;
+  --cal-header-bg: #faf5ff;
+  --cal-header-text: #6d28d9;
+  --cal-grid-border: #ede9fe;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #1e1b4b;
+  --cal-cell-outside: #faf5ff;
+  --cal-cell-outside-text: #a5b4fc;
+  --cal-cell-hover: #f5f3ff;
+  --cal-selected-bg: #f3e8ff;
+  --cal-selected-border: #8b5cf6;
+  --cal-today-badge: #8b5cf6;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #faf5ff;
+  --cal-tabs-border: #ddd6fe;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #6d28d9;
+  --cal-tab-inactive-text: #5b21b6;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #ede9fe;
+  --calendar-border: #ede9fe;
+}
+
+/* 5. Vibrant Pink / Fuchsia Theme */
+.theme-pink {
+  --primary: #c026d3;
+  --cal-header-bg: #fdf2f8;
+  --cal-header-text: #be185d;
+  --cal-grid-border: #fbcfe8;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #ffffff;
+  --cal-cell-in-month-text: #500724;
+  --cal-cell-outside: #fdf2f8;
+  --cal-cell-outside-text: #f472b6;
+  --cal-cell-hover: #fdf2f8;
+  --cal-selected-bg: #fce7f3;
+  --cal-selected-border: #c026d3;
+  --cal-today-badge: #c026d3;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #fdf2f8;
+  --cal-tabs-border: #fbcfe8;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #be185d;
+  --cal-tab-inactive-text: #86198f;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #fbcfe8;
+  --calendar-border: #fbcfe8;
+}
+
+/* 6. Charcoal Dark Theme (The ONLY dark theme, Image 1 & 2 reference) */
+.theme-dark {
+  --primary: #38bdf8;
+  --cal-header-bg: #0b1120;
+  --cal-header-text: #93c5fd;
+  --cal-grid-border: #1e293b;
+  --cal-cell-in-month: #0f172a;
+  --cal-cell-alt: #141d2e;
+  --cal-cell-in-month-text: #f8fafc;
+  --cal-cell-outside: #090d16;
+  --cal-cell-outside-text: #475569;
+  --cal-cell-hover: #1e293b;
+  --cal-selected-bg: #1e3a5f;
+  --cal-selected-border: #38bdf8;
+  --cal-today-badge: #38bdf8;
+  --cal-today-text: #090e17;
+  --cal-tabs-bg: #0b1120;
+  --cal-tabs-border: #1e293b;
+  --cal-tab-active-bg: #1e293b;
+  --cal-tab-active-text: #f8fafc;
+  --cal-tab-inactive-text: #94a3b8;
+  --cal-sidebar-bg: #0f172a;
+  --cal-card-border: #1e293b;
+  --calendar-border: #1e293b;
+}
+
+/* ============================================================
+   TELEGRAM DESKTOP MESSAGING THEME SYSTEM
+   High contrast, WCAG AA compliant across all 6 themes
+   ============================================================ */
+
+:root,
+.theme-lavender {
+  --tg-chat-bg: #f8fafc;
+  --tg-bubble-in-bg: #f3f4f6; /* Soft pearl neutral */
+  --tg-bubble-in-text: #0f172a;
+  --tg-bubble-in-border: #e2e8f0;
+  --tg-bubble-in-meta: #64748b;
+  --tg-bubble-out-bg: #7c3aed; /* Rich vibrant brand purple */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: rgba(226, 232, 240, 0.9);
+  --tg-date-badge-border: #cbd5e1;
+  --tg-date-badge-text: #475569;
+}
+
+.theme-blue {
+  --tg-chat-bg: #f0f9ff;
+  --tg-bubble-in-bg: #f1f8fe; /* Soft sky neutral */
+  --tg-bubble-in-text: #0f172a;
+  --tg-bubble-in-border: #bae6fd;
+  --tg-bubble-in-meta: #475569;
+  --tg-bubble-out-bg: #0284c7; /* Vibrant ocean blue */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: #e0f2fe;
+  --tg-date-badge-border: #bae6fd;
+  --tg-date-badge-text: #0369a1;
 }
 
 .theme-peach {
-  --calendar-today-badge-text: #431407;
-  --calendar-today-pill-text: #431407;
+  --tg-chat-bg: #fafaf9;
+  --tg-bubble-in-bg: #fef7ee; /* Warm soft peach cream */
+  --tg-bubble-in-text: #1c1917;
+  --tg-bubble-in-border: #fed7aa;
+  --tg-bubble-in-meta: #78716c;
+  --tg-bubble-out-bg: #c2410c; /* Deep warm terracotta with pure white text */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: #ffedd5;
+  --tg-date-badge-border: #fed7aa;
+  --tg-date-badge-text: #9a3412;
 }
 
-/* Dedicated dark-mode calendar surface tokens */
+.theme-green {
+  --tg-chat-bg: #f0fdf4;
+  --tg-bubble-in-bg: #f2fbf4; /* Soft sage neutral */
+  --tg-bubble-in-text: #0f172a;
+  --tg-bubble-in-border: #bbf7d0;
+  --tg-bubble-in-meta: #475569;
+  --tg-bubble-out-bg: #15803d; /* Deep emerald green with pure white text */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: #dcfce7;
+  --tg-date-badge-border: #bbf7d0;
+  --tg-date-badge-text: #166534;
+}
+
+.theme-pink {
+  --tg-chat-bg: #fdf4ff;
+  --tg-bubble-in-bg: #fdf2f8; /* Soft rose neutral */
+  --tg-bubble-in-text: #0f172a;
+  --tg-bubble-in-border: #f5d0fe;
+  --tg-bubble-in-meta: #701a75;
+  --tg-bubble-out-bg: #c026d3; /* Vivid fuchsia with pure white text */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: #fae8ff;
+  --tg-date-badge-border: #f5d0fe;
+  --tg-date-badge-text: #86198f;
+}
+
 .theme-dark {
-  --calendar-cell-bg: #1e293b;
-  --calendar-cell-alt: #172033;
-  --calendar-cell-hover: #293548;
-  --calendar-cell-selected: #1e3a5f;
-  --calendar-cell-selected-border: #60a5fa;
-  --calendar-cell-selected-ring: rgba(96, 165, 250, 0.35);
-  --calendar-cell-outside: #0f172a;
-  --calendar-cell-outside-alt: #090e1a;
-  --calendar-border: #334155;
-  --calendar-header-bg: #0f172a;
-  --calendar-header-text: #f1f5f9;
-  --calendar-today-badge-bg: #3b82f6;
-  --calendar-today-badge-text: #ffffff;
-  --calendar-today-pill-bg: #1e3a5f;
-  --calendar-today-pill-text: #93c5fd;
+  --tg-chat-bg: #0b1120;
+  --tg-bubble-in-bg: #1e293b; /* Charcoal slate surface */
+  --tg-bubble-in-text: #f8fafc;
+  --tg-bubble-in-border: #334155;
+  --tg-bubble-in-meta: #94a3b8;
+  --tg-bubble-out-bg: #6366f1; /* Vibrant indigo with pure white text */
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-out-meta: rgba(255, 255, 255, 0.92);
+  --tg-date-badge-bg: rgba(30, 41, 59, 0.9);
+  --tg-date-badge-border: #334155;
+  --tg-date-badge-text: #cbd5e1;
+}
+
+/* Telegram Desktop Smooth Independent Scrollbar */
+.tg-custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.3) transparent;
+}
+
+.tg-custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tg-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tg-custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(168, 85, 247, 0.3);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.tg-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(168, 85, 247, 0.55);
+}
+
+.theme-dark .tg-custom-scrollbar {
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.theme-dark .tg-custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.35);
+}
+
+.theme-dark .tg-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.6);
 }
 
 /* Reusable Calendar Dynamic Surface Classes */
@@ -333,6 +599,25 @@ body.modal-scroll-locked {
 .bg-fuchsia-600,
 .bg-fuchsia-700 {
   background-color: var(--primary-600) !important;
+}
+
+/* Telegram connection actions must remain readable across user themes. */
+.telegram-connect-cta {
+  background-image: linear-gradient(90deg, #7c3aed, #4f46e5 52%, #2563eb) !important;
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(67, 56, 202, 0.35);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
+}
+
+.telegram-connect-cta:hover {
+  background-image: linear-gradient(90deg, #6d28d9, #4338ca 52%, #1d4ed8) !important;
+  color: #ffffff !important;
+}
+
+.telegram-connect-cta:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
 }
 
 .border-purple-100,
@@ -909,4 +1194,57 @@ body.modal-scroll-locked {
 
 .Toastify__close-button:hover {
   opacity: 1 !important;
+}
+
+/* ==========================================================================
+   QUICKSEND / EMAIL / TELEGRAM ULTRA-CLEAN SCROLLBAR UTILITIES
+   ========================================================================== */
+.tg-custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.tg-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tg-custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.2);
+  border-radius: 9999px;
+}
+.tg-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.4);
+}
+.tg-custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.2) transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   FOCUS TIMER LIQUID ORB ANIMATIONS
+   ========================================================================== */
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.22;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.45;
+  }
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

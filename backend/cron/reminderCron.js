@@ -14,6 +14,7 @@ import {
   sanitizeTimeZone,
 } from "../utils/timeZone.js";
 import { processScheduledMessages } from "./messageScheduler.js";
+import { processDueTelegramScheduledMessages } from "../services/telegram/telegramScheduler.service.js";
 
 
 const startOfDay = (date) =>
@@ -216,8 +217,9 @@ export const processScheduledAlarms = async (now = new Date()) => {
         }
       }
 
-      // 3. DISPATCH EMAIL (If requested and configured)
-      if (claimed.channels?.email && isEmailConfigured()) {
+      // 3. DISPATCH EMAIL (If requested and configured, strictly NEVER for calendar reminders)
+      const isCalendarReminder = claimed.source === "calendar_reminder" || claimed.source === "calendar" || Boolean(claimed.task?.isCalendarEvent);
+      if (!isCalendarReminder && claimed.channels?.email && isEmailConfigured()) {
         const user = await User.findById(claimed.owner).select("name email");
         if (user?.email) {
           const actionLink = `${appUrl}/?taskId=${taskId}`;
@@ -364,13 +366,16 @@ export const processScheduledAlarms = async (now = new Date()) => {
   }
 };
 
-// Check and send Priority-based advance email alerts
+// Check and send Priority-based advance email alerts (for main tasks only, never calendar events)
 export const processPriorityEmailAlerts = async (now = new Date()) => {
   if (!isEmailConfigured()) return;
 
   const tasks = await Task.find({
     dueDate: { $ne: null },
     completed: false,
+    isDeleted: { $ne: true },
+    isCalendarEvent: { $ne: true },
+    source: { $ne: "calendar_reminder" },
   }).limit(50);
 
   for (const task of tasks) {
@@ -443,7 +448,7 @@ export const processPriorityEmailAlerts = async (now = new Date()) => {
   }
 };
 
-// Check Smart Reminders (exact date and time email notification for tasks)
+// Check Smart Reminders (exact date and time email notification for main tasks, never calendar events)
 export const processSmartReminders = async (now = new Date()) => {
   if (!isEmailConfigured()) return;
 
@@ -451,6 +456,9 @@ export const processSmartReminders = async (now = new Date()) => {
     reminderEnabled: true,
     reminderAt: { $ne: null, $lte: now },
     completed: false,
+    isDeleted: { $ne: true },
+    isCalendarEvent: { $ne: true },
+    source: { $ne: "calendar_reminder" },
     sentPriorityAlerts: { $ne: "smart_reminder" },
   }).limit(50);
 
@@ -566,6 +574,9 @@ export const runCronCycle = async () => {
 
     // 4. QuickSend Scheduled Message Delivery Engine
     await processScheduledMessages(now);
+
+    // 5. Telegram MTProto Scheduled Message Dispatcher
+    await processDueTelegramScheduledMessages().catch((e) => console.warn("[TelegramScheduler Error]:", e.message));
   } catch (err) {
     console.error("Reminder scheduler cycle error:", err.message);
   } finally {
@@ -631,10 +642,54 @@ export const processScheduledFocusSessions = async (now = new Date()) => {
   }
 };
 
+/**
+ * Neutralize any pending email flags for calendar reminders so they never send email
+ */
+export const cleanCalendarReminderEmailJobs = async () => {
+  try {
+    await Reminder.updateMany(
+      {
+        $or: [
+          { source: "calendar_reminder" },
+          { source: "calendar" },
+        ],
+        "channels.email": true,
+      },
+      {
+        $set: { "channels.email": false },
+      }
+    );
+
+    await Task.updateMany(
+      {
+        $or: [
+          { isCalendarEvent: true },
+          { source: "calendar_reminder" },
+          { source: "calendar" },
+        ],
+      },
+      {
+        $set: {
+          reminderEnabled: false,
+          reminderAt: null,
+        },
+        $addToSet: {
+          sentPriorityAlerts: { $each: ["smart_reminder", "low_18", "medium_24", "high_32", "high_18"] },
+        },
+      }
+    );
+  } catch (err) {
+    console.warn("cleanCalendarReminderEmailJobs warning:", err.message);
+  }
+};
+
 export const startReminderCron = () => {
   if (schedulerTimer) return; // Prevent duplicate interval registration
 
   console.log("⏰ Tasklert Smart Alarm Scheduler active (30s interval with concurrency lock)");
+
+  // Cancel any stale calendar email jobs on startup
+  cleanCalendarReminderEmailJobs().catch(() => {});
 
   // Initial immediate cycle on startup
   runCronCycle().catch(() => {});

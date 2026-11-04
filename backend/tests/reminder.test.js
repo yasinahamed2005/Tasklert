@@ -224,3 +224,28 @@ test("Scheduler Logic — Snooze duration bounds and validation", () => {
   assert.equal(isValidDuration("invalid"), false);
   assert.equal(isValidDuration(null), false);
 });
+
+test("TimeZone Utilities — Monthly & Yearly Wall-Clock Recurrence", () => {
+  const timeZone = "Asia/Kolkata";
+  const baseDate = new Date("2026-05-15T04:30:00Z"); // 10:00 AM IST
+
+  // Monthly recurrence
+  const nextMonth = getNextWallClockOccurrence(baseDate, "monthly", timeZone);
+  assert.ok(nextMonth);
+  const mParts = getLocalParts(nextMonth, timeZone);
+  assert.equal(mParts.year, 2026);
+  assert.equal(mParts.month, 6);
+  assert.equal(mParts.day, 15);
+  assert.equal(mParts.hour, 10);
+  assert.equal(mParts.minute, 0);
+
+  // Yearly recurrence
+  const nextYear = getNextWallClockOccurrence(baseDate, "yearly", timeZone);
+  assert.ok(nextYear);
+  const yParts = getLocalParts(nextYear, timeZone);
+  assert.equal(yParts.year, 2027);
+  assert.equal(yParts.month, 5);
+  assert.equal(yParts.day, 15);
+  assert.equal(yParts.hour, 10);
+  assert.equal(yParts.minute, 0);
+});

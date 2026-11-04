@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { HEADER, WRAPPER, ADD_BUTTON, ICON_WRAPPER,STAT_CARD,STATS,STATS_GRID,VALUE_CLASS, LABEL_CLASS, FILTER_WRAPPER } from '../assets/dummy';
-import { HomeIcon, Plus, Filter, CalendarIcon, Search, X, BellRing, Clock, ArrowRight, Volume2, Folder, Tag, CheckSquare, Square, Trash2, CheckCircle2, RotateCcw, Sparkles, Timer, AlertTriangle, Send, BarChart3, AlarmClock, ArrowUpDown, SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
+import { HomeIcon, ListChecks, Plus, Filter, CalendarIcon, Search, X, BellRing, Clock, ArrowRight, Volume2, Folder, Tag, CheckSquare, Square, Trash2, CheckCircle2, RotateCcw, Sparkles, Timer, AlertTriangle, Send, BarChart3, AlarmClock, ArrowUpDown, SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -538,10 +538,15 @@ const Dashboard = () => {
       <button
         type="button"
         onClick={() => setShowModal(true)}
-        className="w-full py-3.5 mb-5 rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 text-white font-bold text-sm shadow-md active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer md:hidden"
+        className="w-full py-3.5 mb-5 rounded-2xl text-white font-bold text-sm shadow-md active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer md:hidden hover:brightness-105"
+        style={{
+          backgroundColor: "var(--primary, #8b5cf6)",
+          color: "#ffffff",
+          boxShadow: "0 4px 14px -2px rgba(0, 0, 0, 0.18)",
+        }}
       >
-        <Plus className="w-4 h-4" />
-        <span>+ Add New Task</span>
+        <Plus className="w-4 h-4 stroke-[2.5]" />
+        <span>Add New Task</span>
       </button>
 
       {/* MOBILE SCREEN 3 QUICK ACTIONS ROW */}
@@ -550,43 +555,71 @@ const Dashboard = () => {
         <div className="grid grid-cols-4 gap-2 text-center">
           <button
             type="button"
-            onClick={() => navigate('/messages')}
+            onClick={() => navigate("/pending")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-full bg-purple-50 group-hover:bg-purple-100 border border-purple-100 flex items-center justify-center text-purple-600 transition shadow-2xs group-active:scale-95">
-              <Send className="w-5 h-5" />
+            <div
+              className="w-12 h-12 rounded-full border flex items-center justify-center transition shadow-2xs group-active:scale-95"
+              style={{
+                backgroundColor: "var(--primary-50, #f5f3ff)",
+                borderColor: "var(--primary-200, #ddd6fe)",
+                color: "var(--primary, #8b5cf6)",
+              }}
+            >
+              <ListChecks className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-medium text-gray-700 group-hover:text-purple-700">QuickSend</span>
+            <span className="text-[11px] font-medium text-gray-700">Tasks</span>
           </button>
           <button
             type="button"
-            onClick={() => navigate('/alarms')}
+            onClick={() => navigate("/alarms")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-full bg-purple-50 group-hover:bg-purple-100 border border-purple-100 flex items-center justify-center text-purple-600 transition shadow-2xs group-active:scale-95">
+            <div
+              className="w-12 h-12 rounded-full border flex items-center justify-center transition shadow-2xs group-active:scale-95"
+              style={{
+                backgroundColor: "var(--primary-50, #f5f3ff)",
+                borderColor: "var(--primary-200, #ddd6fe)",
+                color: "var(--primary, #8b5cf6)",
+              }}
+            >
               <AlarmClock className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-medium text-gray-700 group-hover:text-purple-700">Alarms</span>
+            <span className="text-[11px] font-medium text-gray-700">Alarms</span>
           </button>
           <button
             type="button"
-            onClick={() => navigate('/calendar')}
+            onClick={() => navigate("/calendar")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-full bg-purple-50 group-hover:bg-purple-100 border border-purple-100 flex items-center justify-center text-purple-600 transition shadow-2xs group-active:scale-95">
+            <div
+              className="w-12 h-12 rounded-full border flex items-center justify-center transition shadow-2xs group-active:scale-95"
+              style={{
+                backgroundColor: "var(--primary-50, #f5f3ff)",
+                borderColor: "var(--primary-200, #ddd6fe)",
+                color: "var(--primary, #8b5cf6)",
+              }}
+            >
               <CalendarIcon className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-medium text-gray-700 group-hover:text-purple-700">Calendar</span>
+            <span className="text-[11px] font-medium text-gray-700">Calendar</span>
           </button>
           <button
             type="button"
-            onClick={() => navigate('/analytics')}
+            onClick={() => navigate("/analytics")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-full bg-purple-50 group-hover:bg-purple-100 border border-purple-100 flex items-center justify-center text-purple-600 transition shadow-2xs group-active:scale-95">
+            <div
+              className="w-12 h-12 rounded-full border flex items-center justify-center transition shadow-2xs group-active:scale-95"
+              style={{
+                backgroundColor: "var(--primary-50, #f5f3ff)",
+                borderColor: "var(--primary-200, #ddd6fe)",
+                color: "var(--primary, #8b5cf6)",
+              }}
+            >
               <BarChart3 className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-medium text-gray-700 group-hover:text-purple-700">Analytics</span>
+            <span className="text-[11px] font-medium text-gray-700">Analytics</span>
           </button>
         </div>
       </div>

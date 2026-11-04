@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Message from "../models/messageModel.js";
+import MessagingAccount from "../models/messagingAccountModel.js";
 import { dispatchQuickSendMessage } from "../services/quicksendService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -86,6 +87,32 @@ export const processScheduledMessages = async (now = new Date()) => {
         // Load attachments if any
         const files = loadAttachmentsFromDisk(claimed.attachments);
 
+        // Fetch user-level credentials if connected
+        const userAccount = await MessagingAccount.findOne({
+          owner: claimed.owner,
+          channel: claimed.channel,
+          status: "connected",
+        }).lean();
+
+        // If this is Personal WhatsApp (Web Direct), transition to 'ready' reminder workflow
+        if (claimed.channel === "whatsapp" && userAccount?.providerType === "web_direct") {
+          const cleanPhone = claimed.recipient.replace(/[^0-9]/g, "");
+          const directUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(claimed.message || "")}`;
+          await Message.updateOne(
+            { _id: claimed._id },
+            {
+              status: "ready",
+              sentAt: now,
+              isClaimed: false,
+              claimedAt: null,
+              providerMessageId: `wd_reminder_${Date.now()}`,
+              providerResponse: { type: "web_direct_reminder", url: directUrl },
+              error: null,
+            }
+          );
+          continue;
+        }
+
         // Dispatch via provider
         const result = await dispatchQuickSendMessage({
           channel: claimed.channel,
@@ -96,6 +123,13 @@ export const processScheduledMessages = async (now = new Date()) => {
           files,
           cc: claimed.cc || "",
           bcc: claimed.bcc || "",
+          credentials: userAccount
+            ? {
+                ...(userAccount.credentials || {}),
+                providerType: userAccount.providerType,
+                isWebDirect: userAccount.providerType === "web_direct",
+              }
+            : null,
         });
 
         // Mark sent

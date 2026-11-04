@@ -70,6 +70,43 @@ const taskSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  startDate: {
+    type: Date,
+    default: null,
+    index: true,
+  },
+  endDate: {
+    type: Date,
+    default: null,
+  },
+  allDay: {
+    type: Boolean,
+    default: false,
+  },
+  eventColor: {
+    type: String,
+    default: "#2563eb",
+  },
+  location: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+  notes: {
+    type: String,
+    default: "",
+  },
+  isCalendarEvent: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  source: {
+    type: String,
+    enum: ["task", "calendar", "calendar_reminder", "system"],
+    default: "task",
+    index: true,
+  },
   emailReminderLastSentAt: {
     type: Date,
     default: null,

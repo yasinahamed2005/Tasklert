@@ -1,9 +1,13 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config(); // fallback to cwd if any
 
 import { connectDB } from './config/db.js';
 import { getJwtSecret } from './config/jwt.js';
@@ -18,9 +22,10 @@ import projectRouter from './routes/projectRoute.js';
 import templateRouter from './routes/templateRoute.js';
 import focusRouter from './routes/focusRoute.js';
 import analyticsRouter from './routes/analyticsRoute.js';
+import telegramRouter from './routes/telegram.routes.js';
+import emailRouter from './routes/email.routes.js';
+import { closeAllTelegramClients } from './services/telegram/telegramClient.service.js';
 import { startReminderCron } from './cron/reminderCron.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Verify JWT secret configuration at startup
 try {
@@ -115,6 +120,8 @@ app.use("/api/messages", messageRouter);
 app.use("/api/contacts", contactRouter);
 app.use("/api/focus", focusRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/telegram", telegramRouter);
+app.use("/api/email", emailRouter);
 
 app.get('/', (req, res) => {
   res.send('API WORKING');
@@ -131,6 +138,16 @@ app.use((err, req, res, next) => {
     message: process.env.NODE_ENV === "production" ? "Internal server error." : (err.message || "Server Error"),
   });
 });
+
+// Graceful shutdown
+const shutdown = async () => {
+  try {
+    await closeAllTelegramClients();
+  } catch (_) {}
+  process.exit(0);
+};
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 // Start server
 app.listen(port, () => {

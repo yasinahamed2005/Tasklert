@@ -134,18 +134,33 @@ export const getNextWallClockOccurrence = (currentDate, repeat, timeZone = "UTC"
   const safeTz = sanitizeTimeZone(timeZone);
   const local = getLocalParts(currentDate, safeTz);
 
+  let targetYear = local.year;
+  let targetMonth = local.month;
   let targetDay = local.day;
+
   if (repeat === "daily") {
     targetDay += 1;
   } else if (repeat === "weekly") {
     targetDay += 7;
+  } else if (repeat === "monthly") {
+    targetMonth += 1;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
+    }
+    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+    targetDay = Math.min(targetDay, maxDays);
+  } else if (repeat === "yearly") {
+    targetYear += 1;
+    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+    targetDay = Math.min(targetDay, maxDays);
   } else {
     return null;
   }
 
   return createUtcDateFromLocalParts(
-    local.year,
-    local.month,
+    targetYear,
+    targetMonth,
     targetDay,
     local.hour,
     local.minute,

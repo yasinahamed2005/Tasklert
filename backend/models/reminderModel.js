@@ -24,6 +24,19 @@ const reminderSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    notes: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    scheduledDate: {
+      type: String,
+      default: "",
+    },
+    scheduledTime: {
+      type: String,
+      default: "",
+    },
     scheduledAt: {
       type: Date,
       required: true,
@@ -38,10 +51,25 @@ const reminderSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    notificationEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    vibrationEnabled: {
+      type: Boolean,
+      default: true,
+    },
     sound: {
       type: String,
-      enum: ["digital", "classic", "chime", "bell", "soft"],
       default: "digital",
+    },
+    soundType: {
+      type: String,
+      default: "digital",
+    },
+    soundUri: {
+      type: String,
+      default: "",
     },
     volume: {
       type: Number,
@@ -51,23 +79,41 @@ const reminderSchema = new mongoose.Schema(
     },
     repeat: {
       type: String,
-      enum: ["never", "daily", "weekly"],
+      enum: ["never", "daily", "weekly", "monthly", "yearly", "custom"],
       default: "never",
+    },
+    recurrence: {
+      frequency: {
+        type: String,
+        default: "none",
+      },
+      interval: {
+        type: Number,
+        default: 1,
+      },
+      daysOfWeek: {
+        type: [Number],
+        default: [],
+      },
     },
     snoozeDuration: {
       type: Number,
-      enum: [5, 10, 15, 30],
       default: 5,
     },
     advanceNoticeMinutes: {
       type: Number,
-      enum: [0, 5, 10, 15, 30],
       default: 0,
     },
     channels: {
       push: { type: Boolean, default: true },
       inApp: { type: Boolean, default: true },
       email: { type: Boolean, default: false },
+    },
+    source: {
+      type: String,
+      enum: ["calendar", "calendar_reminder", "task", "system"],
+      default: "calendar_reminder",
+      index: true,
     },
     status: {
       type: String,
@@ -84,6 +130,13 @@ const reminderSchema = new mongoose.Schema(
       default: "scheduled",
       index: true,
     },
+    history: [
+      {
+        action: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        details: { type: String, default: "" },
+      },
+    ],
     priority: {
       type: String,
       enum: ["Low", "Medium", "High"],

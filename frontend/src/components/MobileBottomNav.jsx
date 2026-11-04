@@ -29,8 +29,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
   const username = user?.name || "User";
   const email = user?.email || "";
 
-  const isTasksActive = location.pathname === "/pending" || location.pathname === "/complete";
-  const isMoreActive = ["/settings", "/profile", "/messages", "/analytics", "/alarms"].includes(location.pathname) || moreOpen;
+  const isMoreActive = ["/settings", "/profile", "/analytics", "/alarms", "/pending", "/complete"].includes(location.pathname) || moreOpen;
 
   const handleNav = (path) => {
     setMoreOpen(false);
@@ -42,7 +41,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION BAR */}
       <nav
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-purple-100/80 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. HOME */}
@@ -52,7 +51,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
                   ? "text-[color:var(--primary)] font-bold"
-                  : "text-gray-500 hover:text-gray-800 font-medium"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`
             }
           >
@@ -62,52 +61,14 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             <span className="text-[10px] mt-0.5 tracking-tight">Home</span>
           </NavLink>
 
-          {/* 2. TASKS */}
-          <button
-            type="button"
-            onClick={() => handleNav("/pending")}
-            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
-              isTasksActive && !moreOpen
-                ? "text-[color:var(--primary)] font-bold"
-                : "text-gray-500 hover:text-gray-800 font-medium"
-            }`}
-          >
-            <div className="relative">
-              <ListChecks className="w-5 h-5" />
-              {pendingCount > 0 && (
-                <span className="absolute -top-1 -right-2 px-1 min-w-[14px] h-3.5 rounded-full bg-[color:var(--primary)] text-white text-[9px] font-bold flex items-center justify-center">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight">Tasks</span>
-          </button>
-
-          {/* 3. CALENDAR */}
-          <NavLink
-            to="/calendar"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
-                isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold"
-                  : "text-gray-500 hover:text-gray-800 font-medium"
-              }`
-            }
-          >
-            <div className="relative">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight">Calendar</span>
-          </NavLink>
-
-          {/* 4. FOCUS */}
+          {/* 2. FOCUS (Replaced Tasks) */}
           <NavLink
             to="/focus"
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
                   ? "text-[color:var(--primary)] font-bold"
-                  : "text-gray-500 hover:text-gray-800 font-medium"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`
             }
           >
@@ -117,6 +78,40 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             <span className="text-[10px] mt-0.5 tracking-tight">Focus</span>
           </NavLink>
 
+          {/* 3. CALENDAR */}
+          <NavLink
+            to="/calendar"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
+                isActive && !moreOpen
+                  ? "text-[color:var(--primary)] font-bold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`
+            }
+          >
+            <div className="relative">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Calendar</span>
+          </NavLink>
+
+          {/* 4. QUICKSEND (Added in place of Focus) */}
+          <NavLink
+            to="/messages"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
+                isActive && !moreOpen
+                  ? "text-[color:var(--primary)] font-bold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`
+            }
+          >
+            <div className="relative">
+              <Send className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">QuickSend</span>
+          </NavLink>
+
           {/* 5. MORE */}
           <button
             type="button"
@@ -124,7 +119,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
               isMoreActive
                 ? "text-[color:var(--primary)] font-bold"
-                : "text-gray-500 hover:text-gray-800 font-medium"
+                : "text-slate-500 hover:text-slate-800 font-medium"
             }`}
           >
             <div className="relative">
@@ -146,22 +141,22 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             if (e.target === e.currentTarget) setMoreOpen(false);
           }}
         >
-          <div className="bg-white rounded-t-3xl border-t border-purple-100 shadow-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto overscroll-contain animate-slideUp">
+          <div className="bg-white rounded-t-3xl border-t border-slate-100 shadow-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto overscroll-contain animate-slideUp">
             {/* Header / Grab Bar */}
-            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
+            <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3" />
 
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
               <div className="flex items-center gap-3">
                 <UserAvatar user={user} size="md" showStatus statusColor="bg-emerald-500" />
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-gray-800 truncate">{username}</h3>
-                  <p className="text-xs text-gray-500 truncate">{email || "Tasklert Member"}</p>
+                  <h3 className="text-sm font-bold text-slate-800 truncate">{username}</h3>
+                  <p className="text-xs text-slate-500 truncate">{email || "Tasklert Member"}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
-                className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -170,38 +165,33 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
 
             {/* Navigation List */}
             <div className="space-y-1">
+              {/* Tasks & To-Dos */}
               <button
                 type="button"
-                onClick={() => handleNav("/profile")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+                onClick={() => handleNav("/pending")}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-slate-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
-                    <User className="w-4 h-4" />
+                    <ListChecks className="w-4 h-4" />
                   </div>
-                  <span className="text-sm font-semibold">My Profile</span>
+                  <span className="text-sm font-semibold">Tasks &amp; To-Dos</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <div className="flex items-center gap-2">
+                  {pendingCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-[color:var(--primary)] text-white text-[10px] font-bold">
+                      {pendingCount}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleNav("/settings")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
-                    <Settings className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-semibold">Account Settings</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-
+              {/* Alarms & Clock */}
               <button
                 type="button"
                 onClick={() => handleNav("/alarms")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-slate-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
@@ -209,13 +199,14 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
                   </div>
                   <span className="text-sm font-semibold">Alarms &amp; Clock</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </button>
 
+              {/* Analytics & Productivity */}
               <button
                 type="button"
                 onClick={() => handleNav("/analytics")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-slate-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
@@ -223,24 +214,41 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
                   </div>
                   <span className="text-sm font-semibold">Analytics &amp; Productivity</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </button>
 
+              {/* Account Settings */}
               <button
                 type="button"
-                onClick={() => handleNav("/messages")}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-gray-700 transition cursor-pointer"
+                onClick={() => handleNav("/settings")}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-slate-700 transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
-                    <Send className="w-4 h-4" />
+                    <Settings className="w-4 h-4" />
                   </div>
-                  <span className="text-sm font-semibold">QuickSend Messenger</span>
+                  <span className="text-sm font-semibold">Account Settings</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </button>
 
-              <div className="pt-2 border-t border-gray-100 mt-2">
+              {/* My Profile */}
+              <button
+                type="button"
+                onClick={() => handleNav("/profile")}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[color:var(--primary-50)] text-slate-700 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[color:var(--primary-50)] text-[color:var(--primary-700)]">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-semibold">My Profile</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Log Out */}
+              <div className="pt-2 border-t border-slate-100 mt-2">
                 <button
                   type="button"
                   onClick={() => {
