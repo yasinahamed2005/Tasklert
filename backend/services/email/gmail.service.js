@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import { getFreshGmailAccessToken } from "./emailAuth.service.js";
 
 /**
@@ -476,3 +477,74 @@ export const trashGmailMessage = async (account, messageId) => {
   return await res.json();
 };
 
+/**
+ * Send an email via genuine Gmail REST API (https://gmail.googleapis.com/gmail/v1/users/me/messages/send)
+ * Compiles full RFC 2822 MIME message with HTML, text, attachments, CC, BCC, and Reply-To headers.
+ */
+export const sendGmailMessage = async (
+  account,
+  { from, to, cc, bcc, replyTo, subject, html, text, attachments = [] }
+) => {
+  if (!account) {
+    throw new Error("A connected Gmail account is required to send via Gmail API.");
+  }
+
+  const token = await getFreshGmailAccessToken(account);
+
+  const formattedAttachments = (attachments || [])
+    .map((att) => ({
+      filename: att.originalname || att.name || att.filename || "attachment",
+      content: att.buffer || att.content,
+      path: att.path,
+      contentType: att.mimetype || att.mimeType || att.contentType,
+    }))
+    .filter((a) => a.content || a.path);
+
+  const toList = (Array.isArray(to) ? to : [to]).map((e) => String(e).trim()).filter(Boolean);
+  const ccList = (Array.isArray(cc) ? cc : cc ? [cc] : []).map((e) => String(e).trim()).filter(Boolean);
+  const bccList = (Array.isArray(bcc) ? bcc : bcc ? [bcc] : []).map((e) => String(e).trim()).filter(Boolean);
+
+  if (toList.length === 0) {
+    throw new Error("At least one recipient email address is required.");
+  }
+
+  const transporter = nodemailer.createTransport({ streamTransport: true, buffer: true });
+  const mailOptions = {
+    from: from || account.email,
+    to: toList.join(", "),
+    cc: ccList.length ? ccList.join(", ") : undefined,
+    bcc: bccList.length ? bccList.join(", ") : undefined,
+    replyTo: replyTo || undefined,
+    subject: subject || "",
+    html: html || undefined,
+    text: text || (html ? html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : ""),
+    attachments: formattedAttachments.length ? formattedAttachments : undefined,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  const rawBase64 = info.message.toString("base64url");
+
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw: rawBase64 }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    const errorMsg = errData.error?.message || `Gmail API send error (${res.status})`;
+    throw new Error(`Gmail API submission failed: ${errorMsg}`);
+  }
+
+  const result = await res.json();
+  return {
+    success: true,
+    messageId: result.id,
+    threadId: result.threadId,
+    labelIds: result.labelIds,
+    rawResult: result,
+  };
+};

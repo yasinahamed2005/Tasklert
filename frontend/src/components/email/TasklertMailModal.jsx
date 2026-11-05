@@ -298,39 +298,61 @@ export default function TasklertMailModal({
               </button>
             </div>
 
-            {/* Channel Options Radio Cards */}
+            {/* Channel Options Radio Cards: 1. Tasklert Mail, 2. Email, 3. Telegram */}
             <div className="space-y-3 py-5">
-              {/* Option 1: Tasklert Mail (Recommended / Selected) */}
+              {/* Option 1: Tasklert Mail */}
               <div
                 onClick={() => setSelectedChannel("tasklert_mail")}
                 className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                   selectedChannel === "tasklert_mail"
-                    ? "border-purple-600 bg-purple-50/60 shadow-xs"
-                    : "border-gray-100 hover:border-purple-200 bg-white"
+                    ? "border-emerald-600 bg-emerald-50/60 shadow-xs"
+                    : "border-gray-100 hover:border-emerald-200 bg-white"
                 }`}
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                     <Mail className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-extrabold text-gray-900">Tasklert Mail</span>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold">
-                        Recommended
-                      </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">Send a professional mail from Tasklert.</p>
                   </div>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedChannel === "tasklert_mail" ? "border-purple-600 bg-purple-600" : "border-gray-300"
+                  selectedChannel === "tasklert_mail" ? "border-emerald-600 bg-emerald-600" : "border-gray-300"
                 }`}>
                   {selectedChannel === "tasklert_mail" && <Check className="w-3 h-3 text-white stroke-[3]" />}
                 </div>
               </div>
 
-              {/* Option 2: Telegram */}
+              {/* Option 2: Email */}
+              <div
+                onClick={() => setSelectedChannel("email")}
+                className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                  selectedChannel === "email"
+                    ? "border-purple-600 bg-purple-50/60 shadow-xs"
+                    : "border-gray-100 hover:border-purple-200 bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-extrabold text-gray-900">Email</span>
+                    <p className="text-xs text-gray-500 mt-0.5">Sync and send via Gmail or Outlook.</p>
+                  </div>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedChannel === "email" ? "border-purple-600 bg-purple-600" : "border-gray-300"
+                }`}>
+                  {selectedChannel === "email" && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                </div>
+              </div>
+
+              {/* Option 3: Telegram */}
               <div
                 onClick={() => setSelectedChannel("telegram")}
                 className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
@@ -352,31 +374,6 @@ export default function TasklertMailModal({
                   selectedChannel === "telegram" ? "border-purple-600 bg-purple-600" : "border-gray-300"
                 }`}>
                   {selectedChannel === "telegram" && <Check className="w-3 h-3 text-white stroke-[3]" />}
-                </div>
-              </div>
-
-              {/* Option 3: Personal Email */}
-              <div
-                onClick={() => setSelectedChannel("email")}
-                className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                  selectedChannel === "email"
-                    ? "border-purple-600 bg-purple-50/60 shadow-xs"
-                    : "border-gray-100 hover:border-purple-200 bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Mail className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-sm font-extrabold text-gray-900">Personal Email</span>
-                    <p className="text-xs text-gray-500 mt-0.5">Sync and send via Gmail or Outlook.</p>
-                  </div>
-                </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedChannel === "email" ? "border-purple-600 bg-purple-600" : "border-gray-300"
-                }`}>
-                  {selectedChannel === "email" && <Check className="w-3 h-3 text-white stroke-[3]" />}
                 </div>
               </div>
             </div>

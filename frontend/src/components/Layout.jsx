@@ -131,6 +131,18 @@ const Layout = ({ onLogout, user }) => {
   const knownNotificationIdsRef = useRef(new Set());
   const currentUserIdRef = useRef(user?.id || user?._id || localStorage.getItem("userId") || "");
 
+  // Maintain clean root canvas color when in logged-in workspace (no white flash on bounce)
+  useEffect(() => {
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyBg = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = "#F9FAFB";
+    document.body.style.backgroundColor = "#F9FAFB";
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.backgroundColor = prevBodyBg;
+    };
+  }, []);
+
   // Reset notification state on user logout or account switch to prevent data leakage
   useEffect(() => {
     const activeId = user?.id || user?._id || localStorage.getItem("userId") || "";

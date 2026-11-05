@@ -76,6 +76,17 @@ const Landing = () => {
   useBodyScrollLock(mobileOpen);
 
   useEffect(() => {
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyBg = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = "#020617";
+    document.body.style.backgroundColor = "#020617";
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.backgroundColor = prevBodyBg;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mobileOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") setMobileOpen(false);
@@ -87,7 +98,7 @@ const Landing = () => {
   const navLink = "text-sm font-medium text-slate-200/80 hover:text-white transition-colors cursor-pointer";
 
   return (
-    <div className="auth-page relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="auth-page relative min-h-screen bg-slate-950 text-slate-100">
       {/* Background Glow Patterns */}
       <div className="auth-blob auth-blob-one" />
       <div className="auth-blob auth-blob-two" />

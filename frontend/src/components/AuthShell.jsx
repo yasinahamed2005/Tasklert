@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -39,8 +39,19 @@ const quickStats = [
 const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children }) => {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyBg = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = "#111A2E";
+    document.body.style.backgroundColor = "#111A2E";
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.backgroundColor = prevBodyBg;
+    };
+  }, []);
+
   return (
-    <div className="auth-page relative min-h-screen overflow-hidden bg-[#111A2E] text-[#F8FAFC]">
+    <div className="auth-page relative min-h-screen bg-[#111A2E] text-[#F8FAFC]">
       <div className="auth-blob auth-blob-one" />
       <div className="auth-blob auth-blob-two" />
       <div className="auth-grid-pattern" />
@@ -60,22 +71,20 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${
-              mode === "login"
+            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${mode === "login"
                 ? "bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] text-white shadow-sm"
                 : "text-[#AAB8CF] hover:text-[#F8FAFC] hover:bg-[#222F49]"
-            }`}
+              }`}
           >
             Login
           </button>
           <button
             type="button"
             onClick={onSwitchToSignup}
-            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${
-              mode === "signup"
+            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${mode === "signup"
                 ? "bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] text-white shadow-sm"
                 : "text-[#AAB8CF] hover:text-[#F8FAFC] hover:bg-[#222F49]"
-            }`}
+              }`}
           >
             Sign Up
           </button>

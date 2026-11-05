@@ -116,58 +116,52 @@ export default function MessageCenter() {
           </div>
         </div>
 
-        {/* 3 Channel Selector Pills: 1. Telegram, 2. Email, 3. Tasklert Mail (Recommended) */}
-        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          {/* 1. Telegram */}
+        {/* 3 Channel Selector Pills: 1. Tasklert Mail, 2. Email, 3. Telegram */}
+        <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
+          {/* 1. Tasklert Mail */}
           <button
             type="button"
-            onClick={() => setActiveChannel("telegram")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
-              activeChannel === "telegram"
-                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                : "border-gray-200/80 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50/40"
+            onClick={() => {
+              setActiveChannel("tasklert_mail");
+              handleOpenCompose(2);
+            }}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              activeChannel === "tasklert_mail"
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 shadow-emerald-600/20"
+                : "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-600"
             }`}
           >
-            <Send className={`w-3.5 h-3.5 -rotate-12 ${activeChannel === "telegram" ? "fill-white text-white" : "text-emerald-600"}`} />
-            <span>Telegram</span>
+            <Mail className="w-4 h-4 text-white" />
+            <span>Tasklert Mail</span>
           </button>
 
           {/* 2. Email */}
           <button
             type="button"
             onClick={() => setActiveChannel("email")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
               activeChannel === "email"
-                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                : "border-gray-200/80 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50/40"
+                ? "bg-gray-100 text-gray-900 border-gray-300 shadow-xs"
+                : "border-gray-200 bg-gray-50/70 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
             }`}
           >
-            <Mail className={`w-3.5 h-3.5 ${activeChannel === "email" ? "text-white" : "text-blue-600"}`} />
+            <Mail className="w-4 h-4 text-emerald-600" />
             <span>Email</span>
           </button>
 
-          {/* 3. Tasklert Mail (Recommended Tag) */}
-          <div className="relative pt-2.5">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 px-2 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-black uppercase tracking-wider border border-purple-200 shadow-2xs">
-              Recommended
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveChannel("tasklert_mail");
-                handleOpenCompose(2);
-              }}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-2xl border text-xs font-extrabold transition cursor-pointer shadow-sm ${
-                activeChannel === "tasklert_mail"
-                  ? "bg-purple-600 text-white border-purple-600 shadow-purple-600/30"
-                  : "bg-purple-600 text-white border-purple-600 hover:bg-purple-700"
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span>Tasklert Mail</span>
-              <Info className="w-3 h-3 text-purple-200 ml-0.5" />
-            </button>
-          </div>
+          {/* 3. Telegram */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("telegram")}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+              activeChannel === "telegram"
+                ? "bg-gray-100 text-gray-900 border-gray-300 shadow-xs"
+                : "border-gray-200 bg-gray-50/70 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <Send className="w-4 h-4 -rotate-12 text-emerald-600" />
+            <span>Telegram</span>
+          </button>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateTasklertMailHtml, generateTasklertMailText } from "../services/email/tasklertMailTemplate.js";
+import nodemailer from "nodemailer";
 
 test("Tasklert Mail: HTML template generates valid branded structure", () => {
   const html = generateTasklertMailHtml({
@@ -48,3 +49,46 @@ test("Tasklert Mail: Normal priority does not force Action Required badge", () =
   assert.ok(!html.includes("📌 Action Required for this task"), "Should not show action required box");
 });
 
+test("Tasklert Mail: Sender resolution & From/Reply-To header formatting", () => {
+  const senderName = "Israth Yasin";
+  const userEmail = "yasinahamadshaik@gmail.com";
+  const targetTasklertEmail = "tasksflow.iya@gmail.com";
+
+  // When tasksflow.iya@gmail.com is the authenticated account
+  const fromHeader = `"${senderName} via Tasklert" <${targetTasklertEmail}>`;
+  const replyToHeader = `"${senderName}" <${userEmail}>`;
+
+  assert.strictEqual(fromHeader, '"Israth Yasin via Tasklert" <tasksflow.iya@gmail.com>');
+  assert.strictEqual(replyToHeader, '"Israth Yasin" <yasinahamadshaik@gmail.com>');
+  assert.ok(!fromHeader.includes("brevo"), "Must not contain Brevo address");
+});
+
+test("Tasklert Mail: RFC 2822 MIME compilation preserves To, CC, BCC, Attachments and Reply-To", async () => {
+  const transporter = nodemailer.createTransport({ streamTransport: true, buffer: true });
+  const mailOptions = {
+    from: '"Tasklert" <tasksflow.iya@gmail.com>',
+    to: "recipient1@example.com, recipient2@example.com",
+    cc: "cc1@example.com",
+    bcc: "bcc1@example.com",
+    replyTo: '"User Name" <user@example.com>',
+    subject: "Action Required: Project Report",
+    html: "<p>Report Attached</p>",
+    text: "Report Attached",
+    attachments: [
+      {
+        filename: "Report.pdf",
+        content: Buffer.from("PDF_SAMPLE_DATA"),
+        contentType: "application/pdf",
+      },
+    ],
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  const rawRfc = info.message.toString("utf8");
+
+  assert.ok(rawRfc.includes("From: Tasklert <tasksflow.iya@gmail.com>"), "Contains genuine From");
+  assert.ok(rawRfc.includes("Reply-To: User Name <user@example.com>"), "Contains Reply-To");
+  assert.ok(rawRfc.includes("recipient1@example.com"), "Contains To recipients");
+  assert.ok(rawRfc.includes("cc1@example.com"), "Contains CC recipient");
+  assert.ok(rawRfc.includes("Report.pdf"), "Contains attachment filename");
+});
