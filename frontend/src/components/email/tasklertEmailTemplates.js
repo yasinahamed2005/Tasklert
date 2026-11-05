@@ -76,3 +76,4 @@ export const TASKLERT_EMAIL_TEMPLATES = [
     body: "",
   },
 ];
+

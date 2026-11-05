@@ -165,3 +165,4 @@ Via: Tasklert Mail (https://tasklert.app)
 Reply to this email to reach the sender directly.
 `.trim();
 };
+

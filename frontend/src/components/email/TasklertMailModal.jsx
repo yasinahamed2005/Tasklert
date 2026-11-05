@@ -522,7 +522,7 @@ export default function TasklertMailModal({
                       }
                     }}
                     onBlur={() => addRecipientChip(toInput, "to")}
-                    placeholder={toRecipients.length === 0 ? "meenakshi@kluniversity.in, ..." : "Add another..."}
+                    placeholder={toRecipients.length === 0 ? "tasklert@gmail.com, ..." : "Add another..."}
                     className="flex-1 min-w-[160px] text-xs text-gray-900 outline-none bg-transparent py-1 px-1"
                   />
                 </div>
@@ -912,3 +912,4 @@ export default function TasklertMailModal({
     </div>
   );
 }
+

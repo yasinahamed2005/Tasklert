@@ -47,3 +47,4 @@ test("Tasklert Mail: Normal priority does not force Action Required badge", () =
   assert.ok(!html.includes("⚡ Action Required"), "Should not show Action Required badge for normal priority");
   assert.ok(!html.includes("📌 Action Required for this task"), "Should not show action required box");
 });
+

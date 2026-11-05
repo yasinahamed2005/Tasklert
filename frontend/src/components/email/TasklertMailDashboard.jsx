@@ -463,3 +463,4 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
     </div>
   );
 }
+
