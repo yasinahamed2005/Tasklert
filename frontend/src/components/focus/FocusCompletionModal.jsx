@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Trophy,
   Coffee,
@@ -106,12 +107,14 @@ export const FocusCompletionModal = ({
     onSnooze?.(mins);
   };
 
-  return (
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Alarm Ringing"
-      className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn overflow-y-auto"
+      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn overflow-y-auto"
     >
       <div className="bg-white rounded-3xl w-full max-w-sm sm:max-w-md shadow-2xl border border-blue-100 overflow-hidden text-center p-5 sm:p-6 space-y-4 animate-scaleUp relative max-h-[calc(100vh-2.5rem)] my-auto overflow-y-auto">
         {/* Celebration Radial Glow & Icon (Screen 3 Reference) */}
@@ -238,7 +241,8 @@ export const FocusCompletionModal = ({
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useLocation } from "react-router-dom";
@@ -2211,62 +2212,64 @@ export const FocusTimerPage = () => {
       </div>
 
       {/* 4. Custom Duration Modal */}
-      {showCustomDurationModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div
-            className="bg-white w-full max-w-sm rounded-3xl p-6 border shadow-2xl space-y-4"
-            style={{ borderColor: themePalette.borderColor }}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FileEdit className="w-4 h-4" style={{ color: themePalette.primary }} />
-                <span>Custom Duration</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCustomDurationModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleApplyCustomDuration} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Minutes (1 - 180)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="180"
-                  value={customMinutesInput}
-                  onChange={(e) => setCustomMinutesInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-lg font-bold text-slate-900 focus:outline-none focus:ring-2"
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
+      {showCustomDurationModal && typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn select-none overflow-y-auto">
+            <div
+              className="bg-white w-full max-w-sm rounded-3xl p-6 border shadow-2xl space-y-4 my-auto"
+              style={{ borderColor: themePalette.borderColor }}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileEdit className="w-4 h-4" style={{ color: themePalette.primary }} />
+                  <span>Custom Duration</span>
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowCustomDurationModal(false)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 px-4 rounded-xl text-white text-xs font-bold transition cursor-pointer shadow-xs"
-                  style={{ backgroundColor: themePalette.primary }}
-                >
-                  Apply
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+              <form onSubmit={handleApplyCustomDuration} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Minutes (1 - 180)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={customMinutesInput}
+                    onChange={(e) => setCustomMinutesInput(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-lg font-bold text-slate-900 focus:outline-none focus:ring-2"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomDurationModal(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 px-4 rounded-xl text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                    style={{ backgroundColor: themePalette.primary }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* 5. Ringtone Picker Modal */}
       <RingtonePickerModal
