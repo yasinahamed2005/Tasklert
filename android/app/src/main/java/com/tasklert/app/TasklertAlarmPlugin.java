@@ -172,6 +172,113 @@ public class TasklertAlarmPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void dismissAlarm(PluginCall call) {
+        cancelAlarm(call);
+    }
+
+    @PluginMethod
+    public void snoozeAlarm(PluginCall call) {
+        try {
+            int snoozeMinutes = call.getInt("snoozeMinutes", 5);
+            Context context = getContext();
+            
+            // 1. Stop current ringing
+            Intent stopService = new Intent(context, AlarmRingingService.class);
+            stopService.setAction(AlarmRingingService.ACTION_DISMISS);
+            context.startService(stopService);
+
+            // 2. Schedule snooze alarm
+            long targetEndAtMs = System.currentTimeMillis() + (snoozeMinutes * 60 * 1000L);
+            call.getData().put("targetEndAtMs", targetEndAtMs);
+            call.getData().put("title", "Snoozed Focus Session (" + snoozeMinutes + "m)");
+            scheduleAlarm(call);
+        } catch (Exception e) {
+            Log.e(TAG, "snoozeAlarm error", e);
+            call.reject("Could not snooze alarm: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getAlarmStatus(PluginCall call) {
+        getDiagnosticStatus(call);
+    }
+
+    @PluginMethod
+    public void checkPermissions(PluginCall call) {
+        try {
+            Context context = getContext();
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
+            boolean exactAlarm = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                exactAlarm = alarmManager != null && alarmManager.canScheduleExactAlarms();
+            }
+
+            boolean notifications = NotificationManagerCompat.from(context).areNotificationsEnabled();
+
+            boolean fullScreen = true;
+            if (Build.VERSION.SDK_INT >= 34) {
+                android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    fullScreen = nm.canUseFullScreenIntent();
+                }
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("exactAlarm", exactAlarm);
+            ret.put("notifications", notifications);
+            ret.put("fullScreenIntent", fullScreen);
+            ret.put("allGranted", exactAlarm && notifications && fullScreen);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not check permissions: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void checkFullScreenIntentPermission(PluginCall call) {
+        try {
+            Context context = getContext();
+            boolean fullScreen = true;
+            if (Build.VERSION.SDK_INT >= 34) {
+                android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    fullScreen = nm.canUseFullScreenIntent();
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("granted", fullScreen);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not check full-screen permission: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void requestAlarmPermissions(PluginCall call) {
+        try {
+            Context context = getContext();
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            } else if (Build.VERSION.SDK_INT >= 34) {
+                openFullScreenIntentSettings(call);
+                return;
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not request permissions: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void saveCustomRingtone(PluginCall call) {
         try {
             String slot = call.getString("slot", "focus");
