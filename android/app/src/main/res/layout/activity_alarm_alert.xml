@@ -1,125 +1,210 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="#0F172A"
-    android:padding="24dp">
+    android:background="@drawable/bg_alarm_gradient"
+    android:paddingLeft="24dp"
+    android:paddingRight="24dp"
+    android:paddingTop="48dp"
+    android:paddingBottom="48dp">
 
-    <!-- Tasklert Brand Badge -->
+    <!-- TOP SECTION: Stacked Large Digital Clock + Date & Session Label -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:id="@+id/layoutTopClock"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#1E293B"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:layout_marginBottom="32dp">
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
 
+        <!-- Tasklert Small Brand Watermark -->
         <TextView
+            android:id="@+id/tvBrand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⏰ TASKLERT ALARM"
-            android:textColor="#38BDF8"
+            android:text="TASKLERT FOCUS"
+            android:textColor="#80FFFFFF"
+            android:textSize="11sp"
             android:textStyle="bold"
-            android:textSize="14sp"
-            android:letterSpacing="0.05" />
+            android:letterSpacing="0.2"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Stacked Big Digital Clock (Samsung Clock Style) -->
+        <TextView
+            android:id="@+id/tvClockHours"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="06"
+            android:textColor="#FFFFFFFF"
+            android:textSize="78sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="0dp" />
+
+        <TextView
+            android:id="@+id/tvClockMinutes"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="21"
+            android:textColor="#FFFFFFFF"
+            android:textSize="78sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="0dp"
+            android:layout_marginTop="-10dp" />
+
+        <!-- Date (e.g., Thu, November 5) -->
+        <TextView
+            android:id="@+id/tvDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Thu, November 5"
+            android:textColor="#E6FFFFFF"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Session Label / Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Focus Session Completed"
+            android:textColor="#FFFFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="6dp" />
+
+        <!-- Ringtone Identifier -->
+        <TextView
+            android:id="@+id/tvRingtoneName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎵 Tere Vaaste.mp3"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp"
+            android:layout_marginTop="6dp" />
     </LinearLayout>
 
-    <!-- Large Digital Clock -->
+    <!-- CENTER SECTION: Large Circular Dismiss Button with Outer Translucent Ring (Samsung Clock Style) -->
+    <RelativeLayout
+        android:id="@+id/layoutDismiss"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_centerInParent="true">
+
+        <!-- Outer Soft Ring -->
+        <View
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:background="@drawable/bg_dismiss_outer_ring" />
+
+        <!-- Inner Interactive Circular Button -->
+        <FrameLayout
+            android:id="@+id/btnDismiss"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
+            android:layout_centerInParent="true"
+            android:background="@drawable/bg_dismiss_inner_circle"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="✕"
+                android:textColor="#FFFFFFFF"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </RelativeLayout>
+
+    <!-- Dismiss Caption Hint -->
     <TextView
-        android:id="@+id/tvClock"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="12:00 PM"
-        android:textColor="#FFFFFF"
-        android:textSize="54sp"
-        android:fontFamily="sans-serif-thin"
-        android:textStyle="bold" />
+        android:layout_below="@id/layoutDismiss"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="12dp"
+        android:text="Tap to Dismiss"
+        android:textColor="#80FFFFFF"
+        android:textSize="11sp"
+        android:letterSpacing="0.05" />
 
-    <!-- Session Title -->
-    <TextView
-        android:id="@+id/tvTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🎯 Focus Session Complete!"
-        android:textColor="#F8FAFC"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:layout_marginTop="16dp"
-        android:gravity="center" />
-
-    <!-- Ringtone Name Badge -->
-    <TextView
-        android:id="@+id/tvRingtoneName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🎵 Tere Vaaste.mp3"
-        android:textColor="#94A3B8"
-        android:textSize="15sp"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="48dp" />
-
-    <!-- Snooze Duration Options -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Snooze for:"
-        android:textColor="#64748B"
-        android:textSize="13sp"
-        android:layout_marginBottom="8dp" />
-
+    <!-- BOTTOM SECTION: Snooze Controls (-) [Snooze 5 mins] (+) -->
     <LinearLayout
+        android:id="@+id/layoutBottomSnooze"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
         android:orientation="horizontal"
-        android:weightSum="3"
-        android:layout_marginBottom="24dp">
+        android:gravity="center_vertical"
+        android:weightSum="1">
 
-        <Button
-            android:id="@+id/btnSnooze5"
+        <!-- Minus Button (-) -->
+        <FrameLayout
+            android:id="@+id/btnSnoozeMinus"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_snooze_round_btn"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="—"
+                android:textColor="#FFFFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- Main Pill Button (Snooze X mins) -->
+        <FrameLayout
+            android:id="@+id/btnSnoozePill"
             android:layout_width="0dp"
             android:layout_height="52dp"
             android:layout_weight="1"
-            android:text="5 min"
-            android:textColor="#FFFFFF"
-            android:background="#334155"
-            android:layout_marginEnd="6dp" />
+            android:layout_marginLeft="12dp"
+            android:layout_marginRight="12dp"
+            android:background="@drawable/bg_snooze_pill"
+            android:clickable="true"
+            android:focusable="true">
 
-        <Button
-            android:id="@+id/btnSnooze10"
-            android:layout_width="0dp"
-            android:layout_height="52dp"
-            android:layout_weight="1"
-            android:text="10 min"
-            android:textColor="#FFFFFF"
-            android:background="#334155"
-            android:layout_marginEnd="6dp" />
+            <TextView
+                android:id="@+id/tvSnoozeLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="Snooze 5 mins"
+                android:textColor="#FFFFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </FrameLayout>
 
-        <Button
-            android:id="@+id/btnSnooze15"
-            android:layout_width="0dp"
+        <!-- Plus Button (+) -->
+        <FrameLayout
+            android:id="@+id/btnSnoozePlus"
+            android:layout_width="52dp"
             android:layout_height="52dp"
-            android:layout_weight="1"
-            android:text="15 min"
-            android:textColor="#FFFFFF"
-            android:background="#334155" />
+            android:background="@drawable/bg_snooze_round_btn"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="+"
+                android:textColor="#FFFFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </FrameLayout>
     </LinearLayout>
 
-    <!-- Large Primary Dismiss Button -->
-    <Button
-        android:id="@+id/btnDismiss"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:text="✓ DISMISS ALARM"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:background="#0284C7" />
-
-</LinearLayout>
-
+</RelativeLayout>

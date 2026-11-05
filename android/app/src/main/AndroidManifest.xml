@@ -50,14 +50,15 @@
         <!-- Lock Screen Alarm Activity (Samsung Clock Experience) -->
         <activity
             android:name=".AlarmAlertActivity"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:theme="@style/Theme.Tasklert.AlarmScreen"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:inheritShowWhenLocked="true"
             android:showForAllUsers="true"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
-            android:exported="false" />
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout" />
 
         <!-- Foreground Service for Continuous Alarm Ringing & Custom MP3 Playback -->
         <service

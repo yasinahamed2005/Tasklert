@@ -19,4 +19,14 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
     </style>
+
+    <!-- Samsung-Inspired Lock-Screen Alarm Theme -->
+    <style name="Theme.Tasklert.AlarmScreen" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowShowWhenLocked">true</item>
+        <item name="android:windowTurnScreenOn">true</item>
+        <item name="android:windowKeepScreenOn">true</item>
+        <item name="android:windowBackground">@drawable/bg_alarm_gradient</item>
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:navigationBarColor">#00000000</item>
+    </style>
 </resources>

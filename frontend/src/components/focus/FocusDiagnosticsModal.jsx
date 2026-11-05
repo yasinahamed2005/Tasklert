@@ -249,7 +249,7 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
               </div>
 
               {/* Permissions & Alarms */}
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-slate-500 font-medium block">Exact Alarms:</span>
                   <div className="flex items-center gap-1.5 mt-1 font-bold text-slate-900">
@@ -258,7 +258,7 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                     )}
-                    <span>{status?.canScheduleExactAlarms ? "Granted" : "Restricted (Web)"}</span>
+                    <span>{status?.canScheduleExactAlarms ? "Granted" : "Restricted"}</span>
                   </div>
                 </div>
 
@@ -271,6 +271,29 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                     )}
                     <span>{status?.hasNotificationPermission ? "Enabled" : "Disabled"}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-slate-500 font-medium block">Screen Wake:</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                      {status?.hasFullScreenIntentPermission !== false ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      )}
+                      <span>{status?.hasFullScreenIntentPermission !== false ? "Allowed" : "Blocked"}</span>
+                    </div>
+                    {status?.hasFullScreenIntentPermission === false && (
+                      <button
+                        type="button"
+                        onClick={() => deviceAlarmManager.openFullScreenIntentSettings()}
+                        className="text-[10px] text-blue-600 font-bold underline cursor-pointer"
+                      >
+                        Fix
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -231,6 +231,14 @@ public class TasklertAlarmPlugin extends Plugin {
 
             boolean notifsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled();
 
+            boolean canFullScreen = true;
+            if (Build.VERSION.SDK_INT >= 34) {
+                android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    canFullScreen = nm.canUseFullScreenIntent();
+                }
+            }
+
             File ringtoneDir = new File(context.getFilesDir(), "ringtones");
             File focusFile = new File(ringtoneDir, "focus.mp3");
             File shortBreakFile = new File(ringtoneDir, "short_break.mp3");
@@ -246,6 +254,7 @@ public class TasklertAlarmPlugin extends Plugin {
             ret.put("isNativeEngineActive", true);
             ret.put("canScheduleExactAlarms", canScheduleExact);
             ret.put("hasNotificationPermission", notifsEnabled);
+            ret.put("hasFullScreenIntentPermission", canFullScreen);
             ret.put("alarmActive", alarmActive);
             ret.put("targetEndAtMs", targetMs);
             ret.put("remainingSeconds", Math.max(0, (targetMs - System.currentTimeMillis()) / 1000));
@@ -273,6 +282,29 @@ public class TasklertAlarmPlugin extends Plugin {
             scheduleAlarm(call);
         } catch (Exception e) {
             call.reject("Test alarm error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void openFullScreenIntentSettings(PluginCall call) {
+        try {
+            Context context = getContext();
+            if (Build.VERSION.SDK_INT >= 34) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            } else {
+                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not open settings: " + e.getMessage());
         }
     }
 }

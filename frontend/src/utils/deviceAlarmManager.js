@@ -469,6 +469,17 @@ class DeviceAlarmManager {
     };
   }
 
+  async openFullScreenIntentSettings() {
+    try {
+      const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
+      if (TasklertAlarmEngine?.openFullScreenIntentSettings) {
+        return await TasklertAlarmEngine.openFullScreenIntentSettings();
+      }
+    } catch (err) {
+      console.warn("Could not open full-screen intent settings:", err);
+    }
+  }
+
   /**
    * Test native alarm (fires 5 seconds from now)
    */
