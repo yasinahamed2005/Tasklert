@@ -212,3 +212,60 @@ export const triggerEmailSync = async (accountId) => {
   return response.data;
 };
 
+// ==========================================
+// TASKLERT MAIL (DEDICATED PROFESSIONAL SENDER)
+// ==========================================
+
+export const sendTasklertMail = async (formData) => {
+  const token = localStorage.getItem("token");
+  const response = await axios.post(
+    `${API_BASE_URL}/api/email/tasklert-mail/send`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      timeout: 35000,
+    }
+  );
+  return response.data;
+};
+
+export const fetchTasklertSentMails = async ({ search = "", priority = "all", page = 1, limit = 50 } = {}) => {
+  const response = await axios.get(
+    `${API_BASE_URL}/api/email/tasklert-mail/sent`,
+    {
+      ...getAuthHeaders(),
+      params: { search, priority, page, limit },
+      timeout: 15000,
+    }
+  );
+  return response.data;
+};
+
+export const fetchTasklertDrafts = async () => {
+  const response = await axios.get(
+    `${API_BASE_URL}/api/email/tasklert-mail/drafts`,
+    { ...getAuthHeaders(), timeout: 15000 }
+  );
+  return response.data;
+};
+
+export const deleteTasklertMail = async (id) => {
+  const response = await axios.delete(
+    `${API_BASE_URL}/api/email/tasklert-mail/${encodeURIComponent(id)}`,
+    getAuthHeaders()
+  );
+  return response.data;
+};
+
+export const resendTasklertMail = async (id) => {
+  const response = await axios.post(
+    `${API_BASE_URL}/api/email/tasklert-mail/${encodeURIComponent(id)}/resend`,
+    {},
+    getAuthHeaders()
+  );
+  return response.data;
+};
+

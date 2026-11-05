@@ -7,23 +7,34 @@ import {
   BarChart2,
   Settings,
   ArrowDownRight,
+  Zap,
+  Info,
 } from "lucide-react";
 import TelegramWorkspace from "../components/telegram/TelegramWorkspace";
 import EmailWorkspace from "../components/email/EmailWorkspace";
+import TasklertMailDashboard from "../components/email/TasklertMailDashboard";
+import TasklertMailModal from "../components/email/TasklertMailModal";
 
 /**
- * QuickSend Workspace — Exactly as designed in the TaskFlow reference layout:
- * - Active Channels: Telegram and TaskFlow Email (WhatsApp is preserved on the backend but hidden from visible selector)
- * - Header with QuickSend branding, "Workspace" pill badge, and productivity shortcuts (Message Templates, Scheduled Messages, Activity, Settings)
- * - Seamless channel switching without resetting connection states
+ * QuickSend Workspace — Full Multi-Channel Communication Suite:
+ * 1. Telegram (GramJS MTProto personal account integration)
+ * 2. Email (Gmail & Outlook mailbox sync and compose)
+ * 3. Tasklert Mail (Dedicated professional email sending with Action Required & custom branding)
  */
 export default function MessageCenter() {
-  const [activeChannel, setActiveChannel] = useState("email"); // Default to Email workspace
+  const [activeChannel, setActiveChannel] = useState("tasklert_mail"); // Default to Tasklert Mail (Recommended)
   const [activeTabNotice, setActiveTabNotice] = useState(null);
+  const [isTasklertMailModalOpen, setIsTasklertMailModalOpen] = useState(false);
+  const [modalInitialStep, setModalInitialStep] = useState(2);
 
   const handleShortcutClick = (label) => {
     setActiveTabNotice(`${label} workspace section is active.`);
     setTimeout(() => setActiveTabNotice(null), 3500);
+  };
+
+  const handleOpenCompose = (step = 2) => {
+    setModalInitialStep(step);
+    setIsTasklertMailModalOpen(true);
   };
 
   return (
@@ -91,57 +102,112 @@ export default function MessageCenter() {
         </div>
       </div>
 
-      {/* ─── Channel Switcher Tabs ─── */}
-      <div className="shrink-0 flex items-center justify-between gap-2 mb-2 sm:mb-2.5">
-        <div className="flex items-center gap-2">
+      {/* ─── QuickSend Top Reference Banner (Matching Design Image) ─── */}
+      <div className="shrink-0 bg-white/95 backdrop-blur-xs rounded-2xl border border-purple-100 p-3 sm:p-4 mb-2.5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+            <Zap className="w-4 h-4 fill-white" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
+              <span>QuickSend</span>
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Send reminders, updates, or task requests instantly.</p>
+          </div>
+        </div>
+
+        {/* 3 Channel Selector Pills: 1. Telegram, 2. Email, 3. Tasklert Mail (Recommended) */}
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          {/* 1. Telegram */}
           <button
             type="button"
             onClick={() => setActiveChannel("telegram")}
-            className={`flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
               activeChannel === "telegram"
-                ? "bg-purple-600 border-purple-600 text-white shadow-sm shadow-purple-600/20"
-                : "border-purple-200/70 bg-white/80 text-gray-700 hover:text-purple-700 hover:bg-purple-50/50"
+                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                : "border-gray-200/80 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50/40"
             }`}
           >
-            <Send className={`w-3.5 h-3.5 ${activeChannel === "telegram" ? "fill-white text-white" : "text-purple-600"}`} />
+            <Send className={`w-3.5 h-3.5 -rotate-12 ${activeChannel === "telegram" ? "fill-white text-white" : "text-emerald-600"}`} />
             <span>Telegram</span>
           </button>
 
+          {/* 2. Email */}
           <button
             type="button"
             onClick={() => setActiveChannel("email")}
-            className={`flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
               activeChannel === "email"
-                ? "bg-purple-600 border-purple-600 text-white shadow-sm shadow-purple-600/20"
-                : "border-purple-200/70 bg-white/80 text-gray-700 hover:text-purple-700 hover:bg-purple-50/50"
+                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                : "border-gray-200/80 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50/40"
             }`}
           >
-            <Mail className={`w-3.5 h-3.5 ${activeChannel === "email" ? "text-white" : "text-purple-600"}`} />
+            <Mail className={`w-3.5 h-3.5 ${activeChannel === "email" ? "text-white" : "text-blue-600"}`} />
             <span>Email</span>
           </button>
-        </div>
 
-        {activeTabNotice && (
-          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100 animate-fade-in hidden sm:inline-block">
-            {activeTabNotice}
-          </span>
-        )}
+          {/* 3. Tasklert Mail (Recommended Tag) */}
+          <div className="relative pt-2.5">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 px-2 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-black uppercase tracking-wider border border-purple-200 shadow-2xs">
+              Recommended
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveChannel("tasklert_mail");
+                handleOpenCompose(2);
+              }}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-2xl border text-xs font-extrabold transition cursor-pointer shadow-sm ${
+                activeChannel === "tasklert_mail"
+                  ? "bg-purple-600 text-white border-purple-600 shadow-purple-600/30"
+                  : "bg-purple-600 text-white border-purple-600 hover:bg-purple-700"
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Tasklert Mail</span>
+              <Info className="w-3 h-3 text-purple-200 ml-0.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ─── Main Communication Workspaces ─── */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {/* Telegram workspace kept mounted in DOM to prevent re-initializing GramJS MTProto session */}
+        {/* 1. Telegram workspace kept mounted in DOM to prevent re-initializing GramJS MTProto session */}
         <div className={activeChannel === "telegram" ? "w-full h-full flex flex-col min-h-0" : "hidden"}>
           <TelegramWorkspace />
         </div>
 
-        {/* TaskFlow Mail Workspace */}
+        {/* 2. Personal Mailbox Workspace */}
         {activeChannel === "email" && (
           <div className="w-full h-full flex flex-col min-h-0">
             <EmailWorkspace />
           </div>
         )}
+
+        {/* 3. Tasklert Mail Dedicated Workspace */}
+        {activeChannel === "tasklert_mail" && (
+          <div className="w-full h-full flex flex-col min-h-0">
+            <TasklertMailDashboard onOpenCompose={handleOpenCompose} />
+          </div>
+        )}
       </div>
+
+      {/* ─── 4-Step Interactive Tasklert Mail Modal Flow ─── */}
+      <TasklertMailModal
+        isOpen={isTasklertMailModalOpen}
+        initialStep={modalInitialStep}
+        onClose={() => setIsTasklertMailModalOpen(false)}
+        onSwitchChannel={(channel) => {
+          setActiveChannel(channel);
+          setIsTasklertMailModalOpen(false);
+        }}
+        onSentSuccess={() => {
+          // If on tasklert_mail channel, it will refresh the sent list
+          setActiveChannel("tasklert_mail");
+        }}
+      />
     </div>
   );
 }
+

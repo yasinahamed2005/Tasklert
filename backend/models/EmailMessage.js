@@ -101,6 +101,31 @@ const emailMessageSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    priority: {
+      type: String,
+      enum: ["normal", "important", "action_required"],
+      default: "normal",
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ["draft", "queued", "sending", "sent", "delivered", "failed", "bounced"],
+      default: "sent",
+      index: true,
+    },
+    actionRequiredDeadline: {
+      type: Date,
+      default: null,
+    },
+    errorDetails: {
+      type: String,
+      default: null,
+    },
+    isTasklertMail: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     hasAttachment: {
       type: Boolean,
       default: false,

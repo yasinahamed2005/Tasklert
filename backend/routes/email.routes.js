@@ -22,6 +22,11 @@ import {
   handleGetScheduledEmails,
   handleCancelScheduledEmail,
   handleSyncMailbox,
+  handleSendTasklertMail,
+  handleGetTasklertSentMails,
+  handleGetTasklertDrafts,
+  handleDeleteTasklertMail,
+  handleResendTasklertMail,
 } from "../controllers/email.controller.js";
 
 const emailRouter = express.Router();
@@ -76,6 +81,24 @@ emailRouter.delete("/scheduled/:id", handleCancelScheduledEmail);
 
 // 5. Sync
 emailRouter.post("/sync", handleSyncMailbox);
+
+// 6. Tasklert Mail (Dedicated Professional Sending Experience)
+emailRouter.post(
+  "/tasklert-mail/send",
+  (req, res, next) => {
+    upload.array("attachments", 10)(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  },
+  handleSendTasklertMail
+);
+emailRouter.get("/tasklert-mail/sent", handleGetTasklertSentMails);
+emailRouter.get("/tasklert-mail/drafts", handleGetTasklertDrafts);
+emailRouter.delete("/tasklert-mail/:id", handleDeleteTasklertMail);
+emailRouter.post("/tasklert-mail/:id/resend", handleResendTasklertMail);
 
 export default emailRouter;
 

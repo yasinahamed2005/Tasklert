@@ -31,14 +31,14 @@ public class AlarmAlertActivity extends Activity {
             sessionId = "active-focus-session";
         }
 
-        // Apply Window flags for lock-screen appearance & screen wakeup across all Android versions
+        // Apply Window flags for lock-screen appearance & screen wakeup across all
+        // Android versions
         getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON
-        );
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                        WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true);
@@ -79,27 +79,29 @@ public class AlarmAlertActivity extends Activity {
         // Dismiss Button
         findViewById(R.id.btnDismiss).setOnClickListener(v -> dismiss());
 
-        AlarmLogger.log("ALARM_ACTIVITY_DISPLAYED", sessionId, "SUCCESS", "AlarmAlertActivity created and visible over lock screen");
+        AlarmLogger.log("ALARM_ACTIVITY_DISPLAYED", sessionId, "SUCCESS",
+                "AlarmAlertActivity created and visible over lock screen");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Hardware screen wake lock to ensure physical screen illumination on vendor devices (Samsung, Xiaomi, Oppo)
+        // Hardware screen wake lock to ensure physical screen illumination on vendor
+        // devices (Samsung, Xiaomi, Oppo)
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null && (activityWakeLock == null || !activityWakeLock.isHeld())) {
                 @SuppressWarnings("deprecation")
                 PowerManager.WakeLock wl = pm.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                    PowerManager.ACQUIRE_CAUSES_WAKEUP |
-                    PowerManager.ON_AFTER_RELEASE,
-                    "tasklert:AlarmAlertActivityWakeLock"
-                );
+                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                                PowerManager.ACQUIRE_CAUSES_WAKEUP |
+                                PowerManager.ON_AFTER_RELEASE,
+                        "tasklert:AlarmAlertActivityWakeLock");
                 activityWakeLock = wl;
                 activityWakeLock.acquire(10000L); // 10 second timeout
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
@@ -107,14 +109,16 @@ public class AlarmAlertActivity extends Activity {
         if (activityWakeLock != null && activityWakeLock.isHeld()) {
             try {
                 activityWakeLock.release();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             activityWakeLock = null;
         }
         super.onPause();
     }
 
     private void snooze(int minutes) {
-        AlarmLogger.log("ALARM_DISMISS_ACTION_RECEIVED", sessionId, "SUCCESS", "Snooze clicked in AlarmAlertActivity for " + minutes + " mins");
+        AlarmLogger.log("ALARM_DISMISS_ACTION_RECEIVED", sessionId, "SUCCESS",
+                "Snooze clicked in AlarmAlertActivity for " + minutes + " mins");
         Intent snoozeIntent = new Intent(this, AlarmDismissReceiver.class);
         snoozeIntent.setAction(AlarmDismissReceiver.ACTION_SNOOZE);
         snoozeIntent.putExtra("snoozeMinutes", minutes);

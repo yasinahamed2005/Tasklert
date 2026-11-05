@@ -1,0 +1,465 @@
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Mail,
+  Send,
+  Plus,
+  Search,
+  Filter,
+  RefreshCw,
+  FileText,
+  Paperclip,
+  CheckCircle2,
+  Clock,
+  Trash2,
+  Copy,
+  ExternalLink,
+  ChevronRight,
+  AlertCircle,
+  Zap,
+  Sparkles,
+  User,
+  Calendar,
+  X,
+  Repeat,
+} from "lucide-react";
+import { toast } from "react-toastify";
+import {
+  fetchTasklertSentMails,
+  fetchTasklertDrafts,
+  deleteTasklertMail,
+  resendTasklertMail,
+} from "../../services/emailApi";
+
+export default function TasklertMailDashboard({ onOpenCompose }) {
+  const [activeTab, setActiveTab] = useState("sent"); // "sent" | "drafts"
+  const [emails, setEmails] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPriority, setSelectedPriority] = useState("all");
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Email Detail Drawer / Modal
+  const [selectedEmail, setSelectedEmail] = useState(null);
+  const [isResending, setIsResending] = useState(false);
+
+  // Load Sent emails
+  const loadEmails = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (activeTab === "sent") {
+        const data = await fetchTasklertSentMails({
+          search: searchQuery,
+          priority: selectedPriority,
+        });
+        setEmails(data.messages || []);
+        setTotalCount(data.totalCount || 0);
+      } else {
+        const data = await fetchTasklertDrafts();
+        setEmails(data.drafts || []);
+        setTotalCount(data.drafts?.length || 0);
+      }
+    } catch (err) {
+      console.warn("Could not load Tasklert Mail records:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, searchQuery, selectedPriority]);
+
+  useEffect(() => {
+    loadEmails();
+  }, [loadEmails]);
+
+  // Delete email record
+  const handleDelete = async (id, e) => {
+    e?.stopPropagation();
+    if (!window.confirm("Remove this email from your Tasklert Mail history? (The recipient's email will not be deleted)")) {
+      return;
+    }
+    try {
+      await deleteTasklertMail(id);
+      toast.success("Removed from history.");
+      if (selectedEmail?._id === id) setSelectedEmail(null);
+      loadEmails();
+    } catch (err) {
+      toast.error("Could not delete record.");
+    }
+  };
+
+  // Resend email
+  const handleResend = async (id) => {
+    setIsResending(true);
+    try {
+      await resendTasklertMail(id);
+      toast.success("Email resent successfully via Tasklert Mail!");
+      loadEmails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to resend email.");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Copy recipient
+  const handleCopyRecipient = (recipient, e) => {
+    e?.stopPropagation();
+    navigator.clipboard?.writeText(recipient);
+    toast.info(`Copied ${recipient} to clipboard.`);
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col min-h-0 bg-white rounded-2xl border border-purple-100 shadow-xs overflow-hidden">
+      
+      {/* ─── Top Banner ─── */}
+      <div className="shrink-0 p-4 sm:p-5 bg-gradient-to-r from-purple-50/80 via-white to-purple-50/40 border-b border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+                Tasklert Mail
+              </h2>
+              <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold">
+                Pro Delivery
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 font-medium">
+              Send professional emails directly from Tasklert with verified sender attribution.
+            </p>
+          </div>
+        </div>
+
+        {/* Primary Action Button */}
+        <button
+          type="button"
+          onClick={() => onOpenCompose?.(2)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition cursor-pointer active:scale-95 shrink-0"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span>Compose Tasklert Mail</span>
+        </button>
+      </div>
+
+      {/* ─── Navigation Tabs & Search Toolbar ─── */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-purple-50 bg-gray-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        
+        {/* Tabs: Sent Mail vs Drafts */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("sent")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "sent"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-gray-600 hover:text-purple-700 hover:bg-purple-50"
+            }`}
+          >
+            <span>Sent Mail</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              activeTab === "sent" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
+            }`}>
+              {totalCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("drafts")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === "drafts"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-gray-600 hover:text-purple-700 hover:bg-purple-50"
+            }`}
+          >
+            Drafts
+          </button>
+        </div>
+
+        {/* Search & Filter Controls */}
+        <div className="flex items-center gap-2 flex-1 sm:max-w-md ml-auto">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by recipient, subject..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 focus:border-purple-500 bg-white text-xs outline-none transition"
+            />
+          </div>
+
+          {activeTab === "sent" && (
+            <select
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 outline-none cursor-pointer"
+            >
+              <option value="all">All Priorities</option>
+              <option value="action_required">⚡ Action Required</option>
+              <option value="important">⭐ Important</option>
+              <option value="normal">Normal</option>
+            </select>
+          )}
+
+          <button
+            type="button"
+            onClick={loadEmails}
+            title="Refresh"
+            className="p-1.5 rounded-xl border border-gray-200 bg-white hover:bg-purple-50 text-gray-600 hover:text-purple-700 transition cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Mail List Body ─── */}
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 divide-y divide-purple-50">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
+            <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
+            <span className="text-xs font-medium">Loading Tasklert Mail records...</span>
+          </div>
+        ) : emails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+            <div className="w-14 h-14 rounded-3xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 mb-3 shadow-2xs">
+              <Mail className="w-7 h-7" />
+            </div>
+            <h3 className="text-sm font-extrabold text-gray-900">No {activeTab === "sent" ? "sent emails" : "drafts"} found</h3>
+            <p className="text-xs text-gray-500 max-w-xs mt-1 mb-4">
+              {searchQuery
+                ? "No emails matched your search query."
+                : "You haven't composed any Tasklert Mails yet. Compose a message to any external inbox."}
+            </p>
+            <button
+              type="button"
+              onClick={() => onOpenCompose?.(2)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Compose your first Tasklert Mail</span>
+            </button>
+          </div>
+        ) : (
+          emails.map((mail) => (
+            <div
+              key={mail._id}
+              onClick={() => setSelectedEmail(mail)}
+              className="py-3 px-2 sm:px-3 rounded-2xl hover:bg-purple-50/50 transition cursor-pointer flex items-center justify-between gap-3 group"
+            >
+              {/* Left Details */}
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-purple-100/70 text-purple-700 flex items-center justify-center shrink-0">
+                  <Mail className="w-4 h-4" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-extrabold text-gray-900 truncate">
+                      To: {mail.to?.join(", ") || "Unknown Recipient"}
+                    </span>
+                    
+                    {/* Priority Badge */}
+                    {mail.priority === "action_required" && (
+                      <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-extrabold">
+                        ⚡ Action Required
+                      </span>
+                    )}
+                    {mail.priority === "important" && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">
+                        ⭐ Important
+                      </span>
+                    )}
+
+                    {/* Delivery Status */}
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60 inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                      <span>Sent</span>
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-700 font-semibold truncate mt-0.5">
+                    {mail.subject || "(No Subject)"}
+                  </p>
+                  <p className="text-[11px] text-gray-500 truncate">
+                    {mail.snippet || mail.body?.slice(0, 100) || ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Meta & Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                {mail.hasAttachment && (
+                  <span className="text-gray-400" title="Has attachments">
+                    <Paperclip className="w-3.5 h-3.5 text-purple-500" />
+                  </span>
+                )}
+                <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap">
+                  {new Date(mail.date || mail.createdAt).toLocaleDateString([], {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-600 transition" />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ─── Email Detail Modal / Drawer ─── */}
+      {selectedEmail && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedEmail(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-purple-100 flex flex-col overflow-hidden max-h-[88vh] animate-scaleUp">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-purple-50 bg-purple-50/40 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900 truncate max-w-xs">
+                    {selectedEmail.subject || "(No Subject)"}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Sent via Tasklert Mail • {new Date(selectedEmail.date || selectedEmail.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEmail(null)}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Email Meta Details */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              {/* Priority & Delivery Badge */}
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-purple-50">
+                <div className="flex items-center gap-2">
+                  {selectedEmail.priority === "action_required" && (
+                    <span className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 text-xs font-extrabold">
+                      ⚡ Action Required
+                    </span>
+                  )}
+                  {selectedEmail.priority === "important" && (
+                    <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-extrabold">
+                      ⭐ Important
+                    </span>
+                  )}
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                    ✓ Sent / Provider Accepted
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyRecipient(selectedEmail.to?.[0])}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-purple-700 hover:bg-purple-50 transition"
+                    title="Copy recipient"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(selectedEmail._id, e)}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-700 hover:bg-red-50 transition"
+                    title="Delete from history"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* To, From & CC */}
+              <div className="p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100 space-y-1.5 text-xs">
+                <div>
+                  <span className="font-bold text-gray-500 w-12 inline-block">To:</span>
+                  <span className="font-semibold text-gray-900">{selectedEmail.to?.join(", ")}</span>
+                </div>
+                {selectedEmail.cc?.length > 0 && (
+                  <div>
+                    <span className="font-bold text-gray-500 w-12 inline-block">CC:</span>
+                    <span className="font-medium text-gray-800">{selectedEmail.cc.join(", ")}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="font-bold text-gray-500 w-12 inline-block">From:</span>
+                  <span className="font-medium text-gray-800">
+                    {selectedEmail.fromName || "Tasklert User"} &lt;{selectedEmail.from}&gt;
+                  </span>
+                </div>
+              </div>
+
+              {/* Message Content */}
+              <div>
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Message Body</h4>
+                <div
+                  className="p-4 rounded-2xl border border-gray-200 bg-white text-xs leading-relaxed text-gray-800 overflow-x-auto whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{
+                    __html: selectedEmail.htmlBody || selectedEmail.body || selectedEmail.snippet,
+                  }}
+                />
+              </div>
+
+              {/* Attachments if any */}
+              {selectedEmail.attachments?.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    Attachments ({selectedEmail.attachments.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEmail.attachments.map((att, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-xs font-semibold text-purple-900"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-purple-600" />
+                        <span>{att.filename}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-purple-50 bg-gray-50/50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedEmail(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 hover:text-gray-900 transition"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                disabled={isResending}
+                onClick={() => handleResend(selectedEmail._id)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition cursor-pointer"
+              >
+                <Repeat className={`w-3.5 h-3.5 ${isResending ? "animate-spin" : ""}`} />
+                <span>{isResending ? "Resending..." : "Resend Email"}</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

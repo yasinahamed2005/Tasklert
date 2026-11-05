@@ -123,7 +123,7 @@ export const sendOutboundEmail = async (userId, emailData) => {
     hasAttachment: attachments.length > 0,
     attachments: attachments.map((a) => ({
       filename: a.originalname || a.name || a.filename || "file",
-      mimeType: a.mimetype || "application/octet-stream",
+      mimeType: a.mimetype || a.type || "application/octet-stream",
       size: a.size || 0,
     })),
     date: new Date(),
@@ -132,6 +132,146 @@ export const sendOutboundEmail = async (userId, emailData) => {
   return {
     success: true,
     messageId: sentResult?.messageId || savedMessage._id,
+    savedMessage,
+  };
+};
+
+import { generateTasklertMailHtml, generateTasklertMailText } from "./tasklertMailTemplate.js";
+
+/**
+ * Send real outbound email specifically through Tasklert Mail
+ * Uses the authenticated user's verified identity, Tasklert branded template,
+ * Reply-To configuration, and priority handling.
+ */
+export const sendTasklertMail = async (user, mailData) => {
+  if (!user || !user._id) throw new Error("Authenticated user required.");
+
+  const {
+    to = [],
+    cc = [],
+    bcc = [],
+    subject = "",
+    message = "",
+    priority = "normal",
+    actionDeadline = null,
+    attachments = [],
+  } = mailData;
+
+  const toList = (Array.isArray(to) ? to : [to]).map((e) => String(e).trim()).filter(Boolean);
+  const ccList = (Array.isArray(cc) ? cc : cc ? [cc] : []).map((e) => String(e).trim()).filter(Boolean);
+  const bccList = (Array.isArray(bcc) ? bcc : bcc ? [bcc] : []).map((e) => String(e).trim()).filter(Boolean);
+
+  if (toList.length === 0) {
+    throw new Error("At least one recipient email address is required.");
+  }
+
+  // Validate email formats
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const email of [...toList, ...ccList, ...bccList]) {
+    if (!emailRegex.test(email)) {
+      throw new Error(`Invalid email address format: "${email}"`);
+    }
+  }
+
+  const cleanSubject = String(subject || "").trim();
+  if (!cleanSubject) {
+    throw new Error("Email subject is required.");
+  }
+
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) {
+    throw new Error("Email message body is required.");
+  }
+
+  // Final subject with priority prefix if requested
+  let finalSubject = cleanSubject;
+  if (priority === "action_required" && !finalSubject.toLowerCase().startsWith("action required")) {
+    finalSubject = `Action Required: ${finalSubject}`;
+  }
+
+  const senderName = user.name || "Tasklert User";
+  const senderEmail = user.email;
+
+  // Generate responsive HTML & plain-text templates
+  const htmlContent = generateTasklertMailHtml({
+    senderName,
+    senderEmail,
+    subject: finalSubject,
+    messageHtml: cleanMessage.includes("<") ? cleanMessage : cleanMessage.replace(/\n/g, "<br>"),
+    priority,
+    actionDeadline,
+  });
+
+  const textContent = generateTasklertMailText({
+    senderName,
+    senderEmail,
+    subject: finalSubject,
+    messageText: cleanMessage.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+    priority,
+    actionDeadline,
+  });
+
+  const formattedAttachments = attachments.map((att) => ({
+    filename: att.originalname || att.name || att.filename || "attachment",
+    content: att.buffer || att.content,
+    path: att.path,
+  }));
+
+  let sentResult = null;
+  let senderFrom = `"${senderName} (via Tasklert)" <${process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@tasklert.app"}>`;
+
+  // Check if system mailer or SMTP is configured
+  if (isEmailConfigured()) {
+    sentResult = await sendViaSystemMailer({
+      to: toList.join(", "),
+      cc: ccList.length ? ccList.join(", ") : undefined,
+      bcc: bccList.length ? bccList.join(", ") : undefined,
+      subject: finalSubject,
+      html: htmlContent,
+      text: textContent,
+      replyTo: `${senderName} <${senderEmail}>`,
+      attachments: formattedAttachments,
+    });
+  } else {
+    // If neither Resend/Brevo/SMTP are configured in local development, record as delivered locally
+    console.warn("[TasklertMail] No external SMTP/Resend configured. Simulating delivery in dev environment.");
+    sentResult = { messageId: `tasklert_dev_${Date.now()}` };
+  }
+
+  // Save in EmailMessage under "SENT" folder with isTasklertMail: true
+  const savedMessage = await EmailMessage.create({
+    owner: user._id,
+    folder: "SENT",
+    from: senderEmail,
+    fromName: senderName,
+    to: toList,
+    cc: ccList,
+    bcc: bccList,
+    subject: finalSubject,
+    snippet: cleanMessage.replace(/<[^>]+>/g, " ").slice(0, 150),
+    body: cleanMessage,
+    htmlBody: htmlContent,
+    textBody: textContent,
+    priority,
+    status: "sent",
+    actionRequiredDeadline: actionDeadline ? new Date(actionDeadline) : null,
+    isTasklertMail: true,
+    isRead: true,
+    isStarred: false,
+    hasAttachment: formattedAttachments.length > 0,
+    attachments: formattedAttachments.map((a) => ({
+      filename: a.filename,
+      mimeType: a.mimeType || "application/octet-stream",
+      size: a.content?.length || 0,
+    })),
+    providerMessageId: sentResult?.messageId || `tasklert_${Date.now()}`,
+    date: new Date(),
+  });
+
+  return {
+    success: true,
+    message: "Email sent successfully via Tasklert Mail.",
+    messageId: savedMessage.providerMessageId,
     savedMessage,
   };
 };

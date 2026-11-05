@@ -14,7 +14,7 @@ import {
   modifyGmailMessage,
   trashGmailMessage,
 } from "../services/email/gmail.service.js";
-import { sendOutboundEmail } from "../services/email/emailSend.service.js";
+import { sendOutboundEmail, sendTasklertMail } from "../services/email/emailSend.service.js";
 import EmailMessage from "../models/EmailMessage.js";
 import EmailAccount from "../models/EmailAccount.js";
 import Message from "../models/messageModel.js";
@@ -595,6 +595,154 @@ export const handleSyncMailbox = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ==========================================
+// 6. TASKLERT MAIL (PROFESSIONAL DEDICATED CHANNEL)
+// ==========================================
+
+export const handleSendTasklertMail = async (req, res) => {
+  try {
+    const user = req.user;
+    let { to, cc, bcc, subject, message, priority, actionDeadline } = req.body;
+
+    if (typeof to === "string") {
+      try { to = JSON.parse(to); } catch (_) { to = to.split(",").map((s) => s.trim()).filter(Boolean); }
+    }
+    if (typeof cc === "string") {
+      try { cc = JSON.parse(cc); } catch (_) { cc = cc ? cc.split(",").map((s) => s.trim()).filter(Boolean) : []; }
+    }
+    if (typeof bcc === "string") {
+      try { bcc = JSON.parse(bcc); } catch (_) { bcc = bcc ? bcc.split(",").map((s) => s.trim()).filter(Boolean) : []; }
+    }
+
+    const files = req.files || (req.file ? [req.file] : []);
+
+    const result = await sendTasklertMail(user, {
+      to,
+      cc,
+      bcc,
+      subject,
+      message,
+      priority: priority || "normal",
+      actionDeadline: actionDeadline ? new Date(actionDeadline) : null,
+      attachments: files,
+    });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("[TasklertMailController] Send error:", err.message);
+    return res.status(400).json({
+      success: false,
+      message: err.message || "Failed to send email via Tasklert Mail.",
+    });
+  }
+};
+
+export const handleGetTasklertSentMails = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const { search = "", priority = "all", page = 1, limit = 50 } = req.query;
+
+    const query = {
+      owner: userId,
+      folder: "SENT",
+      isTasklertMail: true,
+    };
+
+    if (priority && priority !== "all") {
+      query.priority = priority;
+    }
+
+    if (search && search.trim()) {
+      const s = search.trim();
+      query.$or = [
+        { subject: { $regex: s, $options: "i" } },
+        { to: { $in: [new RegExp(s, "i")] } },
+        { snippet: { $regex: s, $options: "i" } },
+      ];
+    }
+
+    const skip = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(limit));
+    const [messages, totalCount] = await Promise.all([
+      EmailMessage.find(query).sort({ date: -1 }).skip(skip).limit(Number(limit)),
+      EmailMessage.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      messages,
+      totalCount,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const handleGetTasklertDrafts = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const drafts = await EmailMessage.find({
+      owner: userId,
+      folder: "DRAFTS",
+      isTasklertMail: true,
+    }).sort({ updatedAt: -1 });
+
+    return res.status(200).json({ success: true, drafts });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const handleDeleteTasklertMail = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const { id } = req.params;
+
+    const deleted = await EmailMessage.findOneAndDelete({
+      _id: id,
+      owner: userId,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Email record not found." });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Email removed from Tasklert Mail history.",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const handleResendTasklertMail = async (req, res) => {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    const original = await EmailMessage.findOne({ _id: id, owner: user._id });
+    if (!original) {
+      return res.status(404).json({ success: false, message: "Original email record not found." });
+    }
+
+    const result = await sendTasklertMail(user, {
+      to: original.to,
+      cc: original.cc,
+      bcc: original.bcc,
+      subject: original.subject,
+      message: original.body,
+      priority: original.priority,
+      actionDeadline: original.actionRequiredDeadline,
+    });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
 
