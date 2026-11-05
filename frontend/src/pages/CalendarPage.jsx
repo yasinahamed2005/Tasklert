@@ -653,7 +653,7 @@ const CalendarPage = () => {
               style={{
                 backgroundColor: "var(--cal-header-bg)",
                 color: "var(--cal-header-text)",
-                borderColor: "var(--cal-grid-border)",
+                borderColor: "var(--cal-header-border, var(--cal-grid-border))",
               }}
             >
               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
@@ -685,16 +685,18 @@ const CalendarPage = () => {
                 return (
                   <div
                     key={dateKey}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${format(day, "EEEE, MMMM d, yyyy")}${dayIsToday ? ", Today" : ""}${isSelected ? ", Selected" : ""}`}
+                    role={inCurrentMonth ? "button" : undefined}
+                    tabIndex={inCurrentMonth ? 0 : -1}
+                    aria-label={inCurrentMonth ? `${format(day, "EEEE, MMMM d, yyyy")}${dayIsToday ? ", Today" : ""}${isSelected ? ", Selected" : ""}` : undefined}
                     onClick={() => {
+                      if (!inCurrentMonth) return;
                       setSelectedDate(day);
                       if (window.innerWidth < 1024) {
                         setShowDayDrawer(true);
                       }
                     }}
                     onKeyDown={(e) => {
+                      if (!inCurrentMonth) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         setSelectedDate(day);
@@ -703,202 +705,223 @@ const CalendarPage = () => {
                         }
                       }
                     }}
-                    className="h-full min-h-0 p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer group relative select-none overflow-hidden"
+                    className={`h-full min-h-0 p-1 sm:p-1.5 transition-all flex flex-col justify-between relative select-none overflow-hidden ${
+                      inCurrentMonth ? "cursor-pointer group" : "cursor-default pointer-events-none"
+                    }`}
                     style={{
-                      backgroundColor: isSelected
+                      backgroundColor: isSelected && inCurrentMonth
                         ? "var(--cal-selected-bg)"
                         : !inCurrentMonth
-                        ? "var(--cal-cell-outside)"
+                        ? (isDarkCell ? "var(--cal-cell-outside-alt, var(--cal-cell-outside))" : "var(--cal-cell-outside)")
                         : isDarkCell
                         ? "var(--cal-cell-alt)"
                         : "var(--cal-cell-in-month)",
-                      color: !inCurrentMonth
-                        ? "var(--cal-cell-outside-text)"
+                      color: isDarkCell
+                        ? "var(--cal-cell-alt-text, var(--cal-cell-in-month-text))"
                         : "var(--cal-cell-in-month-text)",
-                      boxShadow: isSelected ? "inset 0 0 0 2px var(--cal-selected-border)" : undefined,
-                      zIndex: isSelected ? 10 : 1,
+                      boxShadow: isSelected && inCurrentMonth ? "inset 0 0 0 2px var(--cal-selected-border)" : undefined,
+                      zIndex: isSelected && inCurrentMonth ? 10 : 1,
                     }}
                   >
-                    {/* Top of Cell: Day number & Quick add */}
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span
-                          className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${
-                            dayIsToday ? "ring-2 ring-white/80 shadow-xs" : ""
-                          }`}
-                          style={{
-                            backgroundColor: dayIsToday ? "var(--cal-today-badge)" : undefined,
-                            color: dayIsToday
-                              ? "var(--cal-today-text)"
-                              : isSelected
-                              ? "var(--cal-selected-border)"
-                              : inCurrentMonth
-                              ? "var(--cal-cell-in-month-text)"
-                              : "var(--cal-cell-outside-text)",
-                          }}
-                        >
-                          {format(day, "d")}
-                        </span>
-                        {dayIsToday && (
-                          <span
-                            className="hidden md:inline-block text-[8px] uppercase font-black tracking-wider px-1 py-0.5 rounded leading-none shrink-0"
-                            style={{
-                              color: "var(--primary)",
-                              backgroundColor: "var(--cal-selected-bg)",
-                            }}
-                          >
-                            TODAY
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Quick Add icon button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCreateOnDate(day);
-                        }}
-                        aria-label={`Add reminder on ${dateKey}`}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
-                        style={{
-                          color: "var(--cal-cell-outside-text)",
-                        }}
-                        title="Add reminder on this date"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Mobile: Compact Colored Dots */}
-                    {(dayReminders.length > 0 || dayTasks.length > 0) && (
-                      <div className="flex sm:hidden items-center justify-center gap-0.5 mt-0.5">
-                        {dayReminders.slice(0, 2).map((r, i) => (
-                          <span
-                            key={`rem-dot-${i}`}
-                            className="w-1.5 h-1.5 rounded-full bg-purple-600 ring-1 ring-purple-300"
-                            title={`Alarm: ${r.title}`}
-                          />
-                        ))}
-                        {dayTasks.slice(0, 2).map((task, i) => {
-                          const completed = isCompletedTask(task);
-                          const overdue = isTaskOverdue(task, todayKey);
-                          return (
+                    {inCurrentMonth && (
+                      <>
+                        {/* Top of Cell: Day number & Quick add */}
+                        <div className="flex items-center justify-between mb-0.5">
+                          <div className="flex items-center gap-1 min-w-0">
                             <span
-                              key={i}
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                completed
-                                  ? "bg-emerald-500"
-                                  : overdue
-                                  ? "bg-rose-500"
-                                  : task.priority === "High"
-                                  ? "bg-rose-500"
-                                  : task.priority === "Medium"
-                                  ? "bg-amber-500"
-                                  : "bg-blue-500"
+                              className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                                dayIsToday ? "ring-2 ring-white/80 shadow-xs" : ""
                               }`}
-                            />
-                          );
-                        })}
-                        {dayTasks.length > 3 && (
-                          <span
-                            className="text-[8px] font-bold"
-                            style={{
-                              color: "var(--cal-cell-outside-text)",
-                            }}
-                          >
-                            +{dayTasks.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Desktop: Real Task Badges with Dynamic Contrast */}
-                    <div className="hidden sm:block space-y-0.5 flex-1 overflow-hidden mt-0.5">
-                      {/* Reminders badges */}
-                      {dayReminders.slice(0, 2).map((r) => (
-                        <div
-                          key={r._id}
-                          onClick={(e) => handleEditReminder(r, e)}
-                          className="px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer bg-purple-50/90 border border-purple-200 text-purple-900 font-semibold hover:bg-purple-100 shadow-2xs"
-                          title={`Alarm: ${r.title} (${r.scheduledTime || "Scheduled"})`}
-                        >
-                          <span className="truncate flex items-center gap-0.5">
-                            <Bell className="w-2.5 h-2.5 text-purple-600 shrink-0" />
-                            <span className="truncate">{r.title}</span>
-                          </span>
-                          <span className="text-[9px] text-purple-700 font-bold shrink-0">
-                            {r.scheduledTime || (r.scheduledAt ? format(new Date(r.scheduledAt), "hh:mm a") : "")}
-                          </span>
-                        </div>
-                      ))}
-                      {/* Tasks badges */}
-                      {dayTasks.slice(0, Math.max(1, 3 - dayReminders.length)).map((task) => {
-                        const completed = isCompletedTask(task);
-                        const overdue = isTaskOverdue(task, todayKey);
-                        return (
-                          <div
-                            key={task._id}
-                            onClick={(e) => handleEditTask(task, e)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer ${
-                              completed
-                                ? "bg-emerald-50 border border-emerald-200 text-emerald-800 line-through opacity-85"
-                                : overdue
-                                ? "bg-rose-50 border border-rose-200 text-rose-800 font-semibold"
-                                : task.priority === "High"
-                                ? "bg-rose-50 border border-rose-200 text-rose-800 font-medium"
-                                : task.priority === "Medium"
-                                ? "bg-amber-50 border border-amber-200 text-amber-800 font-medium"
-                                : "bg-blue-50 border border-blue-200 text-blue-800 font-medium"
-                            }`}
-                            title={`${task.title} (${task.priority} Priority${overdue ? ", Overdue" : ""})`}
-                          >
-                            <div className="flex items-center gap-1 min-w-0 truncate">
+                              style={{
+                                backgroundColor: dayIsToday ? "var(--cal-today-badge)" : undefined,
+                                color: dayIsToday
+                                  ? "var(--cal-today-text)"
+                                  : isSelected
+                                  ? "var(--cal-selected-border)"
+                                  : isDarkCell
+                                  ? "var(--cal-cell-alt-text, var(--cal-cell-in-month-text))"
+                                  : "var(--cal-cell-in-month-text)",
+                              }}
+                            >
+                              {format(day, "d")}
+                            </span>
+                            {dayIsToday && (
                               <span
-                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                  completed
-                                    ? "bg-emerald-500"
-                                    : overdue
-                                    ? "bg-rose-500"
-                                    : task.priority === "High"
-                                    ? "bg-rose-500"
-                                    : task.priority === "Medium"
-                                    ? "bg-amber-500"
-                                    : "bg-blue-500"
-                                }`}
-                              />
-                              <span className="truncate">{task.title}</span>
-                            </div>
-                            {task.reminderEnabled && task.reminderAt && (
-                              <Bell
-                                className="w-2.5 h-2.5 shrink-0"
+                                className="hidden md:inline-block text-[8px] uppercase font-black tracking-wider px-1 py-0.5 rounded leading-none shrink-0"
                                 style={{
                                   color: "var(--primary)",
+                                  backgroundColor: "var(--cal-selected-bg)",
                                 }}
-                              />
+                              >
+                                TODAY
+                              </span>
                             )}
                           </div>
-                        );
-                      })}
 
-                      {/* +N More Overflow Button */}
-                      {dayTasks.length > 2 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedDate(day);
-                            setShowDayDrawer(true);
-                          }}
-                          className="text-[9px] font-bold pl-0.5 leading-none hover:underline cursor-pointer block text-left"
-                          style={{
-                            color: "var(--primary)",
-                          }}
-                        >
-                          +{dayTasks.length - 2} more
-                        </button>
-                      )}
-                    </div>
+                          {/* Quick Add icon button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateOnDate(day);
+                            }}
+                            aria-label={`Add reminder on ${dateKey}`}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                            style={{
+                              color: isDarkCell ? "var(--cal-cell-alt-text, var(--cal-cell-outside-text))" : "var(--cal-cell-outside-text)",
+                            }}
+                            title="Add reminder on this date"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Mobile: Compact Colored Dots */}
+                        {(dayReminders.length > 0 || dayTasks.length > 0) && (
+                          <div className="flex sm:hidden items-center justify-center gap-0.5 mt-0.5">
+                            {dayReminders.slice(0, 2).map((r, i) => (
+                              <span
+                                key={`rem-dot-${i}`}
+                                className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-emerald-300"
+                                title={`Alarm: ${r.title}`}
+                              />
+                            ))}
+                            {dayTasks.slice(0, 2).map((task, i) => {
+                              const completed = isCompletedTask(task);
+                              const overdue = isTaskOverdue(task, todayKey);
+                              return (
+                                <span
+                                  key={i}
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    completed
+                                      ? "bg-emerald-500"
+                                      : overdue
+                                      ? "bg-rose-500"
+                                      : task.priority === "High"
+                                      ? "bg-rose-500"
+                                      : task.priority === "Medium"
+                                      ? "bg-amber-500"
+                                      : "bg-blue-500"
+                                  }`}
+                                />
+                              );
+                            })}
+                            {dayTasks.length > 3 && (
+                              <span
+                                className="text-[8px] font-bold"
+                                style={{
+                                  color: "var(--cal-cell-outside-text)",
+                                }}
+                              >
+                                +{dayTasks.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Desktop: Real Task Badges with Dynamic Contrast */}
+                        <div className="hidden sm:block space-y-0.5 flex-1 overflow-hidden mt-0.5">
+                          {/* Reminders badges */}
+                          {dayReminders.slice(0, 2).map((r) => (
+                            <div
+                              key={r._id}
+                              onClick={(e) => handleEditReminder(r, e)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer font-semibold shadow-2xs hover:opacity-90 ${
+                                isDarkCell
+                                  ? "bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-900/90"
+                                  : "bg-emerald-50/90 border border-emerald-200 text-emerald-900 hover:bg-emerald-100"
+                              }`}
+                              title={`Alarm: ${r.title} (${r.scheduledTime || "Scheduled"})`}
+                            >
+                              <span className="truncate flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                <span className="truncate">{r.title}</span>
+                                <Bell className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                              </span>
+                              <span className={`text-[9px] font-bold shrink-0 ${isDarkCell ? "text-emerald-300" : "text-emerald-700"}`}>
+                                {r.scheduledTime || (r.scheduledAt ? format(new Date(r.scheduledAt), "hh:mm a") : "")}
+                              </span>
+                            </div>
+                          ))}
+                          {/* Tasks badges */}
+                          {dayTasks.slice(0, Math.max(1, 3 - dayReminders.length)).map((task) => {
+                            const completed = isCompletedTask(task);
+                            const overdue = isTaskOverdue(task, todayKey);
+                            return (
+                              <div
+                                key={task._id}
+                                onClick={(e) => handleEditTask(task, e)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] leading-tight truncate flex items-center justify-between gap-1 transition cursor-pointer ${
+                                  isDarkCell
+                                    ? completed
+                                      ? "bg-emerald-950/60 border border-emerald-800 text-emerald-400 line-through opacity-75"
+                                      : overdue
+                                      ? "bg-rose-950/80 border border-rose-700 text-rose-300 font-semibold"
+                                      : task.priority === "High"
+                                      ? "bg-rose-950/80 border border-rose-700 text-rose-300 font-medium"
+                                      : task.priority === "Medium"
+                                      ? "bg-amber-950/80 border border-amber-700 text-amber-300 font-medium"
+                                      : "bg-slate-800/90 border border-slate-700 text-slate-100 font-medium"
+                                    : completed
+                                    ? "bg-emerald-50 border border-emerald-200 text-emerald-800 line-through opacity-85"
+                                    : overdue
+                                    ? "bg-rose-50 border border-rose-200 text-rose-800 font-semibold"
+                                    : task.priority === "High"
+                                    ? "bg-rose-50 border border-rose-200 text-rose-800 font-medium"
+                                    : task.priority === "Medium"
+                                    ? "bg-amber-50 border border-amber-200 text-amber-800 font-medium"
+                                    : "bg-blue-50 border border-blue-200 text-blue-800 font-medium"
+                                }`}
+                                title={`${task.title} (${task.priority} Priority${overdue ? ", Overdue" : ""})`}
+                              >
+                                <div className="flex items-center gap-1 min-w-0 truncate">
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                      completed
+                                        ? "bg-emerald-500"
+                                        : overdue
+                                        ? "bg-rose-500"
+                                        : task.priority === "High"
+                                        ? "bg-rose-500"
+                                        : task.priority === "Medium"
+                                        ? "bg-amber-500"
+                                        : "bg-blue-500"
+                                    }`}
+                                  />
+                                  <span className="truncate">{task.title}</span>
+                                </div>
+                                {task.reminderEnabled && task.reminderAt && (
+                                  <Bell
+                                    className="w-2.5 h-2.5 shrink-0"
+                                    style={{
+                                      color: "var(--primary)",
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* +N More Overflow Button */}
+                          {dayTasks.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDate(day);
+                                setShowDayDrawer(true);
+                              }}
+                              className="text-[9px] font-bold pl-0.5 leading-none hover:underline cursor-pointer block text-left"
+                              style={{
+                                color: "var(--primary)",
+                              }}
+                            >
+                              +{dayTasks.length - 2} more
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}

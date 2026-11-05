@@ -228,9 +228,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #7c3aed;
   --cal-grid-border: #ede9fe;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #f3e8ff;
   --cal-cell-in-month-text: #1e1b4b;
   --cal-cell-outside: #faf5ff;
+  --cal-cell-outside-alt: #faf5ff;
   --cal-cell-outside-text: #a5b4fc;
   --cal-cell-hover: #f5f3ff;
   --cal-selected-bg: #f3e8ff;
@@ -254,9 +255,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #0369a1;
   --cal-grid-border: #bae6fd;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #e0f2fe;
   --cal-cell-in-month-text: #0f172a;
   --cal-cell-outside: #f8fafc;
+  --cal-cell-outside-alt: #f0f9ff;
   --cal-cell-outside-text: #94a3b8;
   --cal-cell-hover: #f0f7ff;
   --cal-selected-bg: #e0f2fe;
@@ -280,9 +282,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #15803d;
   --cal-grid-border: #dcfce7;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #dcfce7;
   --cal-cell-in-month-text: #052e16;
   --cal-cell-outside: #f0fdf4;
+  --cal-cell-outside-alt: #f0fdf4;
   --cal-cell-outside-text: #86efac;
   --cal-cell-hover: #f0fdf4;
   --cal-selected-bg: #dcfce7;
@@ -306,9 +309,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #c2410c;
   --cal-grid-border: #fed7aa;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #ffedd5;
   --cal-cell-in-month-text: #431407;
   --cal-cell-outside: #fff7ed;
+  --cal-cell-outside-alt: #fff7ed;
   --cal-cell-outside-text: #a8a29e;
   --cal-cell-hover: #fef3e2;
   --cal-selected-bg: #ffedd5;
@@ -332,9 +336,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #6d28d9;
   --cal-grid-border: #ede9fe;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #f3e8ff;
   --cal-cell-in-month-text: #1e1b4b;
   --cal-cell-outside: #faf5ff;
+  --cal-cell-outside-alt: #faf5ff;
   --cal-cell-outside-text: #a5b4fc;
   --cal-cell-hover: #f5f3ff;
   --cal-selected-bg: #f3e8ff;
@@ -358,9 +363,10 @@ select:-webkit-autofill:focus {
   --cal-header-text: #be185d;
   --cal-grid-border: #fbcfe8;
   --cal-cell-in-month: #ffffff;
-  --cal-cell-alt: #ffffff;
+  --cal-cell-alt: #fce7f3;
   --cal-cell-in-month-text: #500724;
   --cal-cell-outside: #fdf2f8;
+  --cal-cell-outside-alt: #fdf2f8;
   --cal-cell-outside-text: #f472b6;
   --cal-cell-hover: #fdf2f8;
   --cal-selected-bg: #fce7f3;
@@ -377,30 +383,34 @@ select:-webkit-autofill:focus {
   --calendar-border: #fbcfe8;
 }
 
-/* 6. Charcoal Dark Theme (The ONLY dark theme, Image 1 & 2 reference) */
+/* 6. Charcoal Dark Theme (High contrast dark slate & chessboard workspace, Image 1 & 2 reference) */
 .theme-dark {
-  --primary: #38bdf8;
-  --cal-header-bg: #0b1120;
-  --cal-header-text: #93c5fd;
-  --cal-grid-border: #1e293b;
-  --cal-cell-in-month: #0f172a;
-  --cal-cell-alt: #141d2e;
-  --cal-cell-in-month-text: #f8fafc;
-  --cal-cell-outside: #090d16;
-  --cal-cell-outside-text: #475569;
-  --cal-cell-hover: #1e293b;
-  --cal-selected-bg: #1e3a5f;
-  --cal-selected-border: #38bdf8;
-  --cal-today-badge: #38bdf8;
-  --cal-today-text: #090e17;
-  --cal-tabs-bg: #0b1120;
-  --cal-tabs-border: #1e293b;
-  --cal-tab-active-bg: #1e293b;
-  --cal-tab-active-text: #f8fafc;
-  --cal-tab-inactive-text: #94a3b8;
-  --cal-sidebar-bg: #0f172a;
-  --cal-card-border: #1e293b;
-  --calendar-border: #1e293b;
+  --primary: #1d70b8;
+  --cal-header-bg: #ffffff;
+  --cal-header-text: #0284c7;
+  --cal-header-border: #e2e8f0;
+  --cal-grid-border: #161922;
+  --cal-cell-in-month: #ffffff;
+  --cal-cell-alt: #161922;
+  --cal-cell-in-month-text: #0f172a;
+  --cal-cell-alt-text: #ffffff;
+  --cal-cell-outside: #f1f5f9;
+  --cal-cell-outside-alt: #161922;
+  --cal-cell-outside-text: #94a3b8;
+  --cal-cell-outside-alt-text: #64748b;
+  --cal-cell-hover: #e2e8f0;
+  --cal-selected-bg: #ffffff;
+  --cal-selected-border: #1d70b8;
+  --cal-today-badge: #1d70b8;
+  --cal-today-text: #ffffff;
+  --cal-tabs-bg: #ffffff;
+  --cal-tabs-border: #cbd5e1;
+  --cal-tab-active-bg: #ffffff;
+  --cal-tab-active-text: #0f172a;
+  --cal-tab-inactive-text: #64748b;
+  --cal-sidebar-bg: #ffffff;
+  --cal-card-border: #e2e8f0;
+  --calendar-border: #e2e8f0;
 }
 
 /* ============================================================
