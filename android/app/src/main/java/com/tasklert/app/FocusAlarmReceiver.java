@@ -5,31 +5,41 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.PowerManager;
-import android.util.Log;
 
 public class FocusAlarmReceiver extends BroadcastReceiver {
 
-    private static final String TAG = "FocusAlarmReceiver";
-
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.i(TAG, "ALARM TRIGGERED BY ANDROID ALARMMANAGER! Waking device CPU & audio engine...");
+        String sessionId = intent != null ? intent.getStringExtra("id") : "active-focus-session";
+        if (sessionId == null) sessionId = "active-focus-session";
 
-        // Acquire a temporary 10-second WakeLock to guarantee execution while launching service
+        AlarmLogger.log("ALARM_RECEIVER_TRIGGERED", sessionId, "SUCCESS", "AlarmManager exact trigger received. Waking screen & CPU...");
+
+        // Acquire a 15-second SCREEN_BRIGHT_WAKE_LOCK with ACQUIRE_CAUSES_WAKEUP
+        // This physically turns on the device display and keeps CPU awake while launching foreground service
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = null;
         if (pm != null) {
-            wakeLock = pm.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "tasklert:FocusAlarmReceiverWakeLock"
-            );
-            wakeLock.acquire(10000L);
+            try {
+                @SuppressWarnings("deprecation")
+                PowerManager.WakeLock wakeLock = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP |
+                    PowerManager.ON_AFTER_RELEASE,
+                    "tasklert:FocusAlarmReceiverWakeLock"
+                );
+                // Acquire with 15 second auto-timeout so we never leak or hold permanently
+                wakeLock.acquire(15000L);
+            } catch (Exception e) {
+                AlarmLogger.logError("ALARM_RECEIVER_TRIGGERED", sessionId, "Could not acquire screen wake lock", e);
+            }
         }
 
         try {
             Intent serviceIntent = new Intent(context, AlarmRingingService.class);
             serviceIntent.setAction(AlarmRingingService.ACTION_RING);
-            serviceIntent.putExtras(intent);
+            if (intent != null && intent.getExtras() != null) {
+                serviceIntent.putExtras(intent.getExtras());
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent);
@@ -37,16 +47,9 @@ public class FocusAlarmReceiver extends BroadcastReceiver {
                 context.startService(serviceIntent);
             }
 
-            Log.i(TAG, "Successfully started AlarmRingingService from BroadcastReceiver");
+            AlarmLogger.log("ALARM_SERVICE_STARTED", sessionId, "SUCCESS", "Requested AlarmRingingService foreground execution");
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start AlarmRingingService", e);
-        } finally {
-            if (wakeLock != null && wakeLock.isHeld()) {
-                try {
-                    wakeLock.release();
-                } catch (Exception ignored) {}
-            }
+            AlarmLogger.logError("ALARM_SERVICE_STARTED", sessionId, "Failed to start AlarmRingingService", e);
         }
     }
 }
-

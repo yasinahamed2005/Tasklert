@@ -95,7 +95,55 @@ self.addEventListener("notificationclick", (event) => {
   const notifData = event.notification.data || {};
   let targetUrl = notifData.url || "/";
 
-  // Build targetUrl with alarm parameters for navigation
+  // ACTION: DISMISS
+  // Silences the alarm and dismisses the session directly from the notification shade
+  // WITHOUT opening or focusing Tasklert or navigating the browser!
+  if (action === "dismiss") {
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            client.postMessage({
+              type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
+              action: "dismiss",
+              mode: notifData.mode,
+              focusId: notifData.focusId,
+            });
+            client.postMessage({
+              type: "TASKLERT_NOTIFICATION_ACTION",
+              action: "dismiss",
+              alarmId: notifData.alarmId,
+              taskId: notifData.taskId,
+            });
+          }
+        })
+    );
+    return;
+  }
+
+  // ACTION: SNOOZE
+  // Snoozes the alarm directly from the notification shade WITHOUT opening any window!
+  if (action === "snooze") {
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            client.postMessage({
+              type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
+              action: "snooze",
+              mode: notifData.mode,
+              focusId: notifData.focusId,
+              snoozeMinutes: 5,
+            });
+          }
+        })
+    );
+    return;
+  }
+
+  // ACTION: VIEW TIMER / OPEN (User explicitly clicked "View Timer" or tapped notification body)
   if (notifData.alarmId) {
     const separator = targetUrl.includes("?") ? "&" : "?";
     targetUrl = `${targetUrl}${separator}alarmId=${encodeURIComponent(notifData.alarmId)}`;
@@ -115,14 +163,14 @@ self.addEventListener("notificationclick", (event) => {
             if (notifData.isFocus || targetUrl.includes("/focus")) {
               client.postMessage({
                 type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
-                action,
+                action: "open",
                 mode: notifData.mode,
                 focusId: notifData.focusId,
               });
             } else {
               client.postMessage({
                 type: "TASKLERT_NOTIFICATION_ACTION",
-                action,
+                action: "open",
                 alarmId: notifData.alarmId,
                 taskId: notifData.taskId,
               });

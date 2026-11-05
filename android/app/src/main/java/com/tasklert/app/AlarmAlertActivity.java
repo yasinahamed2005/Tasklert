@@ -6,9 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
+import android.os.PowerManager;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
@@ -20,12 +19,27 @@ public class AlarmAlertActivity extends Activity {
     private TextView tvClock;
     private TextView tvTitle;
     private TextView tvRingtoneName;
+    private PowerManager.WakeLock activityWakeLock;
+    private String sessionId = "active-focus-session";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Configure lock-screen and screen wakeup flags
+        sessionId = getIntent().getStringExtra("id");
+        if (sessionId == null || sessionId.isEmpty()) {
+            sessionId = "active-focus-session";
+        }
+
+        // Apply Window flags for lock-screen appearance & screen wakeup across all Android versions
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON
+        );
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true);
             setTurnScreenOn(true);
@@ -33,13 +47,6 @@ public class AlarmAlertActivity extends Activity {
             if (km != null) {
                 km.requestDismissKeyguard(this, null);
             }
-        } else {
-            getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-            );
         }
 
         setContentView(R.layout.activity_alarm_alert);
@@ -71,26 +78,59 @@ public class AlarmAlertActivity extends Activity {
 
         // Dismiss Button
         findViewById(R.id.btnDismiss).setOnClickListener(v -> dismiss());
+
+        AlarmLogger.log("ALARM_ACTIVITY_DISPLAYED", sessionId, "SUCCESS", "AlarmAlertActivity created and visible over lock screen");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Hardware screen wake lock to ensure physical screen illumination on vendor devices (Samsung, Xiaomi, Oppo)
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && (activityWakeLock == null || !activityWakeLock.isHeld())) {
+                @SuppressWarnings("deprecation")
+                PowerManager.WakeLock wl = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP |
+                    PowerManager.ON_AFTER_RELEASE,
+                    "tasklert:AlarmAlertActivityWakeLock"
+                );
+                activityWakeLock = wl;
+                activityWakeLock.acquire(10000L); // 10 second timeout
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    protected void onPause() {
+        if (activityWakeLock != null && activityWakeLock.isHeld()) {
+            try {
+                activityWakeLock.release();
+            } catch (Exception ignored) {}
+            activityWakeLock = null;
+        }
+        super.onPause();
     }
 
     private void snooze(int minutes) {
-        Intent snoozeIntent = new Intent(this, AlarmRingingService.class);
-        snoozeIntent.setAction(AlarmRingingService.ACTION_SNOOZE);
+        AlarmLogger.log("ALARM_DISMISS_ACTION_RECEIVED", sessionId, "SUCCESS", "Snooze clicked in AlarmAlertActivity for " + minutes + " mins");
+        Intent snoozeIntent = new Intent(this, AlarmDismissReceiver.class);
+        snoozeIntent.setAction(AlarmDismissReceiver.ACTION_SNOOZE);
         snoozeIntent.putExtra("snoozeMinutes", minutes);
-        startService(snoozeIntent);
+        snoozeIntent.putExtra("id", sessionId);
+        sendBroadcast(snoozeIntent);
         finish();
     }
 
     private void dismiss() {
-        Intent dismissIntent = new Intent(this, AlarmRingingService.class);
-        dismissIntent.setAction(AlarmRingingService.ACTION_DISMISS);
-        startService(dismissIntent);
+        AlarmLogger.log("ALARM_DISMISS_ACTION_RECEIVED", sessionId, "SUCCESS", "Dismiss clicked in AlarmAlertActivity");
+        Intent dismissIntent = new Intent(this, AlarmDismissReceiver.class);
+        dismissIntent.setAction(AlarmDismissReceiver.ACTION_DISMISS);
+        dismissIntent.putExtra("id", sessionId);
+        sendBroadcast(dismissIntent);
 
-        // Open main app
-        Intent openApp = new Intent(this, MainActivity.class);
-        openApp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(openApp);
+        // DO NOT open MainActivity on dismiss. Keep the device on its existing screen.
         finish();
     }
 }
-

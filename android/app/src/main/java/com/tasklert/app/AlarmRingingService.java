@@ -1,6 +1,5 @@
 package com.tasklert.app;
 
-import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,7 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -39,6 +37,7 @@ public class AlarmRingingService extends Service {
     private MediaPlayer mediaPlayer;
     private Vibrator vibrator;
     private PowerManager.WakeLock wakeLock;
+    private String currentSessionId = "active-focus-session";
 
     @Override
     public void onCreate() {
@@ -57,7 +56,8 @@ public class AlarmRingingService extends Service {
                 );
                 channel.setDescription("High-priority alarm notifications that wake the screen");
                 channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-                // Keep channel sound null because MediaPlayer handles the exact custom audio
+                channel.setBypassDnd(true);
+                // Keep channel sound null because MediaPlayer handles the exact custom audio loop
                 channel.setSound(null, null);
                 channel.enableVibration(false); // Managed directly by Vibrator service
                 channel.enableLights(true);
@@ -85,7 +85,10 @@ public class AlarmRingingService extends Service {
         // Action is ACTION_RING
         acquireScreenWakeLock();
 
-        String id = intent.getStringExtra("id");
+        currentSessionId = intent.getStringExtra("id");
+        if (currentSessionId == null || currentSessionId.isEmpty()) {
+            currentSessionId = "active-focus-session";
+        }
         String title = intent.getStringExtra("title");
         String mode = intent.getStringExtra("mode");
         String customAudioPath = intent.getStringExtra("customAudioPath");
@@ -97,20 +100,22 @@ public class AlarmRingingService extends Service {
             title = "focus".equals(mode) ? "🎯 Focus Session Complete!" : "☕ Break Over!";
         }
 
-        // Start Foreground Service with Heads-up & FullScreenIntent
-        Notification notification = buildAlarmNotification(id, title, mode, ringtoneFileName);
+        AlarmLogger.log("ALARM_SERVICE_STARTED", currentSessionId, "SUCCESS", "Service running for session: " + currentSessionId);
+
+        // 1. Build and post Foreground Notification with FullScreenIntent
+        Notification notification = buildAlarmNotification(currentSessionId, title, mode, ringtoneFileName);
         startForeground(NOTIFICATION_ID, notification);
 
-        // Start Audio Playback via MediaPlayer
-        startAudioPlayback(customAudioPath, volume);
+        // 2. Start Audio Playback via MediaPlayer (exact custom ringtone preserved)
+        startAudioPlayback(customAudioPath, volume, ringtoneFileName);
 
-        // Start Hardware Vibration
+        // 3. Start Hardware Vibration
         if (vibration) {
             startVibration();
         }
 
-        // Launch full-screen Lock Screen Activity
-        launchLockScreenActivity(id, title, mode, ringtoneFileName);
+        // 4. Request full-screen Lock Screen Activity
+        launchLockScreenActivity(currentSessionId, title, mode, ringtoneFileName);
 
         return START_STICKY;
     }
@@ -119,18 +124,20 @@ public class AlarmRingingService extends Service {
         if (wakeLock == null) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
-                wakeLock = pm.newWakeLock(
+                @SuppressWarnings("deprecation")
+                PowerManager.WakeLock wl = pm.newWakeLock(
                     PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
                     PowerManager.ACQUIRE_CAUSES_WAKEUP |
                     PowerManager.ON_AFTER_RELEASE,
                     "tasklert:AlarmRingingWakeLock"
                 );
+                wakeLock = wl;
                 wakeLock.acquire(10 * 60 * 1000L); // 10 minutes max timeout
             }
         }
     }
 
-    private void startAudioPlayback(String customAudioPath, int volume) {
+    private void startAudioPlayback(String customAudioPath, int volume, String ringtoneFileName) {
         stopAudioPlayback();
 
         try {
@@ -143,23 +150,34 @@ public class AlarmRingingService extends Service {
             mediaPlayer.setAudioAttributes(attrs);
 
             boolean loaded = false;
+            String sourceDesc = "System Alarm Fallback";
+
             if (customAudioPath != null) {
                 File file = new File(customAudioPath);
                 if (file.exists() && file.canRead()) {
                     mediaPlayer.setDataSource(customAudioPath);
                     loaded = true;
-                    Log.i(TAG, "Playing exact custom ringtone from disk: " + customAudioPath);
+                    sourceDesc = "Custom MP3: " + customAudioPath;
                 }
             }
 
             if (!loaded) {
-                // Fallback to system alarm ringtone
+                // Check if general focus ringtone exists
+                File fallbackFile = new File(new File(getFilesDir(), "ringtones"), "focus.mp3");
+                if (fallbackFile.exists() && fallbackFile.canRead()) {
+                    mediaPlayer.setDataSource(fallbackFile.getAbsolutePath());
+                    loaded = true;
+                    sourceDesc = "Fallback MP3: " + fallbackFile.getAbsolutePath();
+                }
+            }
+
+            if (!loaded) {
                 Uri alert = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
                 if (alert == null) {
                     alert = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
                 }
                 mediaPlayer.setDataSource(this, alert);
-                Log.i(TAG, "Playing default system alarm tone fallback");
+                sourceDesc = "Android System Alarm URI";
             }
 
             float vol = Math.max(0.1f, Math.min(1.0f, volume / 100.0f));
@@ -168,8 +186,11 @@ public class AlarmRingingService extends Service {
             mediaPlayer.prepare();
             mediaPlayer.start();
 
+            AlarmLogger.log("ALARM_AUDIO_STARTED", currentSessionId, "SUCCESS", 
+                "Playing: " + (ringtoneFileName != null ? ringtoneFileName : sourceDesc) + " | Volume: " + volume + "%");
+
         } catch (Exception e) {
-            Log.e(TAG, "Error starting MediaPlayer", e);
+            AlarmLogger.logError("ALARM_AUDIO_STARTED", currentSessionId, "Error initializing MediaPlayer", e);
         }
     }
 
@@ -182,6 +203,7 @@ public class AlarmRingingService extends Service {
                 mediaPlayer.release();
             } catch (Exception ignored) {}
             mediaPlayer = null;
+            AlarmLogger.log("ALARM_AUDIO_STOPPED", currentSessionId, "SUCCESS", "MediaPlayer released");
         }
     }
 
@@ -197,7 +219,7 @@ public class AlarmRingingService extends Service {
                 }
             }
         } catch (Exception e) {
-            Log.warn(TAG, "Vibration error", e);
+            Log.w(TAG, "Vibration error: " + e.getMessage());
         }
     }
 
@@ -211,29 +233,47 @@ public class AlarmRingingService extends Service {
     }
 
     private Notification buildAlarmNotification(String id, String title, String mode, String ringtoneFileName) {
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        // 1. FULL SCREEN INTENT: launches AlarmAlertActivity over the lock screen
         Intent fullScreenIntent = new Intent(this, AlarmAlertActivity.class);
         fullScreenIntent.putExtra("id", id);
         fullScreenIntent.putExtra("title", title);
         fullScreenIntent.putExtra("mode", mode);
         fullScreenIntent.putExtra("ringtoneFileName", ringtoneFileName);
-        fullScreenIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
+        fullScreenIntent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK |
+            Intent.FLAG_ACTIVITY_CLEAR_TOP |
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
+        );
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 101, fullScreenIntent, flags);
 
-        // Snooze Action (5 mins)
-        Intent snoozeIntent = new Intent(this, AlarmRingingService.class);
-        snoozeIntent.setAction(ACTION_SNOOZE);
-        snoozeIntent.putExtra("snoozeMinutes", 5);
-        PendingIntent snoozePendingIntent = PendingIntent.getService(this, 102, snoozeIntent, flags);
+        // 2. VIEW TIMER ACTION (Activity PendingIntent): opens Tasklert to /focus
+        Intent viewTimerIntent = new Intent(this, MainActivity.class);
+        viewTimerIntent.setAction(Intent.ACTION_VIEW);
+        viewTimerIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        viewTimerIntent.putExtra("route", "/focus");
+        PendingIntent viewTimerPendingIntent = PendingIntent.getActivity(this, 102, viewTimerIntent, flags);
 
-        // Dismiss Action
-        Intent dismissIntent = new Intent(this, AlarmRingingService.class);
-        dismissIntent.setAction(ACTION_DISMISS);
-        PendingIntent dismissPendingIntent = PendingIntent.getService(this, 103, dismissIntent, flags);
+        // 3. DISMISS ACTION (BroadcastReceiver PendingIntent): dismisses directly WITHOUT opening any Activity!
+        Intent dismissIntent = new Intent(this, AlarmDismissReceiver.class);
+        dismissIntent.setAction(AlarmDismissReceiver.ACTION_DISMISS);
+        dismissIntent.putExtra("id", id);
+        dismissIntent.putExtra("mode", mode);
+        PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(this, 103, dismissIntent, flags);
+
+        // 4. SNOOZE ACTION (BroadcastReceiver PendingIntent): reschedules directly WITHOUT opening any Activity!
+        Intent snoozeIntent = new Intent(this, AlarmDismissReceiver.class);
+        snoozeIntent.setAction(AlarmDismissReceiver.ACTION_SNOOZE);
+        snoozeIntent.putExtra("snoozeMinutes", 5);
+        snoozeIntent.putExtra("id", id);
+        snoozeIntent.putExtra("mode", mode);
+        PendingIntent snoozePendingIntent = PendingIntent.getBroadcast(this, 104, snoozeIntent, flags);
+
+        AlarmLogger.log("ALARM_FULL_SCREEN_REQUESTED", id, "SUCCESS", "Constructed high-priority notification with fullScreenIntent & broadcast actions");
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -243,10 +283,12 @@ public class AlarmRingingService extends Service {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setContentIntent(viewTimerPendingIntent)
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(android.R.drawable.ic_popup_sync, "Snooze 5m", snoozePendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissPendingIntent)
+            .addAction(android.R.drawable.ic_menu_view, "👉 View Timer", viewTimerPendingIntent)
+            .addAction(android.R.drawable.ic_popup_sync, "💤 Snooze 5m", snoozePendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "✕ Dismiss", dismissPendingIntent)
             .build();
     }
 
@@ -263,48 +305,25 @@ public class AlarmRingingService extends Service {
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
             startActivity(alertIntent);
+            AlarmLogger.log("ALARM_ACTIVITY_DISPLAYED", id, "REQUESTED", "Dispatched startActivity for AlarmAlertActivity");
         } catch (Exception e) {
-            Log.e(TAG, "Could not launch AlarmAlertActivity directly: " + e.getMessage());
+            AlarmLogger.log("ALARM_ACTIVITY_DISPLAYED", id, "BACKGROUND_RESTRICTED", 
+                "startActivity deferred to notification fullScreenIntent: " + e.getMessage());
         }
     }
 
     private void handleSnooze(int minutes) {
-        Log.i(TAG, "Handling Snooze for " + minutes + " minutes");
-        stopAudioPlayback();
-        stopVibration();
-
-        long targetMs = System.currentTimeMillis() + (minutes * 60 * 1000L);
-        Context context = getApplicationContext();
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-
-        if (alarmManager != null) {
-            Intent intent = new Intent(context, FocusAlarmReceiver.class);
-            intent.setAction("com.tasklert.app.ALARM_TRIGGER");
-            intent.putExtra("title", "⏰ Snoozed Focus Alarm");
-            intent.putExtra("mode", "focus");
-
-            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pi = PendingIntent.getBroadcast(context, 777, intent, flags);
-
-            Intent showIntent = new Intent(context, MainActivity.class);
-            PendingIntent showPi = PendingIntent.getActivity(context, 0, showIntent, flags);
-
-            AlarmManager.AlarmClockInfo clockInfo = new AlarmManager.AlarmClockInfo(targetMs, showPi);
-            alarmManager.setAlarmClock(clockInfo, pi);
-        }
-
-        cleanupAndStop();
+        Intent snoozeBroadcast = new Intent(this, AlarmDismissReceiver.class);
+        snoozeBroadcast.setAction(AlarmDismissReceiver.ACTION_SNOOZE);
+        snoozeBroadcast.putExtra("snoozeMinutes", minutes);
+        snoozeBroadcast.putExtra("id", currentSessionId);
+        sendBroadcast(snoozeBroadcast);
     }
 
     private void handleDismiss() {
-        Log.i(TAG, "Handling Dismiss");
         stopAudioPlayback();
         stopVibration();
 
-        // Clear active alarm flag in preferences
         SharedPreferences prefs = getSharedPreferences(TasklertAlarmPlugin.PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit().putBoolean("alarm_active", false).apply();
 
@@ -342,4 +361,3 @@ public class AlarmRingingService extends Service {
         return null;
     }
 }
-

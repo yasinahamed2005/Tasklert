@@ -53,6 +53,8 @@
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
+            android:inheritShowWhenLocked="true"
+            android:showForAllUsers="true"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:exported="false" />
@@ -71,6 +73,17 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.tasklert.app.ALARM_TRIGGER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- BroadcastReceiver for Notification Action Buttons (Dismiss & Snooze without opening Activity) -->
+        <receiver
+            android:name=".AlarmDismissReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.tasklert.app.ACTION_DISMISS_ALARM" />
+                <action android:name="com.tasklert.app.ACTION_SNOOZE_ALARM" />
             </intent-filter>
         </receiver>
 

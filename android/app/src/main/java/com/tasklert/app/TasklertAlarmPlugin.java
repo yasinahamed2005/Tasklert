@@ -118,8 +118,8 @@ public class TasklertAlarmPlugin extends Plugin {
             AlarmManager.AlarmClockInfo clockInfo = new AlarmManager.AlarmClockInfo(targetEndAtMs, showPendingIntent);
             alarmManager.setAlarmClock(clockInfo, pendingIntent);
 
-            Log.i(TAG, "Scheduled exact Android alarm via setAlarmClock() for: " + targetEndAtMs + 
-                       " | Ringtone: " + customAudioPath);
+            AlarmLogger.log("ALARM_SCHEDULED", id, "SUCCESS", "TargetMs: " + targetEndAtMs + 
+                       " | Ringtone: " + customAudioPath + " | Sound: " + soundName);
 
             JSObject ret = new JSObject();
             ret.put("success", true);

@@ -769,6 +769,7 @@ export const FocusTimerPage = () => {
           handleSnooze(5);
         } else if (action === "dismiss") {
           soundManager.stop();
+          deviceAlarmManager.cancelFocusAlarm();
           setShowCompletionModal(false);
         }
       }
