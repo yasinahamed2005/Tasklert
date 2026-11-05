@@ -222,7 +222,7 @@ export const RingtonePickerModal = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn select-none"
+      className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fadeIn select-none overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           soundManager.stop();
@@ -230,7 +230,7 @@ export const RingtonePickerModal = ({
         }
       }}
     >
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[90vh] animate-scaleUp">
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[calc(100vh-2.5rem)] my-auto animate-scaleUp">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-blue-50 bg-blue-50/40 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -309,7 +309,7 @@ export const RingtonePickerModal = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
           {/* Custom Audio Upload Card */}
           <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/50 space-y-2.5 transition-all">
             <div className="flex items-center justify-between">

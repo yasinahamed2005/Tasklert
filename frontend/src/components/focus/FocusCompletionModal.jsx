@@ -111,9 +111,9 @@ export const FocusCompletionModal = ({
       role="dialog"
       aria-modal="true"
       aria-label="Alarm Ringing"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none animate-fadeIn"
+      className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn overflow-y-auto"
     >
-      <div className="bg-white rounded-3xl w-full max-w-sm sm:max-w-md shadow-2xl border border-blue-100 overflow-hidden text-center p-5 sm:p-6 space-y-4 animate-scaleUp relative">
+      <div className="bg-white rounded-3xl w-full max-w-sm sm:max-w-md shadow-2xl border border-blue-100 overflow-hidden text-center p-5 sm:p-6 space-y-4 animate-scaleUp relative max-h-[calc(100vh-2.5rem)] my-auto overflow-y-auto">
         {/* Celebration Radial Glow & Icon (Screen 3 Reference) */}
         <div className="relative mx-auto w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center pt-2">
           {/* Dashed rays around icon */}

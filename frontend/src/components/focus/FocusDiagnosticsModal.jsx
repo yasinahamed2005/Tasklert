@@ -106,9 +106,12 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn"
+      className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 select-none animate-fadeIn overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100vh-2.5rem)] my-auto">
         {/* Header */}
         <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -130,7 +133,7 @@ export const FocusDiagnosticsModal = ({ isOpen = false, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+        <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1 min-h-0">
           {loading ? (
             <div className="py-8 text-center text-slate-500 font-medium">Inspecting system capabilities...</div>
           ) : (

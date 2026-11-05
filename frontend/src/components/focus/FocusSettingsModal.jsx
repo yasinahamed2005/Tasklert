@@ -51,13 +51,15 @@ export const FocusSettingsModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fadeIn select-none overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[90vh] animate-scaleUp"
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-blue-100 flex flex-col overflow-hidden max-h-[calc(100vh-2.5rem)] my-auto animate-scaleUp"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-blue-50 bg-blue-50/40 shrink-0">
@@ -84,7 +86,7 @@ export const FocusSettingsModal = ({
         </div>
 
         {/* Form Body */}
-        <div className="p-5 overflow-y-auto space-y-5 flex-1 text-left">
+        <div className="p-5 overflow-y-auto space-y-5 flex-1 min-h-0 text-left">
           {/* Section 1: Timer Durations */}
           <div className="space-y-3">
             <span className="text-xs font-black uppercase tracking-wider text-slate-500 block">
