@@ -7,7 +7,7 @@ const themes = [
   { name: "theme-peach", label: "Warm Peach", color: "#d4a373" },
   { name: "theme-green", label: "Emerald Green", color: "#a3d977" },
   { name: "theme-lavender", label: "Lavender Purple", color: "#a78bfa" },
-  { name: "theme-dark", label: "Charcoal Dark", color: "#1f2937" },
+  { name: "theme-dark", label: "Charcoal Dark", color: "#0b2545" },
   { name: "theme-pink", label: "Vibrant Fuchsia", color: "#c026d3" },
 ];
 

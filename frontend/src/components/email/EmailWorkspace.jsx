@@ -24,7 +24,7 @@ import {
 import { toast } from "react-toastify";
 import { Sparkles, Mail, Loader2, ArrowRight } from "lucide-react";
 
-export default function EmailWorkspace() {
+export default function EmailWorkspace({ onBackToQuickSend }) {
   // ─── Account State ───
   const [personalAccount, setPersonalAccount] = useState(null);
   const [taskflowMail, setTaskflowMail] = useState({
@@ -384,7 +384,16 @@ export default function EmailWorkspace() {
     setSending(true);
     try {
       const formData = new FormData();
-      formData.append("from", "TaskFlow Mail <mailer@taskflow.in>");
+      if (emailData.from) {
+        formData.append("from", emailData.from);
+      } else if (personalAccount?.email) {
+        formData.append("from", `${personalAccount.displayName || personalAccount.email} <${personalAccount.email}>`);
+      } else {
+        formData.append("from", "TaskFlow Mail <mailer@taskflow.in>");
+      }
+      if (personalAccount?._id) {
+        formData.append("accountId", personalAccount._id);
+      }
       formData.append("to", JSON.stringify(emailData.to));
       formData.append("cc", JSON.stringify(emailData.cc || []));
       formData.append("bcc", JSON.stringify(emailData.bcc || []));
@@ -402,7 +411,7 @@ export default function EmailWorkspace() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || "Failed to send email.");
 
-      toast.success("Email sent successfully via TaskFlow Mail!");
+      toast.success("Email sent successfully!");
       setComposerOpen(false);
       loadEmails();
     } catch (err) {
@@ -473,6 +482,7 @@ export default function EmailWorkspace() {
           onConnectGmail={handleConnectGmail}
           onConnectSmtp={handleConnectSmtp}
           onPreviewDemo={() => setShowOnboarding(false)}
+          onBackToQuickSend={onBackToQuickSend}
           connecting={connecting}
           connectingProvider={connectingProvider}
           taskflowMail={taskflowMail}
@@ -547,7 +557,16 @@ export default function EmailWorkspace() {
           loading={loadingEmails}
           totalCount={totalCount || emails.length}
           isInbox={selectedFolder === "INBOX" && !selectedLabel}
+          selectedFolder={selectedFolder}
+          onSelectFolder={(folder) => {
+            setSelectedLabel(null);
+            setSelectedFolder(folder);
+          }}
+          selectedLabel={selectedLabel}
+          onSelectLabel={(label) => setSelectedLabel(label)}
+          unreadCounts={unreadCounts}
           onCompose={handleOpenCompose}
+          onBackToQuickSend={onBackToQuickSend}
         />
       </div>
 

@@ -29,7 +29,7 @@ import {
 } from "../../services/telegramApi";
 import { toast } from "react-toastify";
 
-export default function TelegramWorkspace() {
+export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSend }) {
   const [loading, setLoading] = useState(true);
   const [loadingTooLong, setLoadingTooLong] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -39,6 +39,8 @@ export default function TelegramWorkspace() {
   // Chats & selection state
   const [chats, setChats] = useState([]);
   const [loadingChats, setLoadingChats] = useState(false);
+  const [loadingMoreChats, setLoadingMoreChats] = useState(false);
+  const [hasMoreChats, setHasMoreChats] = useState(true);
   const [selectedChat, setSelectedChat] = useState(null);
   const [chatFilter, setChatFilter] = useState("all");
   const [chatSearch, setChatSearch] = useState("");
@@ -55,6 +57,16 @@ export default function TelegramWorkspace() {
 
   // Triggers
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0);
+
+  const selectedChatRef = useRef(null);
+  selectedChatRef.current = selectedChat;
+
+  // Notify parent of active chat selection
+  useEffect(() => {
+    if (onActiveChatChange) {
+      onActiveChatChange(selectedChat);
+    }
+  }, [selectedChat, onActiveChatChange]);
 
   // Check auth status
   const checkStatus = useCallback(async () => {
@@ -111,33 +123,76 @@ export default function TelegramWorkspace() {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  const selectedChatRef = useRef(null);
-  selectedChatRef.current = selectedChat;
-
-  // Load real Telegram chats
+  // Load real Telegram chats (initial page 1)
   const loadChats = useCallback(async () => {
     if (!connected) return;
     setLoadingChats(true);
     try {
-      const data = await fetchTelegramChats(chatFilter, chatSearch);
+      const folderParam = chatFilter === "archived" ? 1 : null;
+      const data = await fetchTelegramChats(chatFilter, chatSearch, folderParam, { limit: 100 });
       setChats(data);
+      setHasMoreChats(Array.isArray(data) && data.length >= 100);
 
-      // Preserve active chat selection with updated metadata, or auto-select first on initial load
-      if (selectedChatRef.current) {
-        const currentId = String(selectedChatRef.current.id);
-        const updated = data.find((c) => String(c.id) === currentId);
-        if (updated) {
-          setSelectedChat(updated);
+      // Preserve active chat selection with updated metadata, or auto-select first on initial desktop load
+      if (Array.isArray(data) && data.length > 0) {
+        if (selectedChatRef.current) {
+          const currentId = String(selectedChatRef.current.id);
+          const updated = data.find((c) => String(c.id) === currentId);
+          if (updated) {
+            setSelectedChat(updated);
+          }
+        } else if (window.innerWidth >= 768) {
+          setSelectedChat(data[0]);
         }
-      } else if (data.length > 0 && window.innerWidth >= 768) {
-        setSelectedChat(data[0]);
       }
     } catch (err) {
-      console.warn("Failed to load chats:", err);
+      const errMsg = err?.response?.data?.message || err.message || "";
+      console.warn("Failed to load chats:", errMsg);
+      if (err.response?.status === 401 || errMsg.includes("not connected") || errMsg.includes("authenticate first")) {
+        setConnected(false);
+      }
     } finally {
       setLoadingChats(false);
     }
   }, [connected, chatFilter, chatSearch]);
+
+  // Load more chats (lazy loading pagination)
+  const loadMoreChats = async () => {
+    if (loadingChats || loadingMoreChats || !hasMoreChats || chats.length === 0 || !connected) return;
+    setLoadingMoreChats(true);
+
+    const lastChat = chats[chats.length - 1];
+    const offsetDate = lastChat?.lastMessage?.rawDate || (lastChat?.lastMessage?.date ? Math.floor(new Date(lastChat.lastMessage.date).getTime() / 1000) : null);
+    const offsetId = lastChat?.lastMessage?.id || null;
+    const folderParam = chatFilter === "archived" ? 1 : null;
+
+    try {
+      const moreData = await fetchTelegramChats(chatFilter, chatSearch, folderParam, {
+        limit: 100,
+        offsetDate,
+        offsetId,
+      });
+
+      if (!moreData || moreData.length === 0) {
+        setHasMoreChats(false);
+      } else {
+        setChats((prev) => {
+          const existingIds = new Set(prev.map((c) => String(c.id)));
+          const uniqueNewChats = moreData.filter((c) => !existingIds.has(String(c.id)));
+          if (uniqueNewChats.length === 0) {
+            setHasMoreChats(false);
+            return prev;
+          }
+          return [...prev, ...uniqueNewChats];
+        });
+        setHasMoreChats(moreData.length >= 100);
+      }
+    } catch (err) {
+      console.warn("Failed to load more chats:", err);
+    } finally {
+      setLoadingMoreChats(false);
+    }
+  };
 
   useEffect(() => {
     if (connected) {
@@ -162,32 +217,55 @@ export default function TelegramWorkspace() {
               new CustomEvent("telegram:new_message", { detail: payload.message })
             );
 
-            // Update lastMessage preview in chats list and real unread count
-            setChats((prev) =>
-              prev.map((c) => {
-                const matches =
+            // Update lastMessage preview in chats list, real unread count, and reorder to top
+            setChats((prev) => {
+              const chatIdx = prev.findIndex(
+                (c) =>
                   String(c.id) === String(payload.message.chatId) ||
-                  String(c.peerId) === String(payload.message.chatId);
+                  String(c.peerId) === String(payload.message.chatId)
+              );
 
-                if (matches) {
-                  const isCurrentActive =
-                    String(selectedChatRef.current?.id) === String(payload.message.chatId) ||
-                    String(selectedChatRef.current?.peerId) === String(payload.message.chatId);
+              if (chatIdx === -1) {
+                // If this is a completely new conversation, reload chats
+                loadChats();
+                return prev;
+              }
 
-                  return {
-                    ...c,
-                    lastMessage: {
-                      id: payload.message.id,
-                      text: payload.message.text || "📎 [Attachment]",
-                      date: payload.message.date,
-                      out: payload.message.out,
-                    },
-                    unreadCount: payload.message.out || isCurrentActive ? (isCurrentActive ? 0 : c.unreadCount) : (c.unreadCount || 0) + 1,
-                  };
-                }
-                return c;
-              })
-            );
+              const targetChat = prev[chatIdx];
+              const isCurrentActive =
+                String(selectedChatRef.current?.id) === String(payload.message.chatId) ||
+                String(selectedChatRef.current?.peerId) === String(payload.message.chatId);
+
+              const updatedChat = {
+                ...targetChat,
+                lastMessage: {
+                  id: payload.message.id,
+                  text: payload.message.text || "📎 [Attachment]",
+                  date: payload.message.date,
+                  out: payload.message.out,
+                },
+                unreadCount: payload.message.out
+                  ? (targetChat.unreadCount || 0)
+                  : isCurrentActive
+                  ? (targetChat.unreadCount || 0)
+                  : (targetChat.unreadCount || 0) + 1,
+              };
+
+              // Telegram conversation ordering: pinned chats stay at top, updated chat moves to top of its group
+              const remaining = prev.filter((_, i) => i !== chatIdx);
+              if (updatedChat.pinned) {
+                return [updatedChat, ...remaining];
+              }
+              const firstUnpinnedIdx = remaining.findIndex((c) => !c.pinned);
+              if (firstUnpinnedIdx === -1) {
+                return [...remaining, updatedChat];
+              }
+              return [
+                ...remaining.slice(0, firstUnpinnedIdx),
+                updatedChat,
+                ...remaining.slice(firstUnpinnedIdx),
+              ];
+            });
           } else if (payload.type === "chat_read") {
             // Real-time synchronization when read on Tasklert or normal Telegram
             setChats((prev) =>
@@ -201,11 +279,28 @@ export default function TelegramWorkspace() {
                   return {
                     ...c,
                     unreadCount: Math.max(0, Number(payload.unreadCount) || 0),
+                    readInboxMaxId: payload.maxId || c.readInboxMaxId,
                   };
                 }
                 return c;
               })
             );
+
+            if (
+              selectedChatRef.current &&
+              (String(selectedChatRef.current.id) === String(payload.chatId) ||
+                String(selectedChatRef.current.peerId) === String(payload.chatId))
+            ) {
+              setSelectedChat((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      unreadCount: Math.max(0, Number(payload.unreadCount) || 0),
+                      readInboxMaxId: payload.maxId || prev.readInboxMaxId,
+                    }
+                  : null
+              );
+            }
           } else if (payload.type === "messages_read_outbox") {
             window.dispatchEvent(
               new CustomEvent("telegram:messages_read_outbox", { detail: payload })
@@ -244,19 +339,37 @@ export default function TelegramWorkspace() {
     };
   }, [connected]);
 
-  // Handle conversation selection with optimistic unread count zeroing
+  // Handle conversation selection without prematurely zeroing unread count
   const handleSelectChat = (chat) => {
     setSelectedChat(chat);
-    if (chat?.id) {
-      setChats((prev) =>
-        prev.map((c) =>
-          String(c.id) === String(chat.id) || String(c.peerId) === String(chat.id)
-            ? { ...c, unreadCount: 0 }
-            : c
-        )
+  };
+
+  // Called when messages are actively read by user scrolling or jumping to unread
+  const handleChatMarkedRead = useCallback((chatId, maxId, unreadCount) => {
+    const finalCount = unreadCount !== undefined ? Math.max(0, Number(unreadCount) || 0) : 0;
+    setChats((prev) =>
+      prev.map((c) =>
+        String(c.id) === String(chatId) || String(c.peerId) === String(chatId)
+          ? { ...c, unreadCount: finalCount, readInboxMaxId: maxId || c.readInboxMaxId }
+          : c
+      )
+    );
+    if (
+      selectedChatRef.current &&
+      (String(selectedChatRef.current.id) === String(chatId) ||
+        String(selectedChatRef.current.peerId) === String(chatId))
+    ) {
+      setSelectedChat((prev) =>
+        prev
+          ? {
+              ...prev,
+              unreadCount: finalCount,
+              readInboxMaxId: maxId || prev.readInboxMaxId,
+            }
+          : null
       );
     }
-  };
+  }, []);
 
   // Handle successful login
   const handleLoginSuccess = (userProfile) => {
@@ -287,7 +400,7 @@ export default function TelegramWorkspace() {
 
   if (loading) {
     return (
-      <div className="min-h-[600px] flex flex-col items-center justify-center p-8 bg-white/60 rounded-3xl border border-purple-100/80 shadow-xs">
+      <div className="min-h-[500px] flex-1 flex flex-col items-center justify-center p-8 bg-white/60 rounded-3xl border border-purple-100/80 shadow-xs">
         <Loader2 className="w-9 h-9 text-purple-600 animate-spin mb-3" />
         <h3 className="text-sm font-bold text-gray-800">Checking Telegram Connection</h3>
         <p className="text-xs text-gray-500 mt-1">
@@ -322,7 +435,7 @@ export default function TelegramWorkspace() {
           isConfiguredOnServer={isConfiguredOnServer}
         />
       ) : (
-        <div className="flex-1 min-h-0 w-full bg-white rounded-3xl border border-purple-100/90 shadow-2xs overflow-hidden flex flex-row">
+        <div className="flex-1 min-h-0 w-full bg-white rounded-none md:rounded-3xl border-0 md:border border-purple-100/90 shadow-none md:shadow-2xs overflow-hidden flex flex-row">
           {/* ========================================================== */}
           {/* PANEL 1: LEFT CHATS & CHANNELS NAVIGATOR                   */}
           {/* ========================================================== */}
@@ -341,10 +454,14 @@ export default function TelegramWorkspace() {
               onSearchChange={setChatSearch}
               onOpenContactsModal={() => setShowContactsModal(true)}
               loading={loadingChats}
+              loadingMore={loadingMoreChats}
+              hasMore={hasMoreChats}
+              onLoadMore={loadMoreChats}
               onRefresh={loadChats}
               profile={profile}
               connected={connected}
               onDisconnect={() => setShowDisconnectConfirm(true)}
+              onBackToQuickSend={onBackToQuickSend}
             />
           </div>
 
@@ -361,6 +478,7 @@ export default function TelegramWorkspace() {
               onBack={() => setSelectedChat(null)}
               onOpenScheduleModal={() => setShowScheduleModal(true)}
               onRefreshChats={loadChats}
+              onChatMarkedRead={handleChatMarkedRead}
               onToggleContactInfo={() => setShowContactInfo((prev) => !prev)}
             />
           </div>
@@ -399,7 +517,6 @@ export default function TelegramWorkspace() {
         onClose={() => setShowContactsModal(false)}
         onSelectContact={(contact) => {
           setSelectedChat(contact);
-          // Check if contact is already in chats list
           setChats((prev) => {
             if (prev.some((c) => String(c.id) === String(contact.id))) return prev;
             return [contact, ...prev];

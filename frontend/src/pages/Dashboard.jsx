@@ -538,7 +538,7 @@ const Dashboard = () => {
       <button
         type="button"
         onClick={() => setShowModal(true)}
-        className="w-full py-3.5 mb-5 rounded-2xl text-white font-bold text-sm shadow-md active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer md:hidden hover:brightness-105"
+        className="btn-add-task-mobile w-full py-3.5 mb-5 rounded-2xl text-white font-bold text-sm shadow-md active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer md:hidden hover:brightness-105"
         style={{
           backgroundColor: "var(--primary, #8b5cf6)",
           color: "#ffffff",
@@ -868,8 +868,11 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* SIMPLIFIED SORT & FILTER TOOLBAR */}
-        <section className="bg-white rounded-2xl border border-purple-100 shadow-xs p-3.5 sm:p-4 mb-4 w-full min-w-0 max-w-full">
+        {/* TASKS SECTION */}
+        <div className="tasks-section flex flex-col min-h-0 w-full">
+          {/* TASKS TOOLBAR CONTAINER (Sticky below header on mobile, sticky top of left column on desktop) */}
+          <div className="tasks-toolbar shrink-0 sticky top-[var(--app-header-height)] xl:top-0 z-20 bg-gray-50/95 backdrop-blur-md pt-1 pb-2.5 -mx-1 px-1">
+            <section className="bg-white rounded-2xl border border-purple-100 shadow-xs p-3.5 sm:p-4 w-full min-w-0 max-w-full">
           {/* Header row: Tasks title, compact count & Bulk Actions */}
           <div className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-purple-50">
             <div className="flex items-baseline gap-2 min-w-0">
@@ -1330,8 +1333,15 @@ const Dashboard = () => {
     </div>
   )}
 
-  {/* TASK LIST */}
-<div className='space-y-4'>
+          </div>
+
+          {/* B. SCROLLABLE TASKS LIST CONTAINER (Natural Scroll Chaining & Smart Dynamic Height) */}
+          <div
+            className="tasks-scrollable-list w-full min-h-0 max-h-[58vh] md:max-h-[64vh] xl:max-h-[68vh] overflow-y-auto overflow-x-hidden tasklert-task-scroll pr-1 sm:pr-1.5 space-y-3.5 pb-2"
+            style={{ overscrollBehaviorY: "auto" }}
+          >
+            {/* TASK LIST */}
+            <div className='space-y-4'>
   {filteredTasks.length === 0 ? (
     <div className={EMPTY_STATE.wrapper}>
       <div className={EMPTY_STATE.iconWrapper}>
@@ -1379,15 +1389,18 @@ const Dashboard = () => {
     ))
   )}
 </div>
-    {/* ADD TASK DESKTOP */}
-<div
-  onClick={() => setShowModal(true)}
-  className='hidden md:flex items-center justify-center p-4 rounded-xl cursor-pointer transition-all duration-300 add-task-cta'
->
-  <Plus className='w-5 h-5 mr-2 cta-icon' />
-  <span className='font-semibold cta-label'>Add New Task</span>
-</div>
-</div>
+          </div>
+
+          {/* C. ADD NEW TASK FOOTER (Final Action of Tasks Section - Full width) */}
+          <div
+            onClick={() => setShowModal(true)}
+            className="flex items-center justify-center p-4 rounded-xl cursor-pointer transition-all duration-300 add-task-cta mt-4 mb-6 w-full shadow-xs hover:shadow-md active:scale-[0.99]"
+          >
+            <Plus className="w-5 h-5 mr-2 cta-icon" />
+            <span className="font-semibold cta-label">Add New Task</span>
+          </div>
+        </div>
+      </div>
 
      {/* MODAL */}
       {showModal && (

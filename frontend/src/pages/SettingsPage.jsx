@@ -39,7 +39,7 @@ const THEMES = [
   { name: "theme-peach", label: "Warm Peach", color: "#d4a373", desc: "Soft warm tones with gentle contrast" },
   { name: "theme-green", label: "Emerald Green", color: "#43a047", desc: "Fresh natural green for clarity" },
   { name: "theme-lavender", label: "Lavender Purple", color: "#8b5cf6", desc: "Signature Tasklert brand theme" },
-  { name: "theme-dark", label: "Charcoal Dark", color: "#374151", desc: "High contrast dark slate workspace" },
+  { name: "theme-dark", label: "Charcoal Dark", color: "#0b2545", desc: "Light blue-grey workspace with deep charcoal navy accents" },
   { name: "theme-pink", label: "Vibrant Fuchsia", color: "#c026d3", desc: "Energetic vivid berry magenta" },
 ];
 
@@ -770,9 +770,8 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
                   {THEMES.map((t) => {
                     const isSelected = activeTheme === t.name;
                     return (
-                      <button
+                      <div
                         key={t.name}
-                        type="button"
                         onClick={() => handleApplyTheme(t.name)}
                         className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer relative shadow-xs flex flex-col justify-between ${
                           isSelected
@@ -780,23 +779,76 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
                             : "border-gray-200 hover:border-gray-300 bg-white"
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2.5">
-                            <span
-                              className="w-6 h-6 rounded-full border border-black/10 shadow-xs shrink-0"
-                              style={{ backgroundColor: t.color }}
-                            />
-                            <span className="text-sm font-bold text-gray-900">{t.label}</span>
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className="w-6 h-6 rounded-full border border-black/10 shadow-xs shrink-0"
+                                style={{ backgroundColor: t.color }}
+                              />
+                              <span className="text-sm font-bold text-gray-900">{t.label}</span>
+                            </div>
+                            {isSelected && (
+                              <span className="p-1 rounded-full bg-[color:var(--primary)] text-white shadow-xs">
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            )}
                           </div>
-                          {isSelected && (
-                            <span className="p-1 rounded-full bg-[color:var(--primary)] text-white shadow-xs">
-                              <Check className="w-3.5 h-3.5" />
-                            </span>
-                          )}
+
+                          {/* Miniature Preview Swatch showing white/light surfaces and theme accent */}
+                          <div
+                            className="rounded-xl p-2.5 mb-3 border shadow-2xs"
+                            style={{
+                              backgroundColor: t.name === "theme-dark" ? "#f4f7fb" : "color-mix(in srgb, " + t.color + " 8%, white)",
+                              borderColor: t.name === "theme-dark" ? "#e2e8f0" : "color-mix(in srgb, " + t.color + " 20%, white)",
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-1.5 px-2 py-1 bg-white rounded-md border border-gray-100 shadow-2xs">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                                <div className="w-8 h-1.5 rounded-full bg-gray-300" />
+                              </div>
+                              <div className="w-6 h-1 rounded-full bg-gray-200" />
+                            </div>
+                            <div className="flex items-center justify-between p-1.5 bg-white rounded-md border border-gray-100 shadow-2xs">
+                              <div className="space-y-1">
+                                <div className="w-12 h-1.5 rounded-full bg-gray-700" />
+                                <div className="w-8 h-1 rounded-full bg-gray-400" />
+                              </div>
+                              <div
+                                className="px-2 py-0.5 rounded text-[9px] font-bold text-white shadow-2xs"
+                                style={{ backgroundColor: t.color }}
+                              >
+                                + Task
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-gray-500 font-medium mb-3">{t.desc}</p>
                         </div>
 
-                        <p className="text-xs text-gray-500 font-medium">{t.desc}</p>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApplyTheme(t.name);
+                          }}
+                          className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                            isSelected
+                              ? "bg-[color:var(--primary)] text-white shadow-xs"
+                              : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Active Theme</span>
+                            </>
+                          ) : (
+                            <span>Apply Theme</span>
+                          )}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>

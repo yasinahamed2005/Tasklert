@@ -23,6 +23,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { TasklertMailIcon, SimpleMailIcon } from "../TasklertLogo";
 import {
   fetchTasklertSentMails,
   fetchTasklertDrafts,
@@ -107,24 +108,25 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0 bg-white rounded-2xl border border-purple-100 shadow-xs overflow-hidden">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-white border-0 sm:border sm:border-gray-100 sm:rounded-2xl sm:shadow-xs md:overflow-hidden">
       
-      {/* ─── Top Banner ─── */}
-      <div className="shrink-0 p-4 sm:p-5 bg-gradient-to-r from-purple-50/80 via-white to-purple-50/40 border-b border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* ─── Top Banner (Official Tasklert Mail Logo & Branding) ─── */}
+      <div className="shrink-0 p-3 sm:p-4 bg-gradient-to-r from-emerald-50/70 via-white to-purple-50/30 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
-            <Mail className="w-5 h-5" />
+          {/* Circular Tasklert Mail Brand Logo (Image 2 reference + Tasklert brand ring) */}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-100/90 bg-white">
+            <TasklertMailIcon size={38} className="rounded-full" idPrefix="tasklert-mail-logo" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+              <h2 className="text-sm sm:text-base font-black text-emerald-950 tracking-tight">
                 Tasklert Mail
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200/60">
                 Pro Delivery
               </span>
             </div>
-            <p className="text-xs text-gray-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
               Send professional emails directly from Tasklert with verified sender attribution.
             </p>
           </div>
@@ -134,7 +136,7 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
         <button
           type="button"
           onClick={() => onOpenCompose?.(2)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition cursor-pointer active:scale-95 shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition cursor-pointer active:scale-95 shrink-0 self-start sm:self-auto"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Compose Tasklert Mail</span>
@@ -142,37 +144,49 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
       </div>
 
       {/* ─── Navigation Tabs & Search Toolbar ─── */}
-      <div className="shrink-0 px-4 py-2.5 border-b border-purple-50 bg-gray-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+      <div className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-2.5">
         
         {/* Tabs: Sent Mail vs Drafts */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveTab("sent")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "sent"
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-purple-700 hover:bg-purple-50"
-            }`}
-          >
-            <span>Sent Mail</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              activeTab === "sent" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
-            }`}>
-              {totalCount}
-            </span>
-          </button>
+        <div className="flex items-center justify-between sm:justify-start gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab("sent")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "sent"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50"
+              }`}
+            >
+              <span>Sent Mail</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === "sent" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              }`}>
+                {totalCount}
+              </span>
+            </button>
 
+            <button
+              type="button"
+              onClick={() => setActiveTab("drafts")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "drafts"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50"
+              }`}
+            >
+              Drafts
+            </button>
+          </div>
+
+          {/* Mobile Refresh Button */}
           <button
             type="button"
-            onClick={() => setActiveTab("drafts")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "drafts"
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-purple-700 hover:bg-purple-50"
-            }`}
+            onClick={loadEmails}
+            title="Refresh"
+            className="sm:hidden p-1.5 rounded-xl border border-gray-200 bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition cursor-pointer"
           >
-            Drafts
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -185,7 +199,7 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by recipient, subject..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 focus:border-purple-500 bg-white text-xs outline-none transition"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 focus:border-emerald-500 bg-white text-xs outline-none transition"
             />
           </div>
 
@@ -206,24 +220,24 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
             type="button"
             onClick={loadEmails}
             title="Refresh"
-            className="p-1.5 rounded-xl border border-gray-200 bg-white hover:bg-purple-50 text-gray-600 hover:text-purple-700 transition cursor-pointer"
+            className="hidden sm:inline-flex p-1.5 rounded-xl border border-gray-200 bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
-      {/* ─── Mail List Body ─── */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 divide-y divide-purple-50">
+      {/* ─── Mail List Body (Clean, Flat, Simple Rows) ─── */}
+      <div className="flex-1 overflow-y-auto divide-y divide-gray-100 min-h-[300px]">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
+            <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
             <span className="text-xs font-medium">Loading Tasklert Mail records...</span>
           </div>
         ) : emails.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-            <div className="w-14 h-14 rounded-3xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 mb-3 shadow-2xs">
-              <Mail className="w-7 h-7" />
+            <div className="w-14 h-14 rounded-3xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-3 shadow-2xs">
+              <SimpleMailIcon size={26} />
             </div>
             <h3 className="text-sm font-extrabold text-gray-900">No {activeTab === "sent" ? "sent emails" : "drafts"} found</h3>
             <p className="text-xs text-gray-500 max-w-xs mt-1 mb-4">
@@ -234,7 +248,7 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
             <button
               type="button"
               onClick={() => onOpenCompose?.(2)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Compose your first Tasklert Mail</span>
@@ -245,40 +259,41 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
             <div
               key={mail._id}
               onClick={() => setSelectedEmail(mail)}
-              className="py-3 px-2 sm:px-3 rounded-2xl hover:bg-purple-50/50 transition cursor-pointer flex items-center justify-between gap-3 group"
+              className="py-3 px-3 sm:px-4 hover:bg-emerald-50/30 transition cursor-pointer flex items-center justify-between gap-3 group active:bg-gray-100/70"
             >
               {/* Left Details */}
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-9 h-9 rounded-xl bg-purple-100/70 text-purple-700 flex items-center justify-center shrink-0">
-                  <Mail className="w-4 h-4" />
+                {/* Simple Mail Icon (Image 2 style) */}
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/70 shadow-2xs">
+                  <SimpleMailIcon size={18} />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-extrabold text-gray-900 truncate">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <span className="text-xs font-extrabold text-gray-900 truncate max-w-[170px] sm:max-w-xs">
                       To: {mail.to?.join(", ") || "Unknown Recipient"}
                     </span>
                     
                     {/* Priority Badge */}
                     {mail.priority === "action_required" && (
-                      <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-extrabold">
+                      <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] sm:text-[10px] font-extrabold">
                         ⚡ Action Required
                       </span>
                     )}
                     {mail.priority === "important" && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">
+                      <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] sm:text-[10px] font-extrabold">
                         ⭐ Important
                       </span>
                     )}
 
                     {/* Delivery Status */}
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60 inline-flex items-center gap-1">
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 text-[9px] sm:text-[10px] font-bold border border-emerald-200/60 inline-flex items-center gap-0.5">
                       <CheckCircle2 className="w-2.5 h-2.5" />
                       <span>Sent</span>
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-700 font-semibold truncate mt-0.5">
+                  <p className="text-xs text-gray-800 font-semibold truncate mt-0.5">
                     {mail.subject || "(No Subject)"}
                   </p>
                   <p className="text-[11px] text-gray-500 truncate">
@@ -288,24 +303,35 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
               </div>
 
               {/* Right Meta & Actions */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {mail.hasAttachment && (
                   <span className="text-gray-400" title="Has attachments">
-                    <Paperclip className="w-3.5 h-3.5 text-purple-500" />
+                    <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
                   </span>
                 )}
-                <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap">
+                <span className="text-[10px] sm:text-[11px] font-medium text-gray-400 whitespace-nowrap">
                   {new Date(mail.date || mail.createdAt).toLocaleDateString([], {
                     month: "short",
                     day: "numeric",
                   })}
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-600 transition" />
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-600 transition" />
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Mobile Floating Action Button to Compose Tasklert Mail */}
+      <button
+        type="button"
+        onClick={() => onOpenCompose?.(2)}
+        className="md:hidden fixed bottom-18 right-4 z-30 p-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+        title="Compose Tasklert Mail"
+        aria-label="Compose Tasklert Mail"
+      >
+        <Plus className="w-5 h-5 stroke-[2.5]" />
+      </button>
 
       {/* ─── Email Detail Modal / Drawer ─── */}
       {selectedEmail && (

@@ -57,13 +57,13 @@ const Sidebar = ({ user, tasks, collapsed = false }) => {
       <aside
         id="tasklert-sidebar"
         aria-label="Sidebar Navigation"
-        className={`hidden md:flex flex-col justify-between fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto bg-white border-r border-purple-100/80 shadow-xs z-20 transition-all duration-300 ${
+        className={`hidden md:flex flex-col justify-between fixed top-[var(--app-header-height)] h-[calc(100vh-var(--app-header-height))] overflow-y-auto bg-[color:var(--surface-1)] border-r border-[color:var(--surface-border)] shadow-xs z-20 transition-all duration-300 ${
           collapsed ? "w-20" : "w-20 lg:w-64"
         }`}
       >
         <div>
           {/* User Profile Shortcut & Greeting */}
-          <div className="p-3 lg:p-4 border-b border-purple-100/80 block">
+          <div className="p-3 lg:p-4 border-b border-[color:var(--surface-border)] block">
             <div className={`flex items-center ${collapsed ? "justify-center" : "justify-center lg:justify-start"} gap-3`}>
               <NavLink
                 to="/profile"
@@ -77,7 +77,7 @@ const Sidebar = ({ user, tasks, collapsed = false }) => {
 
               {!collapsed && (
                 <div className="hidden lg:block min-w-0">
-                  <h2 className="text-base font-bold text-gray-800 tracking-tight truncate">Hi, {firstName}</h2>
+                  <h2 className="text-base font-bold text-[color:var(--text-strong)] tracking-tight truncate">Hi, {firstName}</h2>
                   <p className="text-xs text-[color:var(--primary-600)] font-medium flex items-center gap-1 truncate">
                     <Sparkles className="w-3 h-3 text-[color:var(--primary)] shrink-0" /> Smash those goals!
                   </p>

@@ -51,6 +51,7 @@ const App = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // 1. Sync underlying user theme preference
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
       document.documentElement.classList.remove(

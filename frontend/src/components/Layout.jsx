@@ -570,7 +570,15 @@ const Layout = ({ onLogout, user }) => {
   const isFixedViewportPage = isMessagesPage || isCalendarPage;
 
   return (
-    <div className={`min-h-screen w-full ${isFixedViewportPage ? "h-screen overflow-hidden" : "overflow-x-hidden"} bg-gray-50`}>
+    <div
+      className={`min-h-screen w-full ${
+        isFixedViewportPage
+          ? "h-screen overflow-hidden"
+          : !isFullWidthPage
+          ? "overflow-x-hidden xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden"
+          : "overflow-x-hidden"
+      } bg-gray-50`}
+    >
       <Navbar
         user={user}
         onLogout={onLogout}
@@ -598,7 +606,9 @@ const Layout = ({ onLogout, user }) => {
         } ${
           isFixedViewportPage
             ? "pt-[var(--app-header-height)] px-1 sm:px-2 md:px-4 pb-14 md:pb-0 h-screen overflow-hidden flex flex-col"
-            : "pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8"
+            : isFullWidthPage
+            ? "pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8"
+            : "pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden xl:flex xl:flex-col xl:pb-0"
         } transition-all duration-300`}
       >
         {isFullWidthPage ? (
@@ -608,14 +618,22 @@ const Layout = ({ onLogout, user }) => {
             </ErrorBoundary>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0 max-w-full animate-page-enter">
-            <div className="xl:col-span-2 space-y-3 sm:space-y-4 min-w-0 w-full max-w-full">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0 max-w-full animate-page-enter xl:flex-1 xl:min-h-0 xl:h-full xl:overflow-hidden">
+            {/* LEFT COLUMN: Independent desktop scroll container */}
+            <div
+              className="xl:col-span-2 min-w-0 w-full max-w-full xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overflow-x-hidden xl:pr-3 pb-24 xl:pb-8 tasklert-col-left space-y-3 sm:space-y-4"
+              style={{ overscrollBehaviorY: "auto" }}
+            >
               <ErrorBoundary>
                 <Outlet context={outletContext} />
               </ErrorBoundary>
             </div>
 
-            <div className="hidden xl:block xl:col-span-1 space-y-4 sm:space-y-6 min-w-0">
+            {/* RIGHT COLUMN: Independent desktop scroll container */}
+            <div
+              className="hidden xl:block xl:col-span-1 min-w-0 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overflow-x-hidden xl:pr-2 pb-8 tasklert-col-right space-y-4 sm:space-y-6"
+              style={{ overscrollBehaviorY: "contain" }}
+            >
               <AlertsPanel tasks={tasks} />
               {/* STATISTICS */}
               <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-purple-100">

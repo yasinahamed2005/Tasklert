@@ -186,15 +186,48 @@ export const handleGetContacts = async (req, res) => {
 export const handleGetChats = async (req, res) => {
   try {
     const userId = req.user?._id;
-    const { filter = "all", search = "", limit = 100 } = req.query;
-    const chats = await getTelegramChats(userId, { filter, search, limit });
+    if (!userId) {
+      return res.status(200).json({
+        success: false,
+        chats: [],
+        connected: false,
+        hasMore: false,
+        message: "User not authenticated.",
+      });
+    }
+
+    const {
+      filter = "all",
+      search = "",
+      limit = 100,
+      folder,
+      offsetDate,
+      offsetId,
+    } = req.query;
+
+    const chats = await getTelegramChats(userId, {
+      filter,
+      search,
+      limit,
+      folder,
+      offsetDate,
+      offsetId,
+    });
+
+    const parsedLimit = Number(limit) || 100;
+    const hasMore = Array.isArray(chats) && chats.length >= parsedLimit;
+
     return res.status(200).json({
       success: true,
-      chats,
+      chats: Array.isArray(chats) ? chats : [],
+      hasMore,
     });
   } catch (err) {
-    return res.status(400).json({
+    console.error("[TelegramController] handleGetChats error:", err.message);
+    return res.status(200).json({
       success: false,
+      chats: [],
+      hasMore: false,
       message: err.message || "Failed to fetch Telegram chats.",
     });
   }
@@ -410,23 +443,24 @@ export const handleMarkChatAsRead = async (req, res) => {
   try {
     const userId = req.user?._id;
     const { chatId } = req.params;
-    const { maxId = 0, accessHash, peerType } = req.body || {};
+    const { maxId = 0, unreadCount, accessHash, peerType } = req.body || {};
 
     if (!chatId) {
       return res.status(400).json({ success: false, message: "chatId is required." });
     }
 
     const result = await markChatAsRead(userId, chatId, { maxId, accessHash, peerType });
+    const finalUnreadCount = unreadCount !== undefined ? Math.max(0, Number(unreadCount) || 0) : 0;
 
-    // Broadcast read update to all user connections
+    // Broadcast read update to all user connections with accurate synchronized unreadCount
     broadcastUserEvent(userId, {
       type: "chat_read",
       chatId: String(chatId),
       maxId: Number(maxId) || 0,
-      unreadCount: 0,
+      unreadCount: finalUnreadCount,
     });
 
-    return res.status(200).json(result);
+    return res.status(200).json({ ...result, unreadCount: finalUnreadCount });
   } catch (err) {
     console.error(`[TelegramController] Failed to mark chat ${req.params?.chatId} as read:`, err.message);
     return res.status(400).json({

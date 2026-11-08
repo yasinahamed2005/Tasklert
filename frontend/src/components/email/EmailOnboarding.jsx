@@ -14,12 +14,14 @@ import {
   Server,
   Lock,
   Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 
 export default function EmailOnboarding({
   onConnectGmail,
   onConnectSmtp,
   onPreviewDemo,
+  onBackToQuickSend,
   connecting = false,
   connectingProvider = null,
   taskflowMail = null,
@@ -53,7 +55,18 @@ export default function EmailOnboarding({
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto px-3 py-4 sm:p-6 lg:p-8 flex justify-center">
+    <div className="w-full h-full overflow-y-auto px-3 py-4 sm:p-6 lg:p-8 flex justify-center relative">
+      {onBackToQuickSend && (
+        <button
+          type="button"
+          onClick={onBackToQuickSend}
+          className="absolute top-4 left-4 p-2 rounded-xl text-gray-500 hover:text-purple-700 hover:bg-purple-100/80 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-2xs z-10"
+          title="Back to QuickSend"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>QuickSend</span>
+        </button>
+      )}
       <div className="w-full max-w-2xl space-y-5 my-auto">
         {/* ─── Page Title Header ─── */}
         <div className="text-center space-y-1.5 mb-6">

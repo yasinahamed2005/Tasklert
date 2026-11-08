@@ -301,8 +301,8 @@ const CalendarPage = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1
-                  className="text-lg sm:text-xl font-bold tracking-tight"
-                  style={{ color: "var(--cal-cell-in-month-text)" }}
+                  className="text-lg sm:text-xl font-bold tracking-tight text-gray-900"
+                  style={{ color: "var(--cal-header-title, var(--text-strong))" }}
                 >
                   Calendar
                 </h1>
@@ -985,8 +985,8 @@ const CalendarPage = () => {
                         SELECTED DAY
                       </span>
                       <h3
-                        className="text-xs sm:text-sm font-bold leading-tight mt-0.5"
-                        style={{ color: "var(--cal-cell-in-month-text)" }}
+                        className="text-xs sm:text-sm font-bold leading-tight mt-0.5 text-gray-900"
+                        style={{ color: "var(--cal-sidebar-heading, var(--text-strong))" }}
                       >
                         {format(selectedDate, "EEE, MMM d, yyyy")}
                       </h3>
@@ -1030,8 +1030,8 @@ const CalendarPage = () => {
                           >
                             <div className="flex items-center justify-between gap-1">
                               <span
-                                className="text-xs font-bold truncate"
-                                style={{ color: "var(--cal-cell-in-month-text)" }}
+                                className="text-xs font-bold truncate text-gray-900"
+                                style={{ color: "var(--cal-sidebar-heading, var(--text-strong))" }}
                               >
                                 {r.title}
                               </span>
@@ -1063,8 +1063,8 @@ const CalendarPage = () => {
                           <CalendarIcon className="w-8 h-8 opacity-75" />
                         </div>
                         <p
-                          className="text-xs font-bold"
-                          style={{ color: "var(--cal-cell-in-month-text)" }}
+                          className="text-xs font-bold text-gray-900"
+                          style={{ color: "var(--cal-sidebar-heading, var(--text-strong))" }}
                         >
                           No tasks due
                         </p>

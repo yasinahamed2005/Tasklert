@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useBodyScrollLock } from "../utils/scrollLock";
 import {
   Search,
   X,
@@ -497,6 +498,9 @@ export const GlobalSearch = ({
     }
   }, [mobileMode]);
 
+  // Lock background body scroll when mobile search is open
+  useBodyScrollLock(mobileMode && isOpen);
+
   // Select and execute an item
   const handleSelect = useCallback(
     (item) => {
@@ -600,67 +604,72 @@ export const GlobalSearch = ({
         {srAnnouncement}
       </div>
 
-      {/* INPUT CONTAINER */}
-      <div
-        className={`relative flex items-center w-full transition-all duration-200 rounded-xl border ${
-          isOpen
-            ? "border-[var(--primary)] bg-white ring-2 ring-[var(--primary-200)] shadow-xs"
-            : "border-slate-200/90 bg-slate-50/80 hover:bg-white hover:border-slate-300"
-        } ${mobileMode ? "py-2 px-3 bg-white border-[var(--primary)] shadow-sm" : "py-1.5 px-3"}`}
-      >
-        <Search
-          className={`w-4 h-4 shrink-0 transition-colors ${
-            isOpen ? "text-[color:var(--primary)]" : "text-slate-400"
-          }`}
+      {/* MOBILE BACKDROP OVERLAY TO SHIELD BACKGROUND */}
+      {mobileMode && isOpen && (
+        <div
+          className="fixed inset-0 top-[var(--app-header-height)] z-40 bg-black/45 backdrop-blur-xs transition-opacity"
+          onClick={() => {
+            setIsOpen(false);
+            onCloseMobile?.();
+          }}
           aria-hidden="true"
         />
+      )}
 
-        <input
-          id={mobileMode ? "tasklert-global-search-mobile" : "tasklert-global-search-desktop"}
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => {
-            handleQueryChange(e.target.value);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={handleInputKeyDown}
-          placeholder="Search tasks, alarms, settings..."
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={isOpen}
-          aria-controls="global-search-results"
-          aria-haspopup="listbox"
-          aria-activedescendant={isOpen && suggestions[activeIndex] ? `search-item-${activeIndex}` : undefined}
-          className="w-full ml-2.5 bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
-        />
-
-        {/* Clear Button */}
-        {query && (
-          <button
-            type="button"
-            onClick={clearQuery}
-            aria-label="Clear search input"
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors cursor-pointer mr-1"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Keyboard Shortcut Badge (Desktop Only) */}
-        {!mobileMode && !query && (
+      {/* INPUT CONTAINER */}
+      {mobileMode ? (
+        <div className="flex items-center gap-2.5 w-full">
+          {/* Mobile search capsule pill */}
           <div
-            className="hidden lg:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-400 select-none shadow-2xs pointer-events-none shrink-0"
-            aria-hidden="true"
-            title={isMac ? "Press ⌘ + K to search" : "Press Ctrl + K to search"}
+            className={`flex-1 flex items-center px-3.5 py-2 rounded-full border transition-all ${
+              isOpen
+                ? "border-[var(--primary)] bg-[color:var(--surface-1)] shadow-sm ring-1 ring-[var(--primary-200)]"
+                : "border-[color:var(--surface-border)] bg-[color:var(--surface-2)] hover:border-[color:var(--primary)]"
+            }`}
           >
-            {isMac ? <Command className="w-2.5 h-2.5" /> : <span>Ctrl</span>}
-            <span>K</span>
-          </div>
-        )}
+            <Search
+              className={`w-4 h-4 shrink-0 transition-colors ${
+                isOpen ? "text-[color:var(--primary)]" : "text-slate-400"
+              }`}
+              aria-hidden="true"
+            />
 
-        {/* Close Button on Mobile Header Mode */}
-        {mobileMode && (
+            <input
+              id="tasklert-global-search-mobile"
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => {
+                handleQueryChange(e.target.value);
+              }}
+              onFocus={() => setIsOpen(true)}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Search tasks, alarms, settings..."
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
+              aria-controls="global-search-results"
+              aria-haspopup="listbox"
+              aria-activedescendant={isOpen && suggestions[activeIndex] ? `search-item-${activeIndex}` : undefined}
+              className="global-search-input flex-1 min-w-0 ml-2.5 bg-transparent border-0 outline-none text-sm text-[color:var(--text-strong)] placeholder-slate-400 focus:outline-none focus:ring-0 shadow-none"
+              style={{ backgroundColor: "transparent" }}
+              autoFocus
+            />
+
+            {/* Clear Button */}
+            {query && (
+              <button
+                type="button"
+                onClick={clearQuery}
+                aria-label="Clear search input"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Clean Outside Cancel Button */}
           <button
             type="button"
             onClick={() => {
@@ -668,12 +677,72 @@ export const GlobalSearch = ({
               onCloseMobile?.();
             }}
             aria-label="Close search"
-            className="ml-2 px-2 py-1 text-xs font-semibold text-[color:var(--primary-700)] hover:bg-[var(--primary-50)] rounded-lg transition-colors cursor-pointer"
+            className="px-2 py-1 text-sm font-semibold text-[color:var(--primary)] hover:opacity-80 active:scale-95 transition-all cursor-pointer shrink-0 select-none"
           >
             Cancel
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div
+          className={`relative flex items-center w-full transition-all duration-200 rounded-xl border ${
+            isOpen
+              ? "border-[var(--primary)] bg-[color:var(--surface-1)] ring-2 ring-[var(--primary-200)] shadow-xs"
+              : "border-[color:var(--surface-border)] bg-[color:var(--surface-2)] hover:border-[color:var(--primary)]"
+          } py-1.5 px-3`}
+        >
+          <Search
+            className={`w-4 h-4 shrink-0 transition-colors ${
+              isOpen ? "text-[color:var(--primary)]" : "text-slate-400"
+            }`}
+            aria-hidden="true"
+          />
+
+          <input
+            id="tasklert-global-search-desktop"
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              handleQueryChange(e.target.value);
+            }}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Search tasks, alarms, settings..."
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls="global-search-results"
+            aria-haspopup="listbox"
+            aria-activedescendant={isOpen && suggestions[activeIndex] ? `search-item-${activeIndex}` : undefined}
+            className="global-search-input w-full ml-2.5 bg-transparent border-0 outline-none text-xs sm:text-sm text-[color:var(--text-strong)] placeholder-slate-400 focus:outline-none focus:ring-0 shadow-none"
+            style={{ backgroundColor: "transparent" }}
+          />
+
+          {/* Clear Button */}
+          {query && (
+            <button
+              type="button"
+              onClick={clearQuery}
+              aria-label="Clear search input"
+              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md transition-colors cursor-pointer mr-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Keyboard Shortcut Badge (Desktop Only) */}
+          {!query && (
+            <div
+              className="hidden lg:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-400 select-none shadow-2xs pointer-events-none shrink-0"
+              aria-hidden="true"
+              title={isMac ? "Press ⌘ + K to search" : "Press Ctrl + K to search"}
+            >
+              {isMac ? <Command className="w-2.5 h-2.5" /> : <span>Ctrl</span>}
+              <span>K</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* PROGRESSIVE SUGGESTIONS PANEL */}
       {isOpen && (
@@ -682,17 +751,18 @@ export const GlobalSearch = ({
           role="listbox"
           aria-label="Search suggestions"
           ref={listRef}
-          className={`absolute left-0 right-0 z-50 bg-white/98 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-lg overflow-hidden animate-page-enter ${
+          className={`absolute left-0 right-0 z-50 bg-white/98 dark:bg-[#0f172a]/98 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-700/80 shadow-2xl overflow-hidden animate-page-enter ${
             mobileMode
               ? "top-full mt-2 max-h-[calc(100vh-140px)]"
               : "top-full mt-1.5 max-h-[420px]"
-          } overflow-y-auto`}
+          } overflow-y-auto overscroll-contain`}
+          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
         >
           {suggestions.length > 0 ? (
             <div className="p-1.5 sm:p-2 space-y-1">
               {/* Category Hint / Header if no query */}
               {!query.trim() && (
-                <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <span>Quick Destinations &amp; Actions</span>
                   <span className="font-normal lowercase">type to filter</span>
                 </div>
@@ -704,14 +774,14 @@ export const GlobalSearch = ({
 
                 // Category pill color themes
                 const categoryColorMap = {
-                  Pages: "bg-blue-50 text-blue-700 border-blue-200/60",
-                  Settings: "bg-purple-50 text-purple-700 border-purple-200/60",
-                  Tasks: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-                  Actions: "bg-amber-50 text-amber-700 border-amber-200/60",
-                  Projects: "bg-cyan-50 text-cyan-700 border-cyan-200/60",
-                  Tags: "bg-rose-50 text-rose-700 border-rose-200/60",
+                  Pages: "bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/60",
+                  Settings: "bg-purple-50 text-purple-700 border-purple-200/60 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60",
+                  Tasks: "bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60",
+                  Actions: "bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60",
+                  Projects: "bg-cyan-50 text-cyan-700 border-cyan-200/60 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/60",
+                  Tags: "bg-rose-50 text-rose-700 border-rose-200/60 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60",
                 };
-                const catClass = categoryColorMap[item.category] || "bg-slate-100 text-slate-700 border-slate-200";
+                const catClass = categoryColorMap[item.category] || "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
 
                 return (
                   <div
@@ -723,16 +793,16 @@ export const GlobalSearch = ({
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`flex items-start gap-3 p-2.5 sm:p-3 rounded-xl transition-all cursor-pointer select-none text-left ${
                       isSelected
-                        ? "bg-[var(--primary-50)] border border-[var(--primary-200)] shadow-2xs"
-                        : "hover:bg-slate-50 border border-transparent"
+                        ? "bg-[var(--primary-50)] dark:bg-[var(--primary-900)]/30 border border-[var(--primary-200)] dark:border-[var(--primary-700)]/50 shadow-2xs"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent"
                     }`}
                   >
                     {/* Icon container */}
                     <div
                       className={`p-2 rounded-xl shrink-0 transition-colors ${
                         isSelected
-                          ? "bg-white text-[color:var(--primary)] shadow-2xs"
-                          : "bg-slate-100 text-slate-500"
+                          ? "bg-white dark:bg-slate-800 text-[color:var(--primary)] shadow-2xs"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                       }`}
                     >
                       <IconComponent className="w-4 h-4" />
@@ -743,7 +813,7 @@ export const GlobalSearch = ({
                       <div className="flex items-center justify-between gap-2">
                         <span
                           className={`text-xs sm:text-sm font-bold tracking-tight truncate ${
-                            isSelected ? "text-[color:var(--primary-700)]" : "text-slate-800"
+                            isSelected ? "text-[color:var(--primary-700)] dark:text-[color:var(--primary-300)]" : "text-slate-800 dark:text-slate-100"
                           }`}
                         >
                           {item.title}
@@ -756,14 +826,14 @@ export const GlobalSearch = ({
                         </span>
                       </div>
 
-                      <p className="text-[11px] sm:text-xs text-slate-500 truncate mt-0.5 font-medium">
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium">
                         {item.description}
                       </p>
                     </div>
 
                     {/* Keyboard Enter indicator */}
                     {isSelected && (
-                      <div className="hidden sm:flex items-center self-center shrink-0 text-[10px] font-semibold text-[color:var(--primary-600)] px-1.5 py-0.5 rounded bg-white/80 border border-[var(--primary-200)] shadow-2xs">
+                      <div className="hidden sm:flex items-center self-center shrink-0 text-[10px] font-semibold text-[color:var(--primary-600)] dark:text-[color:var(--primary-300)] px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800/80 border border-[var(--primary-200)] dark:border-[var(--primary-700)]/60 shadow-2xs">
                         <span>Enter ↵</span>
                       </div>
                     )}
@@ -774,26 +844,26 @@ export const GlobalSearch = ({
           ) : (
             // HONEST EMPTY STATE
             <div className="p-6 text-center space-y-2">
-              <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+              <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-400">
                 <Search className="w-5 h-5" />
               </div>
-              <h4 className="text-sm font-bold text-slate-800">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">
                 No results found for &ldquo;{query}&rdquo;
               </h4>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
                 Try searching for a page name (e.g. &ldquo;quicksend&rdquo;, &ldquo;calendar&rdquo;), task title, or setting (e.g. &ldquo;theme&rdquo;, &ldquo;sound&rdquo;).
               </p>
             </div>
           )}
 
           {/* Footer with keyboard hints */}
-          <div className="bg-slate-50/80 border-t border-slate-100 px-3 py-2 text-[10px] text-slate-400 flex items-center justify-between">
+          <div className="search-footer bg-slate-50/80 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700/80 px-3 py-2 text-[10px] text-slate-400 dark:text-slate-400 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span><kbd className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">↑↓</kbd> navigate</span>
-              <span><kbd className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">↵</kbd> select</span>
-              <span><kbd className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">esc</kbd> close</span>
+              <span><kbd className="font-mono bg-white dark:bg-slate-700 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200">↑↓</kbd> navigate</span>
+              <span><kbd className="font-mono bg-white dark:bg-slate-700 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200">↵</kbd> select</span>
+              <span><kbd className="font-mono bg-white dark:bg-slate-700 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200">esc</kbd> close</span>
             </div>
-            <span className="hidden sm:inline text-slate-400 font-medium">
+            <span className="hidden sm:inline text-slate-400 dark:text-slate-400 font-medium">
               Tasklert Global Search
             </span>
           </div>

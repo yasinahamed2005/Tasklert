@@ -104,7 +104,7 @@ export const LiquidTimer = ({
     <div className="relative flex items-center justify-center select-none my-2 sm:my-3">
       {/* 1. Breathing Outer Glow Halo (Reactive to Theme) */}
       <div
-        className="absolute w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full blur-3xl pointer-events-none transition-all duration-700"
+        className="absolute w-60 h-60 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full blur-3xl pointer-events-none transition-all duration-700"
         style={{
           background: `radial-gradient(circle, ${palette.primary} 0%, ${palette.primaryLight} 45%, transparent 75%)`,
           opacity: isRunning ? 0.38 : 0.22,
@@ -116,7 +116,7 @@ export const LiquidTimer = ({
       {/* 2. Rotating Shimmer Orbital Ring around the Orb (Visible when running) */}
       {isRunning && (
         <div
-          className="absolute w-72 h-72 sm:w-80 sm:h-80 md:w-88 md:h-88 rounded-full pointer-events-none"
+          className="absolute w-64 h-64 sm:w-80 sm:h-80 md:w-[21.5rem] md:h-[21.5rem] rounded-full pointer-events-none"
           style={{
             border: `1.5px dashed ${palette.primaryLight}`,
             opacity: 0.35,
@@ -127,7 +127,7 @@ export const LiquidTimer = ({
 
       {/* 3. Main 3D Glass Sphere Container */}
       <div
-        className="relative w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full p-2.5 sm:p-3 shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-500 border"
+        className="relative w-60 h-60 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full p-2.5 sm:p-3 shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-500 border"
         style={{
           background: "radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.82) 55%, rgba(240, 244, 255, 0.75) 100%)",
           borderColor: `color-mix(in srgb, ${palette.primary} 30%, #e2e8f0)`,

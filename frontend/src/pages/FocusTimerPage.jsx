@@ -167,17 +167,17 @@ export const FocusTimerPage = () => {
       case "theme-dark":
         return {
           name: "theme-dark",
-          primary: "#4b5563",
-          primaryDark: "#1f2937",
-          primaryLight: "#9ca3af",
-          primaryUltraLight: "#f3f4f6",
-          primaryGlow: "rgba(75, 85, 99, 0.45)",
-          gradientTop: "#6b7280",
-          gradientMid: "#4b5563",
-          gradientBottom: "#111827",
-          borderColor: "#e5e7eb",
-          badgeBg: "#e5e7eb",
-          badgeText: "#1f2937",
+          primary: "#0b2545",
+          primaryDark: "#081d37",
+          primaryLight: "#4a77a8",
+          primaryUltraLight: "#f0f4f9",
+          primaryGlow: "rgba(11, 37, 69, 0.35)",
+          gradientTop: "#3b82f6",
+          gradientMid: "#1e3a5f",
+          gradientBottom: "#0b2545",
+          borderColor: "#e2e8f0",
+          badgeBg: "#e0eaf4",
+          badgeText: "#0b2545",
         };
       case "theme-lavender":
       default:
@@ -1429,10 +1429,10 @@ export const FocusTimerPage = () => {
   );
 
   return (
-    <div className="p-3 sm:p-5 md:p-6 min-w-0 w-full space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-3.5 sm:space-y-4 md:space-y-5">
       {/* 1. Header Banner */}
       <div
-        className="bg-white/95 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 border"
+        className="bg-white/95 rounded-2xl p-3.5 sm:p-4 md:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border"
         style={{ borderColor: themePalette.borderColor }}
       >
         <div className="flex items-center gap-3.5">
@@ -1547,19 +1547,19 @@ export const FocusTimerPage = () => {
         </div>
       </div>
 
-      {/* 2. Main 2-Column Dashboard Grid (Matching Image 2 Layout) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* 2. Main 2-Column Dashboard Grid (Matching Shared Layout Standards) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 md:gap-5 items-start">
         {/* Left Column (8 of 12 cols): Timer Centerpiece, Presets, Controls & Quick Settings */}
-        <div className="lg:col-span-8 space-y-5">
+        <div className="lg:col-span-8 space-y-3.5 sm:space-y-4 md:space-y-5">
           {/* Main Showcase Card */}
           <div
-            className="bg-white/95 rounded-3xl p-6 sm:p-7 md:p-8 border shadow-xs transition-all flex flex-col justify-between"
+            className="bg-white/95 rounded-2xl p-3.5 sm:p-5 md:p-6 border shadow-xs transition-all flex flex-col justify-between"
             style={{ borderColor: themePalette.borderColor }}
           >
             {/* Top Mode Switcher Capsule */}
-            <div className="flex justify-center mb-6">
+            <div className="w-full flex justify-center mb-4 sm:mb-6">
               <div
-                className="inline-flex rounded-2xl p-1 border shadow-2xs max-w-md w-full"
+                className="inline-flex rounded-xl sm:rounded-2xl p-1 border shadow-2xs w-full max-w-lg"
                 style={{
                   backgroundColor: themePalette.primaryUltraLight,
                   borderColor: themePalette.borderColor,
@@ -1568,7 +1568,7 @@ export const FocusTimerPage = () => {
                 <button
                   type="button"
                   onClick={() => handleSelectType("focus")}
-                  className="flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-2 sm:px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5"
                   style={{
                     backgroundColor: sessionType === "focus" ? themePalette.primary : "transparent",
                     color: sessionType === "focus" ? "#ffffff" : "#475569",
@@ -1581,7 +1581,7 @@ export const FocusTimerPage = () => {
                 <button
                   type="button"
                   onClick={() => handleSelectType("short_break")}
-                  className="flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-2 sm:px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5"
                   style={{
                     backgroundColor: sessionType === "short_break" ? themePalette.primary : "transparent",
                     color: sessionType === "short_break" ? "#ffffff" : "#475569",
@@ -1594,7 +1594,7 @@ export const FocusTimerPage = () => {
                 <button
                   type="button"
                   onClick={() => handleSelectType("long_break")}
-                  className="flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-2 sm:px-3 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5"
                   style={{
                     backgroundColor: sessionType === "long_break" ? themePalette.primary : "transparent",
                     color: sessionType === "long_break" ? "#ffffff" : "#475569",
@@ -1608,7 +1608,7 @@ export const FocusTimerPage = () => {
             </div>
 
             {/* Middle Section: Liquid Timer (Left) + 5 Settings Cards (Right) */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-7 items-center">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-center">
               {/* Left Sub-column: Liquid Timer, Presets, Controls */}
               <div className="md:col-span-7 flex flex-col items-center justify-center">
                 <LiquidTimer
@@ -1974,10 +1974,10 @@ export const FocusTimerPage = () => {
         </div>
 
         {/* Right Column (4 of 12 cols): Today's Focus Summary & Recent Sessions */}
-        <div className="lg:col-span-4 space-y-5">
+        <div className="lg:col-span-4 space-y-3.5 sm:space-y-4 md:space-y-5">
           {/* Today's Focus Summary Card */}
           <div
-            className="bg-white/95 rounded-3xl p-5 sm:p-6 border shadow-xs space-y-4"
+            className="bg-white/95 rounded-2xl p-3.5 sm:p-5 border shadow-xs space-y-3.5 sm:space-y-4"
             style={{ borderColor: themePalette.borderColor }}
           >
             <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1988,7 +1988,7 @@ export const FocusTimerPage = () => {
             {/* Total Focus & Completed */}
             <div className="grid grid-cols-2 gap-3">
               <div
-                className="p-3.5 rounded-2xl border"
+                className="p-3 sm:p-3.5 rounded-2xl border"
                 style={{
                   backgroundColor: themePalette.primaryUltraLight,
                   borderColor: themePalette.borderColor,
@@ -2004,7 +2004,7 @@ export const FocusTimerPage = () => {
               </div>
 
               <div
-                className="p-3.5 rounded-2xl border"
+                className="p-3 sm:p-3.5 rounded-2xl border"
                 style={{
                   backgroundColor: themePalette.primaryUltraLight,
                   borderColor: themePalette.borderColor,
@@ -2044,7 +2044,7 @@ export const FocusTimerPage = () => {
 
           {/* Recent Sessions Card */}
           <div
-            className="bg-white/95 rounded-3xl p-5 sm:p-6 border shadow-xs space-y-3.5"
+            className="bg-white/95 rounded-2xl p-3.5 sm:p-5 border shadow-xs space-y-3"
             style={{ borderColor: themePalette.borderColor }}
           >
             <div className="flex items-center justify-between">
@@ -2104,10 +2104,10 @@ export const FocusTimerPage = () => {
       </div>
 
       {/* 3. Bottom Row: Pomodoro Progress & Today's Goal */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 sm:gap-4 md:gap-5">
         {/* Left: Pomodoro Progress Stepper (8 of 12 cols) */}
         <div
-          className="md:col-span-8 bg-white/95 rounded-3xl p-5 sm:p-6 border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          className="md:col-span-8 bg-white/95 rounded-2xl p-3.5 sm:p-5 border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
           style={{ borderColor: themePalette.borderColor }}
         >
           <div className="flex items-center gap-3">
@@ -2173,7 +2173,7 @@ export const FocusTimerPage = () => {
 
         {/* Right: Today's Goal Progress Card (4 of 12 cols) */}
         <div
-          className="md:col-span-4 bg-white/95 rounded-3xl p-5 sm:p-6 border shadow-xs flex flex-col justify-between gap-3"
+          className="md:col-span-4 bg-white/95 rounded-2xl p-3.5 sm:p-5 border shadow-xs flex flex-col justify-between gap-3"
           style={{ borderColor: themePalette.borderColor }}
         >
           <div className="flex items-center justify-between">

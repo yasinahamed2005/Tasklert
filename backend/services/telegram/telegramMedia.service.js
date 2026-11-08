@@ -160,8 +160,16 @@ export const downloadProfileAvatar = async (userId, chatId, res) => {
   }
 
   try {
-    const peer = await resolvePeer(client, userId, chatId);
-    const photoBuffer = await client.downloadProfilePhoto(peer, { isBig: false });
+    let photoBuffer = null;
+    try {
+      const peer = await resolvePeer(client, userId, chatId);
+      photoBuffer = await client.downloadProfilePhoto(peer, { isBig: false });
+    } catch (peerErr) {
+      // Fallback: try direct chatId string/number with GramJS internal cache
+      try {
+        photoBuffer = await client.downloadProfilePhoto(chatId, { isBig: false });
+      } catch (_) {}
+    }
 
     if (!photoBuffer || photoBuffer.length === 0) {
       noAvatarCache.set(cacheKey, Date.now());

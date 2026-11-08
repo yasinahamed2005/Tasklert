@@ -1,6 +1,6 @@
 
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Search,
   Filter,
@@ -17,6 +17,12 @@ import {
   Users,
   Info,
   Edit3,
+  ArrowLeft,
+  ChevronDown,
+  Send,
+  FileText,
+  AlertCircle,
+  Trash2,
 } from "lucide-react";
 
 // Avatar initial color palette matching the reference screenshot
@@ -74,6 +80,15 @@ const formatRowDate = (dateStr) => {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
+const MOBILE_FOLDERS = [
+  { id: "INBOX", label: "Inbox", icon: Inbox },
+  { id: "STARRED", label: "Starred", icon: Star },
+  { id: "SENT", label: "Sent", icon: Send },
+  { id: "DRAFTS", label: "Drafts", icon: FileText },
+  { id: "IMPORTANT", label: "Important", icon: AlertCircle },
+  { id: "TRASH", label: "Trash", icon: Trash2 },
+];
+
 export default function EmailList({
   emails = [],
   selectedEmail,
@@ -93,8 +108,16 @@ export default function EmailList({
   hasNextPage = false,
   hasPrevPage = false,
   isInbox = true,
+  selectedFolder = "INBOX",
+  onSelectFolder,
+  selectedLabel = null,
+  onSelectLabel,
+  unreadCounts = {},
   onCompose,
+  onBackToQuickSend,
 }) {
+  const [isMobileFolderMenuOpen, setIsMobileFolderMenuOpen] = useState(false);
+
   const categories = [
     { id: "primary", label: "Primary", icon: Inbox, count: 0 },
     {
@@ -114,36 +137,82 @@ export default function EmailList({
     },
   ];
 
+  const currentFolderConfig = MOBILE_FOLDERS.find((f) => f.id === selectedFolder);
+  const selectedFolderLabel = selectedLabel || (currentFolderConfig ? currentFolderConfig.label : selectedFolder);
+
   const displayRange = emails.length > 0
     ? `1-${emails.length} of ${totalCount || emails.length}`
     : "0 of 0";
 
   return (
     <div className="w-full h-full flex flex-col p-3 sm:p-3.5 bg-white rounded-3xl border border-purple-100/90 shadow-2xs overflow-hidden">
-      {/* ─── Top Toolbar: Checkbox, Refresh, More, Pagination ─── */}
+      {/* ─── Top Toolbar: Back (Mobile), Folder Switcher, Checkbox, Refresh, More, Pagination ─── */}
       <div className="shrink-0 flex items-center justify-between gap-2 pb-2.5 border-b border-purple-50">
-        <div className="flex items-center gap-1.5">
-          {/* Select all checkbox */}
-          <div
-            className="w-4 h-4 rounded-md border border-gray-300 hover:border-purple-500 flex items-center justify-center cursor-pointer transition"
-            title="Select"
-          />
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* Mobile Back Button to return to QuickSend */}
+          {onBackToQuickSend && (
+            <button
+              type="button"
+              onClick={onBackToQuickSend}
+              className="md:hidden p-1.5 -ml-1 rounded-xl text-gray-700 hover:text-purple-700 hover:bg-purple-100/70 transition cursor-pointer shrink-0"
+              title="Back to QuickSend"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-800" />
+            </button>
+          )}
+
+          {/* Mobile Folder Selector Dropdown */}
+          <div className="relative md:hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsMobileFolderMenuOpen((prev) => !prev)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 font-black text-xs transition cursor-pointer shadow-2xs"
+            >
+              <span>{selectedFolderLabel}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-purple-600" />
+            </button>
+
+            {isMobileFolderMenuOpen && (
+              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-2xl shadow-xl border border-purple-100 py-1.5 z-40 animate-fade-in">
+                {MOBILE_FOLDERS.map((f) => {
+                  const Icon = f.icon;
+                  const isActive = selectedFolder === f.id && !selectedLabel;
+                  const count = unreadCounts[f.id] || 0;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectFolder?.(f.id);
+                        setIsMobileFolderMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold transition cursor-pointer ${
+                        isActive ? "bg-purple-50 text-purple-700" : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-3.5 h-3.5 ${isActive ? "text-purple-600" : "text-gray-400"}`} />
+                        <span>{f.label}</span>
+                      </div>
+                      {count > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black">
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
             onClick={onRefresh}
-            className="p-1.5 rounded-xl border border-transparent hover:bg-purple-50 text-gray-500 hover:text-purple-700 transition cursor-pointer"
+            className="p-1.5 rounded-xl border border-transparent hover:bg-purple-50 text-gray-500 hover:text-purple-700 transition cursor-pointer shrink-0"
             title="Refresh emails"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-purple-600" : ""}`} />
-          </button>
-
-          <button
-            type="button"
-            className="p-1.5 rounded-xl border border-transparent hover:bg-purple-50 text-gray-500 hover:text-purple-700 transition cursor-pointer"
-            title="More options"
-          >
-            <MoreVertical className="w-3.5 h-3.5" />
           </button>
         </div>
 

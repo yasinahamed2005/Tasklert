@@ -41,7 +41,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION BAR */}
       <nav
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[color:var(--surface-1)] backdrop-blur-md border-t border-[color:var(--surface-border)] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. HOME */}
@@ -98,6 +98,9 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
           {/* 4. QUICKSEND (Added in place of Focus) */}
           <NavLink
             to="/messages"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("tasklert:quicksend-clicked"));
+            }}
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen

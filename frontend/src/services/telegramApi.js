@@ -91,19 +91,30 @@ export const fetchTelegramContacts = async (search = "") => {
   return response.data.contacts || [];
 };
 
-export const fetchTelegramChats = async (filter = "all", search = "", folder = null) => {
-  const params = { filter, search };
-  if (folder !== null && folder !== undefined) {
+export const fetchTelegramChats = async (filter = "all", search = "", folder = null, options = {}) => {
+  const { limit = 100, offsetDate = null, offsetId = null } = options;
+  const params = { filter, search, limit };
+  if (folder !== null && folder !== undefined && folder !== "") {
     params.folder = folder;
   }
-  const response = await axios.get(
-    `${API_BASE_URL}/api/telegram/chats`,
-    {
-      ...getAuthHeaders(),
-      params,
+  if (offsetDate) params.offsetDate = offsetDate;
+  if (offsetId) params.offsetId = offsetId;
+
+  try {
+    const response = await axios.get(
+      `${API_BASE_URL}/api/telegram/chats`,
+      {
+        ...getAuthHeaders(),
+        params,
+      }
+    );
+    return Array.isArray(response.data?.chats) ? response.data.chats : [];
+  } catch (err) {
+    if (err.response?.data?.chats && Array.isArray(err.response.data.chats)) {
+      return err.response.data.chats;
     }
-  );
-  return response.data.chats || [];
+    throw err;
+  }
 };
 
 export const fetchTelegramMessages = async (chatId, options = {}) => {
@@ -240,11 +251,11 @@ export const deleteTelegramMessage = async (chatId, messageId, { accessHash = nu
   return response.data;
 };
 
-export const markTelegramChatAsRead = async (chatId, { maxId = 0, accessHash = null, peerType = null } = {}) => {
+export const markTelegramChatAsRead = async (chatId, { maxId = 0, unreadCount, accessHash = null, peerType = null } = {}) => {
   if (!chatId) return null;
   const response = await axios.post(
     `${API_BASE_URL}/api/telegram/chats/${encodeURIComponent(chatId)}/read`,
-    { maxId, accessHash, peerType },
+    { maxId, unreadCount, accessHash, peerType },
     getAuthHeaders()
   );
   return response.data;
