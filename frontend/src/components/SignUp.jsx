@@ -8,7 +8,7 @@ import { TasklertIcon } from "./TasklertLogo";
 import { API_BASE_URL } from "../config/api";
 
 const API_URL = API_BASE_URL;
-const INITIAL_FORM = { name: "", email: "", password: "" };
+const INITIAL_FORM = { name: "", email: "", password: "", confirmPassword: "" };
 const RESEND_COOLDOWN_SECONDS = 60;
 
 // Calculate password strength
@@ -39,6 +39,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
   const [step, setStep] = useState("form"); // "form" | "otp"
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -112,11 +113,17 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
       return;
     }
 
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match. Please verify your confirm password.");
+      return;
+    }
+
     setLoading(true);
     setMessage({ text: "", type: "" });
 
     try {
-      const { data } = await axios.post(`${API_URL}/api/user/register/request-otp`, formData);
+      const { name, email, password } = formData;
+      const { data } = await axios.post(`${API_URL}/api/user/register/request-otp`, { name, email, password });
       setStep("otp");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setMessage({
@@ -201,18 +208,18 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
   };
 
   return (
-    <div className="w-full max-w-md rounded-3xl border border-[#34445F] bg-[#111A2E] p-6 sm:p-8 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all">
+    <div className="w-full max-w-md rounded-3xl border border-[#34445F] bg-[#111A2E] p-5 sm:p-7 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all">
       {/* Header */}
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8B2CF5] to-[#D946EF] shadow-lg shadow-[#8B2CF5]/30">
+      <div className="mb-4 sm:mb-5 text-center">
+        <div className="mx-auto mb-2.5 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8B2CF5] to-[#D946EF] shadow-lg shadow-[#8B2CF5]/30">
           {step === "otp" ? (
-            <ShieldCheck className="h-7 w-7 text-white" />
+            <ShieldCheck className="h-6 w-6 text-white" />
           ) : (
-            <TasklertIcon size={32} idPrefix="signup-card" />
+            <TasklertIcon size={28} idPrefix="signup-card" />
           )}
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-[#F8FAFC]">
-          {step === "otp" ? "Verify Your Email" : "Create your account"}
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F8FAFC]">
+          {step === "otp" ? "Verify Your Email" : "Create Your Account"}
         </h2>
         <p className="mt-1 text-xs text-[#AAB8CF]">
           {step === "otp"
@@ -224,7 +231,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
       {/* Message alert */}
       {message.text && (
         <div
-          className={`mb-5 flex items-start gap-2.5 rounded-xl border p-3.5 text-xs leading-5 ${
+          className={`mb-4 flex items-start gap-2.5 rounded-xl border p-3 text-xs leading-5 ${
             message.type === "success"
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : "border-rose-500/30 bg-rose-500/10 text-rose-300"
@@ -244,13 +251,12 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
           {/* Social Logins */}
           <SocialAuthButtons />
 
-
           {/* Registration Form */}
-          <form onSubmit={handleSendOtp} className="space-y-4">
+          <form onSubmit={handleSendOtp} className="space-y-3 sm:space-y-3.5">
             {/* Full Name */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#AAB8CF]">Full Name</label>
-              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2.5 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+              <label className="mb-1 block text-xs font-semibold text-[#AAB8CF]">Full Name</label>
+              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
                 <User className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
                 <input
                   type="text"
@@ -265,8 +271,8 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
 
             {/* Email Address */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#AAB8CF]">Email Address</label>
-              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2.5 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+              <label className="mb-1 block text-xs font-semibold text-[#AAB8CF]">Email Address</label>
+              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
                 <Mail className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
                 <input
                   type="email"
@@ -281,8 +287,8 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
 
             {/* Password with Strength Indicator */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#AAB8CF]">Password</label>
-              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2.5 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+              <label className="mb-1 block text-xs font-semibold text-[#AAB8CF]">Password</label>
+              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
                 <Lock className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
                 <input
                   type={showPassword ? "text" : "password"}
@@ -304,7 +310,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
 
               {/* Password Strength Indicator */}
               {formData.password && (
-                <div className="mt-2 space-y-1">
+                <div className="mt-1.5 space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-[#AAB8CF]">Password strength:</span>
                     <span className={`font-semibold ${pwdStrength.text}`}>{pwdStrength.label}</span>
@@ -319,8 +325,34 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
               )}
             </div>
 
+            {/* Confirm Password */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[#AAB8CF]">Confirm Password</label>
+              <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+                <Lock className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Re-enter your password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className="ml-2.5 w-full bg-transparent text-sm text-[#F8FAFC] placeholder-[#AAB8CF]/60 focus:outline-none"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="ml-2 text-[#AAB8CF] hover:text-[#F8FAFC] transition-colors cursor-pointer"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p className="mt-1 text-[11px] text-rose-400">Passwords do not match</p>
+              )}
+            </div>
+
             {/* Terms and Privacy Checkbox */}
-            <div className="flex items-start">
+            <div className="flex items-start pt-0.5">
               <input
                 type="checkbox"
                 id="agreeTerms"
@@ -329,7 +361,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
                 className="mt-0.5 h-4 w-4 rounded border-[#34445F] bg-[#19243A] accent-[#8B2CF5] text-[#8B2CF5] focus:ring-[#8B2CF5]/40 cursor-pointer"
                 required
               />
-              <label htmlFor="agreeTerms" className="ml-2 text-xs leading-5 text-[#AAB8CF] cursor-pointer select-none">
+              <label htmlFor="agreeTerms" className="ml-2 text-xs leading-4.5 text-[#AAB8CF] cursor-pointer select-none">
                 I agree to Tasklert&apos;s{" "}
                 <span className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline">Terms of Service</span> and{" "}
                 <span className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline">Privacy Policy</span>.
@@ -340,7 +372,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-2.5 sm:py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -348,12 +380,12 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Sending verification code...
+                  Processing...
                 </span>
               ) : (
                 <>
                   <ShieldCheck className="h-4 w-4" />
-                  Send Verification Code
+                  Create Account
                 </>
               )}
             </button>
@@ -375,7 +407,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
               placeholder="123456"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="w-full rounded-2xl border border-[#34445F] bg-[#19243A] py-3.5 text-center text-2xl font-mono font-bold tracking-[0.4em] text-[#F8FAFC] shadow-inner focus:border-[#8B2CF5] focus:outline-none focus:ring-2 focus:ring-[#8B2CF5]/25"
+              className="w-full rounded-2xl border border-[#34445F] bg-[#19243A] py-3 text-center text-2xl font-mono font-bold tracking-[0.4em] text-[#F8FAFC] shadow-inner focus:border-[#8B2CF5] focus:outline-none focus:ring-2 focus:ring-[#8B2CF5]/25"
               required
             />
           </div>
@@ -383,7 +415,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-2.5 sm:py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
               "Verifying Code..."
@@ -395,7 +427,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
             )}
           </button>
 
-          <div className="flex items-center justify-between pt-2 text-xs">
+          <div className="flex items-center justify-between pt-1 text-xs">
             <button
               type="button"
               onClick={() => {
@@ -422,7 +454,7 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
 
       {/* Switch to Login */}
       {showSwitchLink && (
-        <p className="mt-6 text-center text-xs text-[#AAB8CF]">
+        <p className="mt-4 sm:mt-5 text-center text-xs text-[#AAB8CF]">
           Already have an account?{" "}
           <button
             type="button"

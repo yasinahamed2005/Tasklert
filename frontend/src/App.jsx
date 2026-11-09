@@ -4,6 +4,10 @@ import Layout from "./components/Layout";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
 import AuthShell from "./components/AuthShell";
+import Landing from "./pages/Landing";
+import AuthPage from "./pages/AuthPage";
+import Login from "./components/Login";
+import SignUp from "./components/SignUp";
 import { AppStartupFallback } from "./components/PageSkeletons";
 import PageTransitionLoader from "./components/PageTransitionLoader";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -32,9 +36,6 @@ const lazyWithRetry = (factory) =>
   });
 
 // Lazy loaded page components
-const Landing = lazyWithRetry(() => import("./pages/Landing"));
-const Login = lazyWithRetry(() => import("./components/Login"));
-const SignUp = lazyWithRetry(() => import("./components/SignUp"));
 const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
 const Pendingpage = lazyWithRetry(() => import("./pages/PendingPage"));
 const CompletePage = lazyWithRetry(() => import("./pages/CompletePage"));
@@ -141,51 +142,19 @@ const App = () => {
       {/* Landing (public marketing page) */}
       <Route
         path="/welcome"
-        element={
-          <Suspense fallback={<AppStartupFallback label="Loading Tasklert..." />}>
-            <Landing />
-          </Suspense>
-        }
+        element={<Landing />}
       />
 
       {/* Login */}
       <Route
         path="/login"
-        element={
-          <Suspense fallback={<AppStartupFallback label="Loading Login..." />}>
-            <AuthShell
-              mode="login"
-              onSwitchToLogin={() => navigate("/login")}
-              onSwitchToSignup={() => navigate("/signup")}
-            >
-              <Login
-                onSubmit={handleAuthSubmit}
-                onSwitchMode={() => navigate("/signup")}
-                showSwitchLink={false}
-              />
-            </AuthShell>
-          </Suspense>
-        }
+        element={<AuthPage initialMode="login" onAuthSubmit={handleAuthSubmit} />}
       />
 
       {/* SignUp */}
       <Route
         path="/signup"
-        element={
-          <Suspense fallback={<AppStartupFallback label="Loading Sign Up..." />}>
-            <AuthShell
-              mode="signup"
-              onSwitchToLogin={() => navigate("/login")}
-              onSwitchToSignup={() => navigate("/signup")}
-            >
-              <SignUp
-                onSubmit={handleAuthSubmit}
-                onSwitchMode={() => navigate("/login")}
-                showSwitchLink={false}
-              />
-            </AuthShell>
-          </Suspense>
-        }
+        element={<AuthPage initialMode="signup" onAuthSubmit={handleAuthSubmit} />}
       />
 
       {/* Protected Routes — Layout stays stably mounted, instant navigation */}

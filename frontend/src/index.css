@@ -1502,23 +1502,86 @@ select:-webkit-autofill:focus {
 }
 
 /* ==========================================================================
+   PUBLIC & AUTHENTICATION PAGES COMPLETE THEME ISOLATION
+   Ensures Landing (/welcome) and Auth (/login, /signup) pages always preserve
+   their dedicated immersive dark themes on both mobile and laptop/desktop.
+   ========================================================================== */
+.auth-page,
+.landing-page {
+  isolation: isolate;
+  position: relative;
+}
+
+html:has(.auth-page),
+body:has(.auth-page) {
+  background-color: #111a2e !important;
+  color: #f8fafc !important;
+}
+
+html:has(.landing-page),
+body:has(.landing-page) {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+}
+
+.auth-page header,
+.auth-page header.app-header {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.landing-page header {
+  background-color: rgba(2, 6, 23, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.auth-page [role="dialog"] {
+  background-color: #111a2e !important;
+  border-color: #34445f !important;
+  color: #f8fafc !important;
+}
+
+.landing-page [role="dialog"] {
+  background-color: #020617 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f8fafc !important;
+}
+
+.auth-page input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
+.landing-page input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]) {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+}
+
+.auth-page [role="dialog"] #forgot-modal-title,
+.auth-page [role="dialog"] label,
+.auth-page [role="dialog"] p {
+  color: #f8fafc !important;
+}
+
+.auth-page [role="dialog"] p.text-xs {
+  color: #aab8cf !important;
+}
+
+/* ==========================================================================
    CHARCOAL DARK THEME (Light-Surface Theme with Deep Charcoal Navy Accents)
    Target: White/light canvas + light blue-grey cards + dark navy text + charcoal navy buttons
+   Scoped exclusively to .app-layout (authenticated dashboard & workspace)
    ========================================================================== */
 
 /* 1. Canvas & Viewport Base */
-html.theme-dark,
-.theme-dark body,
-.theme-dark #root,
-.theme-dark .min-h-screen.bg-gray-50,
-.theme-dark div.min-h-screen {
+html.theme-dark:has(.app-layout),
+body.theme-dark:has(.app-layout),
+.theme-dark .app-layout {
   background-color: #f4f7fb !important;
   color: #0f172a !important;
 }
 
 /* 2. Header & Desktop Navbar */
 .theme-dark header.app-header,
-.theme-dark header {
+.theme-dark .app-layout header {
   background-color: #ffffff !important;
   border-bottom: 1px solid #e2e8f0 !important;
 }
@@ -1556,20 +1619,20 @@ html.theme-dark,
 }
 
 /* 4. Cards, Containers & Stat Tiles */
-.theme-dark .bg-white,
-.theme-dark .bg-white\/98,
-.theme-dark .bg-white\/95,
-.theme-dark .bg-white\/90 {
+.theme-dark .app-layout .bg-white,
+.theme-dark .app-layout .bg-white\/98,
+.theme-dark .app-layout .bg-white\/95,
+.theme-dark .app-layout .bg-white\/90 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
 }
 
-.theme-dark .border-purple-100,
-.theme-dark .border-purple-200,
-.theme-dark .border-gray-100,
-.theme-dark .border-gray-200,
-.theme-dark .border-slate-100,
-.theme-dark .border-slate-200 {
+.theme-dark .app-layout .border-purple-100,
+.theme-dark .app-layout .border-purple-200,
+.theme-dark .app-layout .border-gray-100,
+.theme-dark .app-layout .border-gray-200,
+.theme-dark .app-layout .border-slate-100,
+.theme-dark .app-layout .border-slate-200 {
   border-color: #e2e8f0 !important;
 }
 
@@ -1600,9 +1663,9 @@ html.theme-dark,
 }
 
 /* 6. Active Tabs & Filter Pills */
-.theme-dark [role="tab"][aria-selected="true"],
-.theme-dark .btn-tab-active,
-.theme-dark button.tab-active {
+.theme-dark .app-layout [role="tab"][aria-selected="true"],
+.theme-dark .app-layout .btn-tab-active,
+.theme-dark .app-layout button.tab-active {
   background-color: #0b2545 !important;
   color: #ffffff !important;
 }
@@ -1618,40 +1681,40 @@ html.theme-dark,
 }
 
 /* 8. Text Colors */
-.theme-dark .text-gray-900,
-.theme-dark .text-slate-900,
-.theme-dark .text-gray-800,
-.theme-dark .text-slate-800 {
+.theme-dark .app-layout .text-gray-900,
+.theme-dark .app-layout .text-slate-900,
+.theme-dark .app-layout .text-gray-800,
+.theme-dark .app-layout .text-slate-800 {
   color: #0f172a !important;
 }
 
-.theme-dark .text-gray-600,
-.theme-dark .text-slate-600,
-.theme-dark .text-gray-500,
-.theme-dark .text-slate-500 {
+.theme-dark .app-layout .text-gray-600,
+.theme-dark .app-layout .text-slate-600,
+.theme-dark .app-layout .text-gray-500,
+.theme-dark .app-layout .text-slate-500 {
   color: #64748b !important;
 }
 
-.theme-dark .text-purple-600,
-.theme-dark .text-purple-700 {
+.theme-dark .app-layout .text-purple-600,
+.theme-dark .app-layout .text-purple-700 {
   color: #0b2545 !important;
 }
 
 /* 9. Inputs & Form Controls */
-.theme-dark input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not(.global-search-input):not(.bg-transparent):not([class*="bg-transparent"]),
-.theme-dark textarea:not(.bg-transparent):not([class*="bg-transparent"]),
-.theme-dark select {
+.theme-dark .app-layout input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not(.global-search-input):not(.bg-transparent):not([class*="bg-transparent"]),
+.theme-dark .app-layout textarea:not(.bg-transparent):not([class*="bg-transparent"]),
+.theme-dark .app-layout select {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #e2e8f0 !important;
 }
 
-.theme-dark input.global-search-input,
-.theme-dark .global-search-input,
-.theme-dark input.bg-transparent,
-.theme-dark input[class*="bg-transparent"],
-.theme-dark textarea.bg-transparent,
-.theme-dark textarea[class*="bg-transparent"] {
+.theme-dark .app-layout input.global-search-input,
+.theme-dark .app-layout .global-search-input,
+.theme-dark .app-layout input.bg-transparent,
+.theme-dark .app-layout input[class*="bg-transparent"],
+.theme-dark .app-layout textarea.bg-transparent,
+.theme-dark .app-layout textarea[class*="bg-transparent"] {
   background-color: transparent !important;
   background: transparent !important;
   border: 0 !important;
@@ -1660,24 +1723,24 @@ html.theme-dark,
   outline: none !important;
 }
 
-.theme-dark input::placeholder,
-.theme-dark textarea::placeholder {
+.theme-dark .app-layout input::placeholder,
+.theme-dark .app-layout textarea::placeholder {
   color: #94a3b8 !important;
 }
 
-.theme-dark input:not(.global-search-input):not(.bg-transparent):not([class*="bg-transparent"]):focus,
-.theme-dark textarea:not(.bg-transparent):not([class*="bg-transparent"]):focus,
-.theme-dark select:focus {
+.theme-dark .app-layout input:not(.global-search-input):not(.bg-transparent):not([class*="bg-transparent"]):focus,
+.theme-dark .app-layout textarea:not(.bg-transparent):not([class*="bg-transparent"]):focus,
+.theme-dark .app-layout select:focus {
   border-color: #0b2545 !important;
   box-shadow: 0 0 0 2px rgba(11, 37, 69, 0.15) !important;
 }
 
-.theme-dark input.global-search-input:focus,
-.theme-dark .global-search-input:focus,
-.theme-dark input.bg-transparent:focus,
-.theme-dark input[class*="bg-transparent"]:focus,
-.theme-dark textarea.bg-transparent:focus,
-.theme-dark textarea[class*="bg-transparent"]:focus {
+.theme-dark .app-layout input.global-search-input:focus,
+.theme-dark .app-layout .global-search-input:focus,
+.theme-dark .app-layout input.bg-transparent:focus,
+.theme-dark .app-layout input[class*="bg-transparent"]:focus,
+.theme-dark .app-layout textarea.bg-transparent:focus,
+.theme-dark .app-layout textarea[class*="bg-transparent"]:focus {
   background-color: transparent !important;
   background: transparent !important;
   border: 0 !important;
@@ -1687,9 +1750,9 @@ html.theme-dark,
 }
 
 /* 10. Modals & Popovers */
-.theme-dark [role="dialog"],
-.theme-dark [role="menu"],
-.theme-dark [role="listbox"],
+.theme-dark .app-layout [role="dialog"],
+.theme-dark .app-layout [role="menu"],
+.theme-dark .app-layout [role="listbox"],
 .theme-dark .notif-panel {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;

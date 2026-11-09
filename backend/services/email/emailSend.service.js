@@ -237,7 +237,7 @@ export const sendTasklertMail = async (user, mailData) => {
   }));
 
   const TARGET_TASKLERT_GMAIL = (
-    process.env.TASKLERT_MAIL_SENDER || "tasksflow.iya@gmail.com"
+    process.env.TASKLERT_MAIL_SENDER || process.env.SMTP_USER || "taskflow.iya@gmail.com"
   ).trim().toLowerCase();
 
   const providerMode = (
@@ -264,10 +264,11 @@ export const sendTasklertMail = async (user, mailData) => {
       attachments: formattedAttachments,
     });
   } else if (providerMode === "smtp" && isSmtpConfigured()) {
-    // Strategy 2: Dedicated SMTP (When explicitly configured)
+    // Strategy 2: Dedicated Authenticated SMTP (Direct SPF/DKIM aligned delivery)
     const smtpFrom = (process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL).trim();
     actualFromEmail = smtpFrom;
     sentResult = await sendViaSystemMailer({
+      from: `"${senderName} via Tasklert" <${smtpFrom}>`,
       to: toList.join(", "),
       cc: ccList.length ? ccList.join(", ") : undefined,
       bcc: bccList.length ? bccList.join(", ") : undefined,
@@ -278,15 +279,14 @@ export const sendTasklertMail = async (user, mailData) => {
       attachments: formattedAttachments,
     });
   } else {
-    // Strategy 3: Genuine Gmail REST API (Primary — Port 443 HTTPS, immune to cloud SMTP blocks)
-    // A) Search for account matching TARGET_TASKLERT_GMAIL
+    // Strategy 3: Genuine Gmail Authentication (OAuth REST API or Authenticated Google SMTP)
+    // Both ensure 100% SPF Pass + Google 2048-bit DKIM Signature Pass + Strict DMARC Alignment
     let gmailAccount = await EmailAccount.findOne({
       provider: "gmail",
       status: "connected",
       email: { $regex: new RegExp(`^${TARGET_TASKLERT_GMAIL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
     });
 
-    // B) Search for current authenticated user's connected Gmail account
     if (!gmailAccount) {
       gmailAccount = await EmailAccount.findOne({
         owner: user._id,
@@ -295,7 +295,6 @@ export const sendTasklertMail = async (user, mailData) => {
       }).sort({ isDefault: -1, createdAt: -1 });
     }
 
-    // C) Search for any system-connected Gmail account
     if (!gmailAccount) {
       gmailAccount = await EmailAccount.findOne({
         provider: "gmail",
@@ -304,8 +303,8 @@ export const sendTasklertMail = async (user, mailData) => {
     }
 
     if (gmailAccount) {
+      // 3A: Genuine Gmail REST API (Port 443 HTTPS)
       const isTargetAccount = gmailAccount.email.toLowerCase() === TARGET_TASKLERT_GMAIL;
-      // Requirement 2: Set actual From header to tasksflow.iya@gmail.com, provided this is the authenticated Gmail account
       actualFromEmail = isTargetAccount ? TARGET_TASKLERT_GMAIL : gmailAccount.email;
       const fromHeader = `"${senderName} via Tasklert" <${actualFromEmail}>`;
       const replyToHeader = `"${senderName}" <${senderEmail}>`;
@@ -323,15 +322,14 @@ export const sendTasklertMail = async (user, mailData) => {
           attachments: formattedAttachments,
         });
       } catch (gmailErr) {
-        console.warn("[TasklertMail] Gmail API send failed, falling back to Brevo HTTPS:", gmailErr.message);
-        if (process.env.BREVO_API_KEY) {
-          actualFromEmail = (process.env.BREVO_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL).trim();
-          sentResult = await sendViaBrevo({
-            from: actualFromEmail,
-            senderName: `${senderName} via Tasklert`,
-            to: toList,
-            cc: ccList,
-            bcc: bccList,
+        console.warn("[TasklertMail] Gmail API send failed, trying Authenticated SMTP:", gmailErr.message);
+        if (isSmtpConfigured()) {
+          actualFromEmail = (process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL).trim();
+          sentResult = await sendViaSystemMailer({
+            from: `"${senderName} via Tasklert" <${actualFromEmail}>`,
+            to: toList.join(", "),
+            cc: ccList.length ? ccList.join(", ") : undefined,
+            bcc: bccList.length ? bccList.join(", ") : undefined,
             subject: finalSubject,
             html: htmlContent,
             text: textContent,
@@ -342,8 +340,23 @@ export const sendTasklertMail = async (user, mailData) => {
           throw gmailErr;
         }
       }
+    } else if (isSmtpConfigured()) {
+      // 3B: Authenticated Google SMTP (smtp.gmail.com:465 with App Password)
+      // Produces d=gmail.com DKIM signature and passes SPF with Google IP!
+      actualFromEmail = (process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL).trim();
+      sentResult = await sendViaSystemMailer({
+        from: `"${senderName} via Tasklert" <${actualFromEmail}>`,
+        to: toList.join(", "),
+        cc: ccList.length ? ccList.join(", ") : undefined,
+        bcc: bccList.length ? bccList.join(", ") : undefined,
+        subject: finalSubject,
+        html: htmlContent,
+        text: textContent,
+        replyTo: `"${senderName}" <${senderEmail}>`,
+        attachments: formattedAttachments,
+      });
     } else if (process.env.BREVO_API_KEY) {
-      // Primary HTTPS API for Railway / Cloud environments (Port 443 — NEVER BLOCKED)
+      // 3C: Brevo HTTPS API (Note: Sender must be a verified custom domain, NOT @gmail.com)
       actualFromEmail = (process.env.BREVO_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL).trim();
       sentResult = await sendViaBrevo({
         from: actualFromEmail,
@@ -358,7 +371,7 @@ export const sendTasklertMail = async (user, mailData) => {
         attachments: formattedAttachments,
       });
     } else if (process.env.RESEND_API_KEY) {
-      // Fallback: Resend HTTPS
+      // 3D: Resend HTTPS
       actualFromEmail = "noreply@tasklert.shop";
       sentResult = await sendViaResend({
         from: `"Tasklert" <${actualFromEmail}>`,
@@ -368,6 +381,13 @@ export const sendTasklertMail = async (user, mailData) => {
         subject: finalSubject,
         html: htmlContent,
         text: textContent,
+        replyTo: `"${senderName}" <${senderEmail}>`,
+        attachments: formattedAttachments,
+      });
+    } else {
+      throw new Error("No operational Tasklert Mail sending provider configured. Please set SMTP_PASS or connect Gmail.");
+    }
+  }
         replyTo: `"${senderName}" <${senderEmail}>`,
         attachments: formattedAttachments,
       });

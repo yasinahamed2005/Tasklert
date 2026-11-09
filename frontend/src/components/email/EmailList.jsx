@@ -23,6 +23,7 @@ import {
   FileText,
   AlertCircle,
   Trash2,
+  Calendar,
 } from "lucide-react";
 
 // Avatar initial color palette matching the reference screenshot
@@ -114,6 +115,7 @@ export default function EmailList({
   onSelectLabel,
   unreadCounts = {},
   onCompose,
+  onOpenSchedule,
   onBackToQuickSend,
 }) {
   const [isMobileFolderMenuOpen, setIsMobileFolderMenuOpen] = useState(false);
@@ -382,17 +384,30 @@ export default function EmailList({
         )}
       </div>
 
-      {/* ─── Mobile Floating Compose Button (Matches Screenshot Bottom Right 1) ─── */}
-      {onCompose && (
-        <button
-          type="button"
-          onClick={onCompose}
-          className="md:hidden fixed bottom-20 right-5 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30 flex items-center justify-center transition active:scale-95 cursor-pointer z-30"
-          title="Compose Email"
-        >
-          <Edit3 className="w-5 h-5 text-white" />
-        </button>
-      )}
+      {/* ─── Mobile Fixed Bottom Action Bar matching reference screenshot ─── */}
+      <div className="md:hidden shrink-0 p-2.5 bg-white border-t border-purple-100 flex items-center gap-2">
+        {onCompose && (
+          <button
+            type="button"
+            onClick={onCompose}
+            className="flex-1 py-2 px-3 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Compose</span>
+          </button>
+        )}
+
+        {onOpenSchedule && (
+          <button
+            type="button"
+            onClick={onOpenSchedule}
+            className="flex-1 py-2 px-3 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Schedule Email</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

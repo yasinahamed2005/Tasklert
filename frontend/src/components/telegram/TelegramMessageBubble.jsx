@@ -10,6 +10,9 @@ import {
   Mic,
   Music,
   ExternalLink,
+  Clock,
+  Calendar,
+  AlertCircle,
 } from "lucide-react";
 import { getTelegramMediaUrl } from "../../services/telegramApi";
 
@@ -21,6 +24,7 @@ export default function TelegramMessageBubble({
   msg,
   activeChat,
   onDeleteRequest,
+  onScheduledClick,
   isFailedMedia = false,
   onMediaError,
 }) {
@@ -36,6 +40,87 @@ export default function TelegramMessageBubble({
       return "";
     }
   };
+
+  const formatScheduledTime = (dateInput) => {
+    if (!dateInput) return "";
+    try {
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return "";
+      const isToday = new Date().toDateString() === d.toDateString();
+      const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      if (isToday) {
+        return timeStr;
+      }
+      const dateStr = d.toLocaleDateString([], { month: "short", day: "numeric" });
+      return `${dateStr}, ${timeStr}`;
+    } catch {
+      return "";
+    }
+  };
+
+  // =========================================================================
+  // SCHEDULED OUTGOING MESSAGE BUBBLE (Matches reference design screenshot)
+  // =========================================================================
+  if (msg.isScheduled) {
+    const timeFormatted = formatScheduledTime(msg.scheduledAt);
+
+    return (
+      <div className="flex items-end gap-2 justify-end group my-1">
+        {/* Delete / Cancel button on hover */}
+        <button
+          type="button"
+          onClick={() => (onScheduledClick ? onScheduledClick(msg) : onDeleteRequest?.(msg))}
+          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 p-1 transition cursor-pointer shrink-0 order-first"
+          title="Manage scheduled message"
+          aria-label="Manage scheduled message"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Scheduled Message Bubble Container */}
+        <div className="relative max-w-[85%] sm:max-w-[70%]">
+          {/* Upper-right circular purple clock badge matching reference screenshot */}
+          <div
+            className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md z-10 select-none"
+            title="Scheduled for future delivery"
+          >
+            <Clock className="w-3.5 h-3.5" />
+          </div>
+
+          {/* Bubble Card with Purple Dashed Border & Light Lavender Fill */}
+          <div
+            onClick={() => onScheduledClick?.(msg)}
+            className={`rounded-2xl rounded-br-xs px-4 py-3 bg-[#F4EEFB] dark:bg-purple-950/40 border-2 border-dashed ${
+              msg.status === "failed"
+                ? "border-rose-400 dark:border-rose-500 bg-rose-50/40"
+                : "border-purple-400 dark:border-purple-500 hover:border-purple-600"
+            } shadow-2xs transition cursor-pointer select-text group/bubble`}
+          >
+            {/* Message Body */}
+            {msg.text && (
+              <p className="text-xs sm:text-[14px] text-gray-900 dark:text-gray-100 font-normal leading-relaxed whitespace-pre-wrap break-words">
+                {msg.text}
+              </p>
+            )}
+
+            {/* Scheduled For Footer */}
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-semibold text-purple-700 dark:text-purple-300 select-none">
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>Scheduled for {timeFormatted}</span>
+            </div>
+
+            {/* Delivery Failed Warning */}
+            {msg.status === "failed" && (
+              <div className="flex items-center gap-1 mt-1.5 text-[11px] font-bold text-rose-600">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>Delivery failed • Click to retry or edit</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

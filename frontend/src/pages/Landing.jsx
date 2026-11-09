@@ -78,8 +78,8 @@ const Landing = () => {
   useEffect(() => {
     const prevHtmlBg = document.documentElement.style.backgroundColor;
     const prevBodyBg = document.body.style.backgroundColor;
-    document.documentElement.style.backgroundColor = "#020617";
-    document.body.style.backgroundColor = "#020617";
+    document.documentElement.style.setProperty("background-color", "#020617", "important");
+    document.body.style.setProperty("background-color", "#020617", "important");
     return () => {
       document.documentElement.style.backgroundColor = prevHtmlBg;
       document.body.style.backgroundColor = prevBodyBg;
@@ -98,14 +98,20 @@ const Landing = () => {
   const navLink = "text-sm font-medium text-slate-200/80 hover:text-white transition-colors cursor-pointer";
 
   return (
-    <div className="auth-page relative min-h-screen bg-slate-950 text-slate-100">
+    <div
+      className="landing-page auth-page relative min-h-screen min-h-[100dvh] w-full bg-slate-950 text-slate-100 overflow-x-hidden"
+      style={{ backgroundColor: "#020617" }}
+    >
       {/* Background Glow Patterns */}
       <div className="auth-blob auth-blob-one" />
       <div className="auth-blob auth-blob-two" />
       <div className="auth-grid-pattern" />
 
       {/* STICKY NAVBAR */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
+      <header
+        className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-md"
+        style={{ backgroundColor: "rgba(2, 6, 23, 0.85)", borderColor: "rgba(255, 255, 255, 0.1)" }}
+      >
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-10">
           <TasklertLogo
             size={40}
@@ -151,7 +157,8 @@ const Landing = () => {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="fixed inset-0 z-50 bg-slate-950/98 px-6 py-5 md:hidden overflow-y-auto overscroll-contain modal-content-scroll"
+          className="fixed inset-0 z-50 bg-slate-950 px-6 py-5 md:hidden overflow-y-auto overscroll-contain modal-content-scroll"
+          style={{ backgroundColor: "#020617", color: "#f8fafc" }}
         >
           <div className="flex items-center justify-between">
             <TasklertLogo

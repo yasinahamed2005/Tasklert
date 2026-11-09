@@ -571,7 +571,7 @@ const Layout = ({ onLogout, user }) => {
 
   return (
     <div
-      className={`min-h-screen w-full ${
+      className={`app-layout min-h-screen w-full ${
         isFixedViewportPage
           ? "h-screen overflow-hidden"
           : !isFullWidthPage

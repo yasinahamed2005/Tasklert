@@ -34,7 +34,27 @@ import TelegramAvatar from "./TelegramAvatar";
 import TelegramMessageBubble from "./TelegramMessageBubble";
 import TelegramMessageComposer from "./TelegramMessageComposer";
 import TelegramEmojiPanel from "./TelegramEmojiPanel";
+import TelegramScheduledMenuModal from "./TelegramScheduledMenuModal";
+import { fetchScheduledDeliveries } from "../../services/unifiedScheduleApi";
 import { toast } from "react-toastify";
+
+const scheduledTargetMatches = (item, chat) => {
+  if (!item || !chat) return false;
+  const chatId = String(chat.id || "");
+  const chatUsername = String(chat.username || "").replace(/^@/, "").toLowerCase();
+  const chatTitle = String(chat.title || "").toLowerCase();
+
+  const itemRec = String(item.recipient || "").replace(/^@/, "").toLowerCase();
+  const itemHandle = String(item.recipientHandle || "").replace(/^@/, "").toLowerCase();
+  const itemName = String(item.recipientName || "").toLowerCase();
+
+  return (
+    itemRec === chatId ||
+    itemHandle === chatId ||
+    (chatUsername && (itemRec === chatUsername || itemHandle === chatUsername)) ||
+    (chatTitle && itemName === chatTitle)
+  );
+};
 
 export default function TelegramChatWindow({
   activeChat,
@@ -63,6 +83,9 @@ export default function TelegramChatWindow({
   // Optimistic deletion modal target: null | message object
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Scheduled message action menu target
+  const [selectedScheduledItem, setSelectedScheduledItem] = useState(null);
 
   // Emoji Panel & Voice Recording state
   const [isEmojiPanelOpen, setIsEmojiPanelOpen] = useState(false);
@@ -151,7 +174,44 @@ export default function TelegramChatWindow({
         accessHash: activeChat.accessHash,
         peerType: activeChat.peerType,
       });
-      setMessages(data);
+
+      // Merge pending/processing scheduled messages for this active chat
+      let mergedMessages = Array.isArray(data) ? [...data] : [];
+      try {
+        const scheduledData = await fetchScheduledDeliveries({ channel: "telegram", limit: 50 });
+        if (scheduledData?.items && Array.isArray(scheduledData.items)) {
+          const matchingScheduled = scheduledData.items.filter(
+            (item) =>
+              scheduledTargetMatches(item, activeChat) &&
+              ["scheduled", "processing", "failed"].includes(item.status)
+          );
+
+          const scheduledBubbleObjects = matchingScheduled.map((item) => ({
+            id: `sched_${item._id}`,
+            scheduledId: item._id,
+            text: item.message,
+            date: item.createdAt || item.scheduledAt,
+            out: true,
+            isScheduled: true,
+            scheduledAt: item.scheduledAt,
+            timeZone: item.timeZone,
+            status: item.status,
+            scheduledItem: item,
+          }));
+
+          const existingIds = new Set(mergedMessages.map((m) => m.id));
+          for (const sMsg of scheduledBubbleObjects) {
+            if (!existingIds.has(sMsg.id)) {
+              mergedMessages.push(sMsg);
+            }
+          }
+          mergedMessages.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }
+      } catch (schedErr) {
+        console.warn("[TelegramChatWindow] Scheduled deliveries fetch notice:", schedErr.message);
+      }
+
+      setMessages(mergedMessages);
 
       const unreadCount = Number(activeChat.unreadCount) || 0;
       const readInboxMaxId = Number(activeChat.readInboxMaxId) || 0;
@@ -249,6 +309,89 @@ export default function TelegramChatWindow({
       setLoadingOlder(false);
     }
   };
+
+  // =========================================================================
+  // REAL-TIME SYNCHRONIZATION: Listen for newly scheduled Telegram messages
+  // =========================================================================
+  useEffect(() => {
+    const handleNewScheduled = (e) => {
+      const delivery = e.detail?.delivery;
+      if (!delivery || delivery.channel !== "telegram") return;
+      if (scheduledTargetMatches(delivery, activeChat)) {
+        const newBubble = {
+          id: `sched_${delivery._id}`,
+          scheduledId: delivery._id,
+          text: delivery.message,
+          date: delivery.createdAt || new Date().toISOString(),
+          out: true,
+          isScheduled: true,
+          scheduledAt: delivery.scheduledAt,
+          timeZone: delivery.timeZone,
+          status: delivery.status || "scheduled",
+          scheduledItem: delivery,
+        };
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newBubble.id || m.scheduledId === delivery._id)) return prev;
+          return [...prev, newBubble];
+        });
+        setInputText("");
+        requestAnimationFrame(() => {
+          settleScrollAtBottom();
+        });
+      }
+    };
+
+    window.addEventListener("tasklert:telegram-scheduled", handleNewScheduled);
+    return () => window.removeEventListener("tasklert:telegram-scheduled", handleNewScheduled);
+  }, [activeChat, settleScrollAtBottom]);
+
+  // =========================================================================
+  // AUTOMATIC TRANSFORMATION: Poll pending scheduled messages for delivery status
+  // When delivered by backend worker, automatically converts bubble to normal sent state!
+  // =========================================================================
+  useEffect(() => {
+    if (!activeChat?.id) return;
+
+    const interval = setInterval(async () => {
+      const hasScheduled = messages.some((m) => m.isScheduled);
+      if (!hasScheduled) return;
+
+      try {
+        const data = await fetchScheduledDeliveries({ channel: "telegram", limit: 40 });
+        if (data?.items && Array.isArray(data.items)) {
+          let deliveredCount = 0;
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (!m.isScheduled) return m;
+              const found = data.items.find((item) => item._id === m.scheduledId);
+              if (found && found.status === "sent") {
+                deliveredCount++;
+                return {
+                  ...m,
+                  isScheduled: false,
+                  status: "sent",
+                  date: found.sentAt || new Date().toISOString(),
+                };
+              }
+              if (found && found.status === "failed") {
+                return { ...m, status: "failed" };
+              }
+              return m;
+            })
+          );
+
+          if (deliveredCount > 0) {
+            toast.success("Scheduled message delivered to Telegram!");
+            setTimeout(() => {
+              loadMessages();
+            }, 2000);
+          }
+        }
+      } catch (_) {}
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [activeChat?.id, messages, loadMessages]);
 
   useEffect(() => {
     setInputText("");
@@ -860,6 +1003,7 @@ export default function TelegramChatWindow({
                         msg={msg}
                         activeChat={activeChat}
                         onDeleteRequest={(target) => setDeleteTarget(target)}
+                        onScheduledClick={(target) => setSelectedScheduledItem(target)}
                         isFailedMedia={failedMediaIds.has(msg.id)}
                         onMediaError={(id) => setFailedMediaIds((prev) => new Set(prev).add(id))}
                       />
@@ -933,6 +1077,7 @@ export default function TelegramChatWindow({
             isEmojiPanelOpen={isEmojiPanelOpen}
             sending={sending}
             inputRef={messageInputRef}
+            onOpenSchedule={onOpenScheduleModal}
           />
         </div>
 
@@ -1002,6 +1147,46 @@ export default function TelegramChatWindow({
           </div>
         </div>
       )}
+
+      {/* ============================================================ */}
+      {/* 6. TELEGRAM SCHEDULED MESSAGE ACTION MENU MODAL               */}
+      {/* ============================================================ */}
+      <TelegramScheduledMenuModal
+        isOpen={Boolean(selectedScheduledItem)}
+        onClose={() => setSelectedScheduledItem(null)}
+        scheduledItem={selectedScheduledItem}
+        onUpdated={(updated) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === `sched_${updated._id}` || m.scheduledId === updated._id
+                ? { ...m, text: updated.message, scheduledAt: updated.scheduledAt }
+                : m
+            )
+          );
+        }}
+        onCancelled={(cancelledId) => {
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== `sched_${cancelledId}` && m.scheduledId !== cancelledId)
+          );
+        }}
+        onSentNow={(sentItem) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === `sched_${sentItem._id}` || m.scheduledId === sentItem._id
+                ? {
+                    ...m,
+                    isScheduled: false,
+                    status: "sent",
+                    date: sentItem.sentAt || new Date().toISOString(),
+                  }
+                : m
+            )
+          );
+          setTimeout(() => {
+            loadMessages();
+          }, 1500);
+        }}
+      />
     </div>
   );
 }

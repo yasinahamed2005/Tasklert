@@ -9,6 +9,7 @@ import {
   FileText,
   Image as ImageIcon,
   Music,
+  Calendar,
 } from "lucide-react";
 import TelegramAttachmentMenu from "./TelegramAttachmentMenu";
 import TelegramPollModal from "./TelegramPollModal";
@@ -37,6 +38,7 @@ export default function TelegramMessageComposer({
   isEmojiPanelOpen = false,
   sending = false,
   inputRef,
+  onOpenSchedule,
 }) {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
@@ -248,6 +250,18 @@ export default function TelegramMessageComposer({
           >
             <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
+
+          {/* Schedule Calendar Button (matching reference screenshot icon button) */}
+          {onOpenSchedule && (
+            <button
+              type="button"
+              onClick={() => onOpenSchedule({ message: inputText, activeChat })}
+              className="p-2 sm:p-2.5 rounded-xl text-gray-400 hover:text-purple-700 hover:bg-purple-50 transition active:scale-95 cursor-pointer shrink-0"
+              title="Schedule message for future delivery"
+            >
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+          )}
 
           {/* Circular Purple Send Button with paper plane pointing top-right */}
           <button

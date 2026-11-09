@@ -30,23 +30,31 @@ import {
   deleteTasklertMail,
   resendTasklertMail,
 } from "../../services/emailApi";
+import { fetchScheduledDeliveries, cancelScheduledDelivery } from "../../services/unifiedScheduleApi";
 
-export default function TasklertMailDashboard({ onOpenCompose }) {
-  const [activeTab, setActiveTab] = useState("sent"); // "sent" | "drafts"
+export default function TasklertMailDashboard({ onOpenCompose, onOpenSchedule }) {
+  const [activeTab, setActiveTab] = useState("sent"); // "sent" | "scheduled" | "drafts"
   const [emails, setEmails] = useState([]);
+  const [scheduledItems, setScheduledItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [totalCount, setTotalCount] = useState(0);
+  const [scheduledCount, setScheduledCount] = useState(0);
 
   // Email Detail Drawer / Modal
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [isResending, setIsResending] = useState(false);
 
-  // Load Sent emails
+  // Load emails and scheduled deliveries
   const loadEmails = useCallback(async () => {
     setLoading(true);
     try {
+      // Always fetch scheduled count for tab badge
+      fetchScheduledDeliveries({ channel: "tasklert_mail", status: "scheduled" })
+        .then((res) => setScheduledCount(res?.deliveries?.length || 0))
+        .catch(() => {});
+
       if (activeTab === "sent") {
         const data = await fetchTasklertSentMails({
           search: searchQuery,
@@ -54,6 +62,13 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
         });
         setEmails(data.messages || []);
         setTotalCount(data.totalCount || 0);
+      } else if (activeTab === "scheduled") {
+        const data = await fetchScheduledDeliveries({
+          channel: "tasklert_mail",
+          search: searchQuery,
+        });
+        setScheduledItems(data.deliveries || []);
+        setTotalCount(data.deliveries?.length || 0);
       } else {
         const data = await fetchTasklertDrafts();
         setEmails(data.drafts || []);
@@ -132,22 +147,33 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
           </div>
         </div>
 
-        {/* Primary Action Button */}
-        <button
-          type="button"
-          onClick={() => onOpenCompose?.(2)}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition cursor-pointer active:scale-95 shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Compose Tasklert Mail</span>
-        </button>
+        {/* Primary Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => onOpenCompose?.(2)}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition cursor-pointer active:scale-95 shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Compose Tasklert Mail</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenSchedule?.({ channel: "tasklert_mail" })}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-purple-700 text-xs font-bold shadow-2xs transition cursor-pointer active:scale-95 shrink-0"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Schedule</span>
+          </button>
+        </div>
       </div>
 
       {/* ─── Navigation Tabs & Search Toolbar ─── */}
       <div className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-2.5">
         
-        {/* Tabs: Sent Mail vs Drafts */}
-        <div className="flex items-center justify-between sm:justify-start gap-1.5">
+        {/* Tabs: Sent Mail vs Scheduled vs Drafts */}
+        <div className="flex items-center justify-between sm:justify-start gap-1.5 overflow-x-auto scrollbar-none">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -162,8 +188,28 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                 activeTab === "sent" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
               }`}>
-                {totalCount}
+                {activeTab === "sent" ? totalCount : emails.length}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("scheduled")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "scheduled"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50"
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Scheduled</span>
+              {scheduledCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  activeTab === "scheduled" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
+                }`}>
+                  {scheduledCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -234,6 +280,88 @@ export default function TasklertMailDashboard({ onOpenCompose }) {
             <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
             <span className="text-xs font-medium">Loading Tasklert Mail records...</span>
           </div>
+        ) : activeTab === "scheduled" ? (
+          scheduledItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+              <div className="w-14 h-14 rounded-3xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 mb-3 shadow-2xs">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-extrabold text-gray-900">No scheduled Tasklert Mails</h3>
+              <p className="text-xs text-gray-500 max-w-xs mt-1 mb-4">
+                Schedule emails to be sent automatically at a future date and time.
+              </p>
+              <button
+                type="button"
+                onClick={() => onOpenSchedule?.({ channel: "tasklert_mail" })}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Schedule a Tasklert Mail</span>
+              </button>
+            </div>
+          ) : (
+            scheduledItems.map((item) => (
+              <div
+                key={item._id}
+                className="py-3 px-3 sm:px-4 hover:bg-purple-50/30 transition cursor-pointer flex items-center justify-between gap-3 group active:bg-gray-100/70"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/70 shadow-2xs">
+                    <SimpleMailIcon size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-extrabold text-gray-900 truncate max-w-[170px] sm:max-w-xs">
+                        To: {item.recipient}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold">
+                        Scheduled
+                      </span>
+                    </div>
+                    {item.subject && (
+                      <p className="text-xs font-bold text-gray-800 truncate mt-0.5">
+                        {item.subject}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
+                      {item.message}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right hidden sm:block">
+                    <p className="text-[11px] font-bold text-purple-700 flex items-center gap-1 justify-end">
+                      <Calendar className="w-3 h-3 text-purple-500" />
+                      <span>{new Date(item.scheduledAt).toLocaleDateString()}</span>
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      {new Date(item.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!window.confirm("Cancel this scheduled email?")) return;
+                      try {
+                        await cancelScheduledDelivery(item._id);
+                        toast.success("Scheduled email cancelled.");
+                        loadEmails();
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to cancel.");
+                      }
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition"
+                    title="Cancel Schedule"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )
         ) : emails.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-4">
             <div className="w-14 h-14 rounded-3xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-3 shadow-2xs">

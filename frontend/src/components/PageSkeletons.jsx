@@ -1,20 +1,22 @@
 import React from "react";
+import { TasklertIcon } from "./TasklertLogo";
 
 // Minimal, accessible App Startup Fallback
 export const AppStartupFallback = ({ label = "Loading Tasklert..." }) => (
   <div
     role="status"
     aria-live="polite"
-    className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50/50 p-4 transition-all"
+    className="min-h-screen min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0b0f19] text-white p-4 transition-all"
+    style={{ backgroundColor: "#0b0f19" }}
   >
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/20 animate-pulse motion-reduce:animate-none">
-        <span className="text-white font-extrabold text-2xl tracking-tighter">T</span>
+    <div className="flex flex-col items-center gap-3.5">
+      <div className="animate-pulse motion-reduce:animate-none">
+        <TasklertIcon size={52} idPrefix="startup-fallback" />
       </div>
-      <div className="h-1.5 w-24 bg-purple-100 rounded-full overflow-hidden">
-        <div className="h-full bg-purple-600 rounded-full w-2/3 animate-[shimmer_1.5s_infinite] motion-reduce:animate-none" />
+      <div className="h-1.5 w-28 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full w-2/3 animate-[shimmer_1.5s_infinite] motion-reduce:animate-none" />
       </div>
-      <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase mt-1">
+      <span className="text-xs font-semibold text-slate-400 tracking-wider uppercase mt-1">
         {label}
       </span>
     </div>

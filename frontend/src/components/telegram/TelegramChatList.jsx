@@ -16,6 +16,7 @@ import {
   X,
   ArrowLeft,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
 import TelegramAvatar from "./TelegramAvatar";
 
@@ -36,6 +37,7 @@ export default function TelegramChatList({
   profile = null,
   connected = true,
   onDisconnect,
+  onOpenSchedule,
   onBackToQuickSend,
 }) {
   const scrollListRef = useRef(null);
@@ -398,6 +400,29 @@ export default function TelegramChatList({
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="text-[11px] text-gray-500 font-medium">Loading more chats...</span>
           </div>
+        )}
+      </div>
+
+      {/* ─── Mobile / Desktop Bottom Action Bar matching reference screenshot ─── */}
+      <div className="shrink-0 p-2.5 bg-white border-t border-purple-100 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenContactsModal}
+          className="flex-1 py-2 px-3 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+        >
+          <Send className="w-3.5 h-3.5 -rotate-12" />
+          <span>New Message</span>
+        </button>
+
+        {onOpenSchedule && (
+          <button
+            type="button"
+            onClick={onOpenSchedule}
+            className="flex-1 py-2 px-3 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Schedule Message</span>
+          </button>
         )}
       </div>
     </aside>

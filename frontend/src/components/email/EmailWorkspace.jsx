@@ -24,7 +24,7 @@ import {
 import { toast } from "react-toastify";
 import { Sparkles, Mail, Loader2, ArrowRight } from "lucide-react";
 
-export default function EmailWorkspace({ onBackToQuickSend }) {
+export default function EmailWorkspace({ onBackToQuickSend, onOpenSchedule }) {
   // ─── Account State ───
   const [personalAccount, setPersonalAccount] = useState(null);
   const [taskflowMail, setTaskflowMail] = useState({
@@ -566,6 +566,7 @@ export default function EmailWorkspace({ onBackToQuickSend }) {
           onSelectLabel={(label) => setSelectedLabel(label)}
           unreadCounts={unreadCounts}
           onCompose={handleOpenCompose}
+          onOpenSchedule={() => onOpenSchedule?.({ channel: "google_mail" })}
           onBackToQuickSend={onBackToQuickSend}
         />
       </div>

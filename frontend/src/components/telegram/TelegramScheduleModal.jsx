@@ -15,12 +15,19 @@ export default function TelegramScheduleModal({
   isOpen,
   onClose,
   activeChat,
+  initialMessage = "",
   onScheduledSuccess,
 }) {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [scheduledAt, setScheduledAt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  React.useEffect(() => {
+    if (isOpen && initialMessage) {
+      setMessage(initialMessage);
+    }
+  }, [isOpen, initialMessage]);
 
   if (!isOpen) return null;
 
@@ -66,6 +73,23 @@ export default function TelegramScheduleModal({
       });
 
       toast.success(`Message scheduled for ${scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      window.dispatchEvent(
+        new CustomEvent("tasklert:telegram-scheduled", {
+          detail: {
+            delivery: {
+              _id: scheduled?._id || `tg_sched_${Date.now()}`,
+              channel: "telegram",
+              recipient: activeChat.id,
+              recipientName: activeChat.title,
+              recipientHandle: activeChat.username ? `@${activeChat.username}` : "",
+              message: message.trim(),
+              scheduledAt: scheduledDate.toISOString(),
+              createdAt: new Date().toISOString(),
+              status: "scheduled",
+            },
+          },
+        })
+      );
       if (onScheduledSuccess) onScheduledSuccess(scheduled);
       onClose();
       setMessage("");

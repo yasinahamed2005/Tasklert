@@ -218,13 +218,13 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
   };
 
   return (
-    <div className="w-full max-w-md rounded-3xl border border-[#34445F] bg-[#111A2E] p-6 sm:p-8 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all">
+    <div className="w-full max-w-md rounded-3xl border border-[#34445F] bg-[#111A2E] p-5 sm:p-7 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all">
       {/* Header */}
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8B2CF5] to-[#D946EF] shadow-lg shadow-[#8B2CF5]/30">
-          <TasklertIcon size={32} idPrefix="login-card" />
+      <div className="mb-4 sm:mb-5 text-center">
+        <div className="mx-auto mb-2.5 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8B2CF5] to-[#D946EF] shadow-lg shadow-[#8B2CF5]/30">
+          <TasklertIcon size={28} idPrefix="login-card" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-[#F8FAFC]">Welcome back</h2>
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F8FAFC]">Welcome Back</h2>
         <p className="mt-1 text-xs text-[#AAB8CF]">
           Sign in to your Tasklert workspace to manage tasks &amp; reminders
         </p>
@@ -233,13 +233,12 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
       {/* Social Logins */}
       <SocialAuthButtons />
 
-
       {/* Email / Password Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5">
         {/* Email Field */}
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-[#AAB8CF]">Email Address</label>
-          <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2.5 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+          <label className="mb-1 block text-xs font-semibold text-[#AAB8CF]">Email Address</label>
+          <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
             <Mail className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
             <input
               type="email"
@@ -254,7 +253,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
         {/* Password Field */}
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
+          <div className="mb-1 flex items-center justify-between">
             <label className="text-xs font-semibold text-[#AAB8CF]">Password</label>
             <button
               type="button"
@@ -267,7 +266,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
               Forgot password?
             </button>
           </div>
-          <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2.5 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
+          <div className="group relative flex items-center rounded-xl border border-[#34445F] bg-[#19243A] px-3.5 py-2 transition-all focus-within:border-[#8B2CF5] focus-within:ring-2 focus-within:ring-[#8B2CF5]/25 hover:border-[#34445F]/90">
             <Lock className="h-4 w-4 text-[#AAB8CF] group-focus-within:text-[#8B2CF5]" />
             <input
               type={showPassword ? "text" : "password"}
@@ -288,7 +287,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
         </div>
 
         {/* Remember Me Checkbox */}
-        <div className="flex items-center">
+        <div className="flex items-center pt-0.5">
           <input
             type="checkbox"
             id="rememberMe"
@@ -305,7 +304,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] px-4 py-2.5 sm:py-3 text-sm font-semibold text-[#F8FAFC] shadow-lg shadow-[#8B2CF5]/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {loading ? (
             <span className="flex items-center gap-2">
@@ -326,14 +325,14 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
       {/* Switch to SignUp */}
       {showSwitchLink && (
-        <p className="mt-6 text-center text-xs text-[#AAB8CF]">
+        <p className="mt-4 sm:mt-5 text-center text-xs text-[#AAB8CF]">
           Don&apos;t have an account?{" "}
           <button
             type="button"
             className="font-semibold text-[#8B2CF5] transition-colors hover:text-[#D946EF] hover:underline cursor-pointer"
             onClick={handleSwitchMode}
           >
-            Create an account
+            Create Account
           </button>
         </p>
       )}
@@ -354,6 +353,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
             aria-modal="true"
             aria-labelledby="forgot-modal-title"
             className="w-full max-w-md max-h-[90vh] max-h-[90dvh] flex flex-col rounded-2xl border border-[#34445F] bg-[#111A2E] p-6 shadow-2xl text-[#F8FAFC] overflow-hidden"
+            style={{ backgroundColor: "#111A2E", color: "#F8FAFC" }}
           >
             <div className="flex items-center justify-between pb-4 border-b border-[#34445F] shrink-0">
               <div id="forgot-modal-title" className="flex items-center gap-2 text-[#F8FAFC] font-semibold text-base">

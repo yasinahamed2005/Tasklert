@@ -15,6 +15,7 @@ import {
 } from "../utils/timeZone.js";
 import { processScheduledMessages } from "./messageScheduler.js";
 import { processDueTelegramScheduledMessages } from "../services/telegram/telegramScheduler.service.js";
+import { processDueUnifiedScheduledDeliveries } from "../services/scheduling/unifiedScheduler.service.js";
 
 
 const startOfDay = (date) =>
@@ -577,6 +578,9 @@ export const runCronCycle = async () => {
 
     // 5. Telegram MTProto Scheduled Message Dispatcher
     await processDueTelegramScheduledMessages().catch((e) => console.warn("[TelegramScheduler Error]:", e.message));
+
+    // 6. Unified QuickSend 2.0 Scheduled Messaging & Email Engine
+    await processDueUnifiedScheduledDeliveries(now).catch((e) => console.warn("[UnifiedScheduler Error]:", e.message));
   } catch (err) {
     console.error("Reminder scheduler cycle error:", err.message);
   } finally {

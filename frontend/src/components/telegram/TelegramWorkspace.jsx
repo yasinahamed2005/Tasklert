@@ -29,7 +29,7 @@ import {
 } from "../../services/telegramApi";
 import { toast } from "react-toastify";
 
-export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSend }) {
+export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSend, onOpenSchedule }) {
   const [loading, setLoading] = useState(true);
   const [loadingTooLong, setLoadingTooLong] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -52,6 +52,7 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
   const [pendingPhone, setPendingPhone] = useState("");
   const [showContactsModal, setShowContactsModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleModalMessage, setScheduleModalMessage] = useState("");
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
@@ -461,6 +462,7 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
               profile={profile}
               connected={connected}
               onDisconnect={() => setShowDisconnectConfirm(true)}
+              onOpenSchedule={() => (onOpenSchedule ? onOpenSchedule({ channel: "telegram", activeChat: selectedChat }) : setShowScheduleModal(true))}
               onBackToQuickSend={onBackToQuickSend}
             />
           </div>
@@ -476,7 +478,14 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
             <TelegramChatWindow
               activeChat={selectedChat}
               onBack={() => setSelectedChat(null)}
-              onOpenScheduleModal={() => setShowScheduleModal(true)}
+              onOpenScheduleModal={(opts) => {
+                if (onOpenSchedule) {
+                  onOpenSchedule({ channel: "telegram", activeChat: selectedChat, ...opts });
+                } else {
+                  setScheduleModalMessage(opts?.message || "");
+                  setShowScheduleModal(true);
+                }
+              }}
               onRefreshChats={loadChats}
               onChatMarkedRead={handleChatMarkedRead}
               onToggleContactInfo={() => setShowContactInfo((prev) => !prev)}
@@ -527,8 +536,12 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
       {/* 3. Schedule Message Modal */}
       <TelegramScheduleModal
         isOpen={showScheduleModal}
-        onClose={() => setShowScheduleModal(false)}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setScheduleModalMessage("");
+        }}
         activeChat={selectedChat}
+        initialMessage={scheduleModalMessage}
         onScheduledSuccess={() => {
           setScheduleRefreshTrigger((prev) => prev + 1);
         }}
