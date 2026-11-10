@@ -7,7 +7,7 @@
  *   (https://tasklert-production.up.railway.app), never silently falling back to localhost.
  */
 
-const PRODUCTION_FALLBACK = "https://tasklert-production.up.railway.app";
+const PRODUCTION_FALLBACK = "https://tasklert.onrender.com";
 const DEVELOPMENT_FALLBACK = "http://localhost:5000";
 
 export const getApiBaseUrl = () => {
