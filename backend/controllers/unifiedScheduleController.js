@@ -1,8 +1,26 @@
 import ScheduledDelivery from "../models/ScheduledDelivery.js";
+import EmailMessage from "../models/EmailMessage.js";
+import Message from "../models/messageModel.js";
 import User from "../models/userModel.js";
 import { sendTasklertMail, sendOutboundEmail } from "../services/email/emailSend.service.js";
 import { getClientForUser } from "../services/telegram/telegramClient.service.js";
 import validator from "validator";
+
+const formatOverviewDate = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) {
+    return `Today, ${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+};
 
 /**
  * Create a new scheduled delivery for Tasklert Mail, Google Mail, or Telegram
@@ -219,6 +237,204 @@ export const getScheduledStats = async (req, res) => {
   } catch (err) {
     console.error("[UnifiedSchedule] Stats error:", err);
     return res.status(500).json({ success: false, message: err.message || "Failed to load schedule stats." });
+  }
+};
+
+/**
+ * Retrieve comprehensive overview for QuickSend dashboard:
+ * 1. This week statistics (Messages sent, emails sent, scheduled, pending)
+ * 2. Recent messages across all channels
+ * 3. Upcoming scheduled items
+ */
+export const getQuicksendOverview = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required." });
+    }
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    // 1. Fetch live metrics for "This Week Overview"
+    const [
+      sentTgSched,
+      sentMailSched,
+      sentEmailsCount,
+      sentMessagesCount,
+      activeSchedCount,
+      pendingCount,
+    ] = await Promise.all([
+      ScheduledDelivery.countDocuments({
+        owner: userId,
+        channel: "telegram",
+        status: "sent",
+        sentAt: { $gte: weekAgo },
+      }).catch(() => 0),
+      ScheduledDelivery.countDocuments({
+        owner: userId,
+        channel: { $in: ["tasklert_mail", "google_mail"] },
+        status: "sent",
+        sentAt: { $gte: weekAgo },
+      }).catch(() => 0),
+      EmailMessage.countDocuments({
+        owner: userId,
+        folder: "SENT",
+        createdAt: { $gte: weekAgo },
+      }).catch(() => 0),
+      Message.countDocuments({
+        owner: userId,
+        status: "sent",
+        createdAt: { $gte: weekAgo },
+      }).catch(() => 0),
+      ScheduledDelivery.countDocuments({
+        owner: userId,
+        status: "scheduled",
+      }).catch(() => 0),
+      ScheduledDelivery.countDocuments({
+        owner: userId,
+        status: "processing",
+      }).catch(() => 0),
+    ]);
+
+    const messagesSent = Math.max(0, sentTgSched + sentMessagesCount);
+    const emailsSent = Math.max(0, sentMailSched + sentEmailsCount);
+
+    // 2. Fetch Recent Messages across all channels
+    const [recentDeliveries, recentSentEmails, recentLegacyMessages] = await Promise.all([
+      ScheduledDelivery.find({ owner: userId })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(10)
+        .lean()
+        .catch(() => []),
+      EmailMessage.find({ owner: userId, folder: "SENT" })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean()
+        .catch(() => []),
+      Message.find({ owner: userId })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean()
+        .catch(() => []),
+    ]);
+
+    // Unify and normalize recent messages
+    const unifiedRecent = [];
+
+    for (const d of recentDeliveries) {
+      unifiedRecent.push({
+        id: String(d._id),
+        channel: d.channel,
+        recipient: d.channel === "telegram"
+          ? (d.recipientName || d.recipientHandle || d.recipient)
+          : (d.recipient ? (d.recipient.startsWith("To:") ? d.recipient : `To: ${d.recipient}`) : "To: (unspecified)"),
+        recipientRaw: d.recipient,
+        recipientName: d.recipientName || "",
+        subject: d.subject || "",
+        preview: d.message || d.subject || "",
+        hasAttachment: Array.isArray(d.attachments) && d.attachments.length > 0,
+        status: d.status === "scheduled" ? "scheduled" : d.status === "failed" ? "failed" : "sent",
+        timestamp: d.status === "scheduled" ? (d.scheduledAt || d.createdAt) : (d.sentAt || d.createdAt),
+        displayDate: formatOverviewDate(d.status === "scheduled" ? d.scheduledAt : (d.sentAt || d.createdAt)),
+        timeZone: d.timeZone || "Asia/Kolkata",
+        isScheduledItem: d.status === "scheduled",
+      });
+    }
+
+    for (const em of recentSentEmails) {
+      const rec = Array.isArray(em.to) ? em.to.join(", ") : em.to || "";
+      unifiedRecent.push({
+        id: String(em._id),
+        channel: em.isTasklertMail ? "tasklert_mail" : "google_mail",
+        recipient: rec ? (rec.startsWith("To:") ? rec : `To: ${rec}`) : "To: (unspecified)",
+        recipientRaw: rec,
+        recipientName: em.toName || "",
+        subject: em.subject || "",
+        preview: em.snippet || em.body || em.subject || "",
+        hasAttachment: Array.isArray(em.attachments) && em.attachments.length > 0,
+        status: "sent",
+        timestamp: em.createdAt,
+        displayDate: formatOverviewDate(em.createdAt),
+        timeZone: "Asia/Kolkata",
+        isScheduledItem: false,
+      });
+    }
+
+    for (const lm of recentLegacyMessages) {
+      unifiedRecent.push({
+        id: String(lm._id),
+        channel: lm.channel === "email" ? "google_mail" : (lm.channel || "telegram"),
+        recipient: lm.channel === "telegram"
+          ? (lm.contactName || lm.recipient)
+          : (lm.recipient ? (lm.recipient.startsWith("To:") ? lm.recipient : `To: ${lm.recipient}`) : "To: (unspecified)"),
+        recipientRaw: lm.recipient,
+        recipientName: lm.contactName || "",
+        subject: lm.subject || "",
+        preview: lm.message || lm.subject || "",
+        hasAttachment: Array.isArray(lm.attachments) && lm.attachments.length > 0,
+        status: lm.status === "scheduled" ? "scheduled" : lm.status === "failed" ? "failed" : "sent",
+        timestamp: lm.scheduledAt || lm.createdAt,
+        displayDate: formatOverviewDate(lm.scheduledAt || lm.createdAt),
+        timeZone: lm.timeZone || "Asia/Kolkata",
+        isScheduledItem: lm.status === "scheduled",
+      });
+    }
+
+    // Sort by timestamp descending and take top 10
+    unifiedRecent.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const recentMessages = unifiedRecent.slice(0, 10);
+
+    // 3. Fetch top upcoming Scheduled Items for right-side column
+    const scheduledItemsRaw = await ScheduledDelivery.find({
+      owner: userId,
+      status: "scheduled",
+    })
+      .sort({ scheduledAt: 1 })
+      .limit(6)
+      .lean();
+
+    const scheduledItems = scheduledItemsRaw.map((s) => ({
+      id: String(s._id),
+      channel: s.channel,
+      recipient: s.channel === "telegram"
+        ? (s.recipientName ? `To: ${s.recipientName}` : `To: ${s.recipient}`)
+        : (s.recipient?.startsWith("To:") ? s.recipient : `To: ${s.recipient}`),
+      recipientName: s.recipientName || "",
+      subject: s.subject || s.message?.slice(0, 40) || "(No Subject)",
+      message: s.message || "",
+      scheduledAt: s.scheduledAt,
+      timeZone: s.timeZone || "Asia/Kolkata",
+      status: s.status,
+      formattedTime: s.scheduledAt
+        ? new Date(s.scheduledAt).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "",
+    }));
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        messagesSent,
+        emailsSent,
+        scheduled: activeSchedCount,
+        pending: pendingCount,
+      },
+      recentMessages,
+      scheduledItems,
+    });
+  } catch (err) {
+    console.error("[Quicksend Overview] Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to load QuickSend overview.",
+    });
   }
 };
 

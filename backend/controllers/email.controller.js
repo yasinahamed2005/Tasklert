@@ -268,9 +268,21 @@ export const handleGetMessages = async (req, res) => {
         });
       } catch (gmailErr) {
         console.error("[Gmail API Messages Error]", gmailErr.message);
-        return res.status(500).json({
+        const isAuthError =
+          gmailErr.message?.includes("expired") ||
+          gmailErr.message?.includes("revoked") ||
+          gmailErr.message?.includes("401") ||
+          gmailErr.message?.includes("invalid_grant");
+
+        // Return status 200 with empty list & authExpired flag so client doesn't crash with 500
+        return res.status(200).json({
           success: false,
-          message: `Gmail API Error: ${gmailErr.message}`,
+          authExpired: isAuthError,
+          messages: [],
+          total: 0,
+          page: Number(page),
+          error: `Gmail API: ${gmailErr.message}`,
+          provider: "gmail",
         });
       }
     }

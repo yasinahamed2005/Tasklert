@@ -111,6 +111,29 @@ export const duplicateScheduledDelivery = async (id, scheduledAt) => {
 };
 
 /**
+ * Fetch unified QuickSend overview data (stats, recent messages across all channels, upcoming scheduled items)
+ */
+export const fetchQuicksendOverview = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/api/scheduled/overview`, getHeaders());
+    return res.data;
+  } catch (err) {
+    console.warn("[unifiedScheduleApi] Failed to load QuickSend overview:", err.message);
+    return {
+      success: false,
+      stats: {
+        messagesSent: 0,
+        emailsSent: 0,
+        scheduled: 0,
+        pending: 0,
+      },
+      recentMessages: [],
+      scheduledItems: [],
+    };
+  }
+};
+
+/**
  * Dispatch an existing scheduled delivery immediately
  */
 export const sendNowScheduledDelivery = async (id) => {

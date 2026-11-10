@@ -204,6 +204,10 @@ export default function EmailWorkspace({ onBackToQuickSend, onOpenSchedule }) {
       if (data?.total !== undefined) setTotalCount(data.total);
       if (data?.unreadCounts) setUnreadCounts(data.unreadCounts);
 
+      if (data?.authExpired) {
+        setIsConnected(false);
+      }
+
       // Auto-select first email on desktop if none selected, but preserve active selection
       if (msgs.length > 0) {
         setSelectedEmail((prev) => {
@@ -568,6 +572,8 @@ export default function EmailWorkspace({ onBackToQuickSend, onOpenSchedule }) {
           onCompose={handleOpenCompose}
           onOpenSchedule={() => onOpenSchedule?.({ channel: "google_mail" })}
           onBackToQuickSend={onBackToQuickSend}
+          accountEmail={personalAccount?.email || "yasinahamadsk@gmail.com"}
+          isConnected={isConnected}
         />
       </div>
 

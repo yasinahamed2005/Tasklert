@@ -110,9 +110,25 @@ export default function EmailReader({
   const initials = getInitials(senderName);
   const avatarColor = getAvatarColor(senderName);
 
-  const cleanHtml = DOMPurify.sanitize(email.htmlBody || email.body || "", {
+  const rawHtml = email.htmlBody || email.body || "";
+  const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
     FORBID_TAGS: ["script", "iframe", "form", "input"],
   });
+
+  // Replace unresolved cid: schemes with a 1x1 transparent placeholder so the browser doesn't log ERR_UNKNOWN_URL_SCHEME
+  const cleanHtml = sanitizedHtml.replace(
+    /src=["']cid:([^"']+)["']/gi,
+    (match, cid) => {
+      // Check if attachment has matching contentId or filename
+      const found = (email.attachments || []).find(
+        (a) => a.contentId === cid || a.filename === cid || a.attachmentId === cid
+      );
+      if (found && (found.dataUrl || found.url)) {
+        return `src="${found.dataUrl || found.url}"`;
+      }
+      return 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-cid="' + cid + '"';
+    }
+  );
 
   const attachments = email.attachments || [];
 

@@ -6,38 +6,42 @@ import {
   Clock,
   BarChart2,
   Settings,
-  ArrowDownRight,
-  Zap,
+  ArrowLeft,
   Calendar,
-  Layers,
+  Home,
+  FileText,
+  Zap,
 } from "lucide-react";
+import QuicksendOverview from "../components/quicksend/QuicksendOverview";
+import QuicksendTemplates from "../components/quicksend/QuicksendTemplates";
+import QuicksendLogs from "../components/quicksend/QuicksendLogs";
+import QuicksendActivity from "../components/quicksend/QuicksendActivity";
 import TelegramWorkspace from "../components/telegram/TelegramWorkspace";
 import EmailWorkspace from "../components/email/EmailWorkspace";
 import TasklertMailDashboard from "../components/email/TasklertMailDashboard";
 import TasklertMailModal from "../components/email/TasklertMailModal";
-import ScheduledItemsPanel from "../components/scheduling/ScheduledItemsPanel";
 import ScheduledWorkspace from "../components/scheduling/ScheduledWorkspace";
 import ScheduleModal from "../components/scheduling/ScheduleModal";
 import { fetchScheduledStats } from "../services/unifiedScheduleApi";
 
 /**
- * QuickSend 2.0 Workspace — Unified Multi-Channel Communication & Scheduling Suite:
- * 1. Tasklert Mail (Internal branded email system with Pro Delivery & Action Required tracking)
- * 2. Google Mail (Connected Gmail OAuth mailbox sync and compose)
- * 3. Telegram (GramJS MTProto personal account integration)
- * 4. Unified Scheduled Messaging & Email Delivery (Runs durably on backend)
+ * Tasklert QuickSend — Complete UI/UX Redesign matching Desktop and Mobile PWA references:
+ * 1. Overview Dashboard (Send From cards, Quick Actions, Recent Messages, This Week Overview, Scheduled Items)
+ * 2. Templates (Reusable message & email templates with categories and placeholders)
+ * 3. Logs (Full delivery audit trail across channels)
+ * 4. Scheduled (Comprehensive unified scheduled workspace)
+ * 5. Activity (Performance metrics, volume distribution, delivery health)
+ * 6. Dedicated Channel Workspaces (Tasklert Mail, Google Mail, Telegram) with seamless back navigation
  */
 export default function MessageCenter() {
-  const [mainView, setMainView] = useState("channels"); // "channels" | "scheduled" | "activity"
+  // Navigation view: "overview" (default) | "channel" | "templates" | "logs" | "scheduled" | "activity"
+  const [mainView, setMainView] = useState("overview");
   const [activeChannel, setActiveChannel] = useState("tasklert_mail"); // "tasklert_mail" | "email" | "telegram"
   const [telegramActiveChat, setTelegramActiveChat] = useState(null);
-  const [activeTabNotice, setActiveTabNotice] = useState(null);
 
-  // Tasklert Mail compose modal
+  // Modals state
   const [isTasklertMailModalOpen, setIsTasklertMailModalOpen] = useState(false);
   const [modalInitialStep, setModalInitialStep] = useState(2);
-
-  // Unified Schedule Modal state
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalProps, setScheduleModalProps] = useState({
     channel: "telegram",
@@ -48,12 +52,11 @@ export default function MessageCenter() {
     peerType: "user",
     editingItem: null,
   });
+
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0);
   const [scheduledTotalCount, setScheduledTotalCount] = useState(0);
 
   const containerRef = useRef(null);
-  const image1Ref = useRef(null);
-  const image2Ref = useRef(null);
 
   // Fetch live scheduled count for the top tab badge
   const loadScheduleCount = useCallback(async () => {
@@ -70,24 +73,6 @@ export default function MessageCenter() {
   useEffect(() => {
     loadScheduleCount();
   }, [loadScheduleCount, scheduleRefreshTrigger]);
-
-  const handleShortcutClick = (label) => {
-    if (label === "Scheduled") {
-      setMainView("scheduled");
-      return;
-    }
-    if (label === "Messages") {
-      setMainView("channels");
-      return;
-    }
-    setActiveTabNotice(`${label} section is active.`);
-    setTimeout(() => setActiveTabNotice(null), 3500);
-  };
-
-  const handleOpenCompose = (step = 2) => {
-    setModalInitialStep(step);
-    setIsTasklertMailModalOpen(true);
-  };
 
   // Open Unified Schedule Modal
   const handleOpenSchedule = (opts = {}) => {
@@ -130,219 +115,225 @@ export default function MessageCenter() {
     setIsScheduleModalOpen(true);
   };
 
-  // Smoothly scroll down past header to channels bar on mobile when switching to Tasklert Mail
-  const scrollToImage2 = useCallback(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768 && image2Ref.current && containerRef.current) {
-      const topOffset = image2Ref.current.offsetTop;
-      containerRef.current.scrollTo({
-        top: topOffset,
-        behavior: "smooth",
-      });
-    }
-  }, []);
+  const handleOpenCompose = (step = 2) => {
+    setModalInitialStep(step);
+    setIsTasklertMailModalOpen(true);
+  };
 
-  // Listen for QuickSend bottom nav taps to reset view on mobile
+  const handleSelectChannel = (channelKey) => {
+    setActiveChannel(channelKey);
+    setMainView("channel");
+  };
+
+  const handleUseTemplate = (template) => {
+    setScheduleModalProps({
+      channel: template.channel === "all" ? "tasklert_mail" : template.channel,
+      recipient: "",
+      recipientName: "",
+      subject: template.subject,
+      message: template.body,
+      peerType: "user",
+      editingItem: null,
+    });
+    setIsScheduleModalOpen(true);
+  };
+
+  // Listen for QuickSend bottom nav taps to reset to overview on mobile
   useEffect(() => {
     const handleQuickSendClick = () => {
-      setMainView("channels");
-      setActiveChannel("tasklert_mail");
-      setTimeout(scrollToImage2, 80);
+      setMainView("overview");
+      if (containerRef.current) {
+        containerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
     };
     window.addEventListener("tasklert:quicksend-clicked", handleQuickSendClick);
     return () => window.removeEventListener("tasklert:quicksend-clicked", handleQuickSendClick);
-  }, [scrollToImage2]);
+  }, []);
 
-  const isTelegramActive = mainView === "channels" && activeChannel === "telegram";
-  // On mobile, if a conversation is open in Telegram, collapse outer header so chat window gets 100% viewport
+  const isTelegramActive = mainView === "channel" && activeChannel === "telegram";
   const isMobileTelegramChatOpen = isTelegramActive && Boolean(telegramActiveChat);
 
   return (
     <div
       ref={containerRef}
-      className="w-full h-full flex flex-col min-h-0 overflow-y-auto md:overflow-hidden py-1 px-1 sm:px-2 md:px-3 scroll-smooth"
+      className="w-full h-full flex flex-col min-h-0 overflow-y-auto md:overflow-y-auto py-2 px-2 sm:px-4 md:px-6 scroll-smooth tg-custom-scrollbar"
     >
-      {/* ─── Top Header & Productivity Toolbar (Matches Desktop Reference) ─── */}
-      <div
-        ref={image1Ref}
-        className={`shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2.5 ${
-          isMobileTelegramChatOpen ? "hidden md:flex" : "flex"
-        }`}
-      >
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
-              <Send className="w-4 h-4 -rotate-12 translate-x-px" />
-            </div>
-            <h1 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              <span>QuickSend</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[11px] font-extrabold tracking-normal">
-                {mainView === "scheduled"
-                  ? "Scheduled"
-                  : isTelegramActive
-                  ? "Telegram"
-                  : "Workspace"}
-              </span>
-            </h1>
+      {/* ========================================================================= */}
+      {/* QUICKSEND HERO INTRODUCTION & TOP NAVIGATION BAR (Phases 2C, 2D & 5B, 5C)  */}
+      {/* ========================================================================= */}
+      {(!isMobileTelegramChatOpen || window.innerWidth >= 768) && (
+        <div className="shrink-0 mb-5 relative rounded-3xl bg-gradient-to-r from-[#FAF7FF] via-[#F6F0FE] to-[#F1E8FD] border border-purple-100/90 p-4 sm:p-6 shadow-2xs overflow-hidden">
+          {/* Subtle Decorative Wave Illustration on top-right (Matches Desktop Reference) */}
+          <div className="absolute right-0 top-0 bottom-0 w-48 sm:w-80 pointer-events-none overflow-hidden opacity-60">
+            <svg className="w-full h-full" viewBox="0 0 320 140" fill="none" preserveAspectRatio="none">
+              <path
+                d="M320 0C240 10 180 60 160 140H320V0Z"
+                fill="url(#waveGrad1)"
+              />
+              <path
+                d="M320 40C260 50 210 90 200 140H320V40Z"
+                fill="url(#waveGrad2)"
+              />
+              <defs>
+                <linearGradient id="waveGrad1" x1="160" y1="0" x2="320" y2="140" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#E4D5FB" stopOpacity="0.7" />
+                  <stop stopColor="#D2BAF9" stopOpacity="0.4" />
+                </linearGradient>
+                <linearGradient id="waveGrad2" x1="200" y1="40" x2="320" y2="140" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#C19FF7" stopOpacity="0.5" />
+                  <stop stopColor="#9C6CF3" stopOpacity="0.25" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
-          <p className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1">
-            <ArrowDownRight className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-            <span>Send messages, emails, or task updates instantly or schedule them for later.</span>
-          </p>
-        </div>
 
-        {/* Productivity Shortcut Navigation Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-          {/* 1. Templates */}
-          <button
-            type="button"
-            onClick={() => handleShortcutClick("Templates")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-200/90 bg-purple-50/80 hover:bg-purple-100 text-xs font-bold text-purple-900 transition shadow-2xs cursor-pointer active:scale-95"
-          >
-            <Copy className="w-3.5 h-3.5 text-purple-700" />
-            <span>Templates</span>
-          </button>
+          <div className="relative z-10 flex flex-col space-y-4">
+            {/* Title & Introduction Row */}
+            <div className="flex items-start gap-3.5">
+              {/* Outlined Purple Paperplane Icon matching screenshot */}
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white border border-purple-200/80 shadow-2xs flex items-center justify-center shrink-0">
+                <svg
+                  className="w-5 h-5 sm:w-6 sm:h-6 text-[#7629E8] stroke-[2.2] -rotate-12 translate-x-px"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path d="M22 2L11 13" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M22 2L15 22L11 13L2 9L22 2Z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
 
-          {/* 2. Messages (Channels View) */}
-          <button
-            type="button"
-            onClick={() => handleShortcutClick("Messages")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 ${
-              mainView === "channels"
-                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                : "border-purple-200/90 bg-purple-50/80 hover:bg-purple-100 text-purple-900"
-            }`}
-          >
-            <Send className="w-3.5 h-3.5 -rotate-12" />
-            <span className="hidden sm:inline">Message</span>
-            <span>Logs</span>
-          </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black text-[#17133D] tracking-tight">
+                    QuickSend
+                  </h1>
+                  <span className="bg-[#EFE8FD] text-[#7629E8] text-xs font-black px-2.5 py-0.5 rounded-full">
+                    Workspace
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-[#77738F] font-medium mt-0.5 leading-relaxed">
+                  Send messages, emails, or task updates instantly or schedule them for later.
+                </p>
+              </div>
+            </div>
 
-          {/* 3. Scheduled (NEW QuickSend 2.0 Feature Launch Tab!) */}
-          <button
-            type="button"
-            onClick={() => handleShortcutClick("Scheduled")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 ${
-              mainView === "scheduled"
-                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                : "border-purple-200/90 bg-purple-50/80 hover:bg-purple-100 text-purple-900"
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Scheduled</span>
-            {scheduledTotalCount > 0 && (
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  mainView === "scheduled" ? "bg-white/20 text-white" : "bg-purple-200 text-purple-900"
+            {/* Horizontal Navigation Tabs (Overview, Templates, Logs, Scheduled, Activity) */}
+            <div className="bg-white/95 backdrop-blur-xs rounded-2xl border border-purple-100 p-1 flex items-center gap-1 sm:gap-2 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit">
+              {/* 1. Overview (Default) */}
+              <button
+                type="button"
+                onClick={() => setMainView("overview")}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 select-none ${
+                  mainView === "overview"
+                    ? "bg-[#EFE8FD] text-[#7629E8] shadow-2xs"
+                    : "text-[#77738F] hover:text-[#17133D] hover:bg-purple-50/50"
                 }`}
               >
-                {scheduledTotalCount}
-              </span>
-            )}
-          </button>
+                <Home className="w-4 h-4 text-[#7629E8]" />
+                <span>Overview</span>
+              </button>
 
-          {/* 4. Activity */}
-          <button
-            type="button"
-            onClick={() => handleShortcutClick("Activity")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-200/90 bg-purple-50/80 hover:bg-purple-100 text-xs font-bold text-purple-900 transition shadow-2xs cursor-pointer active:scale-95"
-          >
-            <BarChart2 className="w-3.5 h-3.5 text-purple-700" />
-            <span>Activity</span>
-          </button>
+              {/* 2. Templates */}
+              <button
+                type="button"
+                onClick={() => setMainView("templates")}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 select-none ${
+                  mainView === "templates"
+                    ? "bg-[#EFE8FD] text-[#7629E8] shadow-2xs"
+                    : "text-[#77738F] hover:text-[#17133D] hover:bg-purple-50/50"
+                }`}
+              >
+                <Copy className="w-4 h-4" />
+                <span>Templates</span>
+              </button>
 
-          {/* 5. Settings */}
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("taskflow:open-settings"))}
-            className="p-2 rounded-xl border border-purple-200/90 bg-purple-50/80 hover:bg-purple-100 text-purple-800 transition shadow-2xs cursor-pointer active:scale-95"
-            title="Mail & QuickSend Settings"
-            aria-label="Settings"
-          >
-            <Settings className="w-4 h-4 text-purple-700" />
-          </button>
-        </div>
-      </div>
+              {/* 3. Logs */}
+              <button
+                type="button"
+                onClick={() => setMainView("logs")}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 select-none ${
+                  mainView === "logs"
+                    ? "bg-[#EFE8FD] text-[#7629E8] shadow-2xs"
+                    : "text-[#77738F] hover:text-[#17133D] hover:bg-purple-50/50"
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Logs</span>
+              </button>
 
-      {/* Notice Banner if shortcut clicked */}
-      {activeTabNotice && (
-        <div className="shrink-0 mb-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-xl text-xs font-medium text-purple-800 animate-fadeIn">
-          {activeTabNotice}
-        </div>
-      )}
+              {/* 4. Scheduled */}
+              <button
+                type="button"
+                onClick={() => setMainView("scheduled")}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 select-none ${
+                  mainView === "scheduled"
+                    ? "bg-[#EFE8FD] text-[#7629E8] shadow-2xs"
+                    : "text-[#77738F] hover:text-[#17133D] hover:bg-purple-50/50"
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Scheduled</span>
+                {scheduledTotalCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-200 text-purple-900">
+                    {scheduledTotalCount}
+                  </span>
+                )}
+              </button>
 
-      {/* ─── Channel Selector Bar (When in Channels View) ─── */}
-      {mainView === "channels" && (
-        <div
-          ref={image2Ref}
-          className={`shrink-0 sticky top-0 z-30 bg-white/95 backdrop-blur-md rounded-2xl border border-purple-100 p-2.5 sm:p-3 mb-2 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 ${
-            isMobileTelegramChatOpen ? "hidden md:flex" : "flex"
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
-              <Zap className="w-4 h-4 fill-white" />
+              {/* 5. Activity */}
+              <button
+                type="button"
+                onClick={() => setMainView("activity")}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 select-none ${
+                  mainView === "activity"
+                    ? "bg-[#EFE8FD] text-[#7629E8] shadow-2xs"
+                    : "text-[#77738F] hover:text-[#17133D] hover:bg-purple-50/50"
+                }`}
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span>Activity</span>
+              </button>
             </div>
-            <div>
-              <div className="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
-                <span>QuickSend Channels</span>
-              </div>
-              <p className="text-[11px] text-gray-500 font-medium hidden sm:block">
-                Switch between Tasklert Mail, personal Email, and native Telegram.
-              </p>
-            </div>
-          </div>
-
-          {/* 3 Channel Selector Pills: 1. Tasklert Mail, 2. Google Mail, 3. Telegram */}
-          <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-            {/* 1. Tasklert Mail (Solid Green when active) */}
-            <button
-              type="button"
-              onClick={() => setActiveChannel("tasklert_mail")}
-              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeChannel === "tasklert_mail"
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 shadow-sm shadow-emerald-600/20"
-                  : "bg-white hover:bg-emerald-50/50 text-gray-700 hover:text-gray-900 border border-gray-200/90 shadow-2xs"
-              }`}
-            >
-              <Mail className={`w-3.5 h-3.5 ${activeChannel === "tasklert_mail" ? "text-white" : "text-emerald-600"}`} />
-              <span>Tasklert Mail</span>
-            </button>
-
-            {/* 2. Google Mail (Solid Blue when active) */}
-            <button
-              type="button"
-              onClick={() => setActiveChannel("email")}
-              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeChannel === "email"
-                  ? "bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 shadow-sm shadow-blue-600/20"
-                  : "bg-white hover:bg-blue-50/50 text-gray-700 hover:text-gray-900 border border-gray-200/90 shadow-2xs"
-              }`}
-            >
-              <Mail className={`w-3.5 h-3.5 ${activeChannel === "email" ? "text-white" : "text-blue-600"}`} />
-              <span>Google Mail</span>
-            </button>
-
-            {/* 3. Telegram (Solid Purple when active matching screenshot) */}
-            <button
-              type="button"
-              onClick={() => setActiveChannel("telegram")}
-              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeChannel === "telegram"
-                  ? "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600 shadow-sm shadow-purple-600/20"
-                  : "bg-white hover:bg-purple-50/50 text-gray-700 hover:text-gray-900 border border-gray-200/90 shadow-2xs"
-              }`}
-            >
-              <Send className={`w-3.5 h-3.5 -rotate-12 ${activeChannel === "telegram" ? "text-white" : "text-purple-600"}`} />
-              <span>Telegram</span>
-            </button>
           </div>
         </div>
       )}
 
-      {/* ─── Main Content Views ─── */}
-      <div className="flex-1 min-h-0 flex flex-col md:overflow-hidden">
-        {/* VIEW 1: UNIFIED SCHEDULED DASHBOARD */}
-        {mainView === "scheduled" ? (
+      {/* ========================================================================= */}
+      {/* MAIN VIEW CONTENT CONTAINER                                               */}
+      {/* ========================================================================= */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* VIEW 1: OVERVIEW DASHBOARD (Desktop 2-Column & Mobile PWA Reference) */}
+        {mainView === "overview" && (
+          <QuicksendOverview
+            onSelectChannel={handleSelectChannel}
+            onOpenCompose={() => handleOpenCompose(2)}
+            onOpenSchedule={handleOpenSchedule}
+            onViewAllLogs={() => setMainView("logs")}
+            onViewAllScheduled={() => setMainView("scheduled")}
+            onEditSchedule={handleEditSchedule}
+            refreshTrigger={scheduleRefreshTrigger}
+          />
+        )}
+
+        {/* VIEW 2: TEMPLATES SECTION */}
+        {mainView === "templates" && (
+          <QuicksendTemplates
+            onUseTemplate={handleUseTemplate}
+            onBackToOverview={() => setMainView("overview")}
+          />
+        )}
+
+        {/* VIEW 3: LOGS SECTION */}
+        {mainView === "logs" && (
+          <QuicksendLogs
+            onSelectChannel={handleSelectChannel}
+            onBackToOverview={() => setMainView("overview")}
+          />
+        )}
+
+        {/* VIEW 4: SCHEDULED WORKSPACE */}
+        {mainView === "scheduled" && (
           <div className="w-full flex-1 flex flex-col min-h-0 animate-fadeIn">
             <ScheduledWorkspace
               onOpenNewSchedule={handleOpenSchedule}
@@ -350,41 +341,82 @@ export default function MessageCenter() {
               refreshTrigger={scheduleRefreshTrigger}
             />
           </div>
-        ) : (
-          /* VIEW 2: CHANNELS WORKSPACES (With Desktop Right-Side ScheduledItemsPanel) */
-          <div className="w-full flex-1 flex flex-row min-h-0 gap-3 md:overflow-hidden">
-            {/* Left Channel Workspace (Full width on mobile, flexible on desktop) */}
-            <div className="flex-1 min-w-0 h-full flex flex-col min-h-0 md:overflow-hidden">
-              {/* Telegram */}
-              <div
-                className={
-                  activeChannel === "telegram"
-                    ? "w-full h-full flex flex-col min-h-0 max-md:fixed max-md:inset-0 max-md:z-50 max-md:bg-white"
-                    : "hidden"
-                }
-              >
-                <TelegramWorkspace
-                  onActiveChatChange={(chat) => setTelegramActiveChat(chat)}
-                  onBackToQuickSend={() => setActiveChannel("tasklert_mail")}
-                  onOpenSchedule={handleOpenSchedule}
-                />
-              </div>
+        )}
 
-              {/* Google Mail */}
-              <div
-                className={
-                  activeChannel === "email"
-                    ? "w-full h-full flex flex-col min-h-0 max-md:fixed max-md:inset-0 max-md:z-50 max-md:bg-white"
-                    : "hidden"
-                }
-              >
-                <EmailWorkspace
-                  onBackToQuickSend={() => setActiveChannel("tasklert_mail")}
-                  onOpenSchedule={handleOpenSchedule}
-                />
-              </div>
+        {/* VIEW 5: ACTIVITY & ANALYTICS */}
+        {mainView === "activity" && (
+          <QuicksendActivity onSelectChannel={handleSelectChannel} />
+        )}
 
-              {/* Tasklert Mail */}
+        {/* VIEW 6: DEDICATED CHANNEL WORKSPACES (Tasklert Mail, Google Mail, Telegram) */}
+        {mainView === "channel" && (
+          <div className="w-full flex-1 flex flex-col min-h-0 animate-fadeIn">
+            {/* Top Back & Channel Switcher Bar */}
+            <div
+              className={`shrink-0 flex items-center justify-between bg-white rounded-2xl border border-purple-100 p-2 sm:p-2.5 mb-3 shadow-2xs ${
+                isMobileTelegramChatOpen ? "hidden md:flex" : "flex"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setMainView("overview")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs transition cursor-pointer active:scale-95 select-none"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Overview</span>
+              </button>
+
+              {/* 3 Channel Selector Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {/* Tasklert Mail */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChannel("tasklert_mail")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer select-none ${
+                    activeChannel === "tasklert_mail"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200"
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Tasklert Mail</span>
+                  <span className="sm:hidden">Mail</span>
+                </button>
+
+                {/* Google Mail */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChannel("email")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer select-none ${
+                    activeChannel === "email"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-white hover:bg-blue-50 text-gray-700 border border-gray-200"
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Google Mail</span>
+                  <span className="sm:hidden">Gmail</span>
+                </button>
+
+                {/* Telegram */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChannel("telegram")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer select-none ${
+                    activeChannel === "telegram"
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "bg-white hover:bg-purple-50 text-gray-700 border border-gray-200"
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5 -rotate-12" />
+                  <span>Telegram</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Workspace Renderers */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              {/* Tasklert Mail Workspace */}
               {activeChannel === "tasklert_mail" && (
                 <div className="w-full flex-1 flex flex-col min-h-0">
                   <TasklertMailDashboard
@@ -393,15 +425,27 @@ export default function MessageCenter() {
                   />
                 </div>
               )}
-            </div>
 
-            {/* Right Desktop Panel: Scheduled Items (Matching Desktop Reference Screenshot) */}
-            <div className="hidden lg:flex shrink-0 h-full min-h-0">
-              <ScheduledItemsPanel
-                onOpenNewSchedule={handleOpenSchedule}
-                onEditSchedule={handleEditSchedule}
-                refreshTrigger={scheduleRefreshTrigger}
-              />
+              {/* Google Mail Workspace */}
+              {activeChannel === "email" && (
+                <div className="w-full flex-1 flex flex-col min-h-0 max-md:fixed max-md:inset-0 max-md:z-50 max-md:bg-white">
+                  <EmailWorkspace
+                    onBackToQuickSend={() => setMainView("overview")}
+                    onOpenSchedule={handleOpenSchedule}
+                  />
+                </div>
+              )}
+
+              {/* Telegram Workspace */}
+              {activeChannel === "telegram" && (
+                <div className="w-full flex-1 flex flex-col min-h-0 max-md:fixed max-md:inset-0 max-md:z-50 max-md:bg-white">
+                  <TelegramWorkspace
+                    onActiveChatChange={(chat) => setTelegramActiveChat(chat)}
+                    onBackToQuickSend={() => setMainView("overview")}
+                    onOpenSchedule={handleOpenSchedule}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -415,13 +459,14 @@ export default function MessageCenter() {
         onSwitchChannel={(channel) => {
           setActiveChannel(channel);
           setIsTasklertMailModalOpen(false);
+          setMainView("channel");
         }}
         onSentSuccess={() => {
-          setActiveChannel("tasklert_mail");
+          setScheduleRefreshTrigger((prev) => prev + 1);
         }}
       />
 
-      {/* ─── Unified QuickSend 2.0 Schedule Modal / Mobile Bottom Sheet ─── */}
+      {/* ─── Unified QuickSend Schedule Modal / Mobile Bottom Sheet ─── */}
       <ScheduleModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}

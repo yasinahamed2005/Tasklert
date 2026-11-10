@@ -388,27 +388,6 @@ export const sendTasklertMail = async (user, mailData) => {
       throw new Error("No operational Tasklert Mail sending provider configured. Please set SMTP_PASS or connect Gmail.");
     }
   }
-        replyTo: `"${senderName}" <${senderEmail}>`,
-        attachments: formattedAttachments,
-      });
-    } else if (isEmailConfigured()) {
-      actualFromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || TARGET_TASKLERT_GMAIL;
-      sentResult = await sendViaSystemMailer({
-        to: toList.join(", "),
-        cc: ccList.length ? ccList.join(", ") : undefined,
-        bcc: bccList.length ? bccList.join(", ") : undefined,
-        subject: finalSubject,
-        html: htmlContent,
-        text: textContent,
-        replyTo: `"${senderName}" <${senderEmail}>`,
-        attachments: formattedAttachments,
-      });
-    } else {
-      throw new Error(
-        "No authenticated Gmail account or email provider is available. Please connect your Gmail account in Message Center or configure an email provider."
-      );
-    }
-  }
 
   if (!sentResult || !sentResult.messageId) {
     throw new Error("Failed to verify email transmission confirmation from provider.");

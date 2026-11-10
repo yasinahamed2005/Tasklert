@@ -189,7 +189,7 @@ export default function EmailComposer({
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleTimezone, setScheduleTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone
+    "Asia/Kolkata"
   );
 
   const editorRef = useRef(null);
@@ -519,20 +519,38 @@ export default function EmailComposer({
             </button>
           </div>
 
-          {/* Send */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={sending || to.length === 0}
-            style={{ backgroundColor: to.length === 0 ? "#a78bfa" : "#7c3aed" }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-extrabold shadow-md shadow-purple-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer border border-purple-600"
-          >
-            {sending ? (
-              <><Loader2 className="w-4 h-4 animate-spin text-white" /> <span>Sending...</span></>
-            ) : (
-              <><Send className="w-4 h-4 text-white -rotate-12 translate-x-px" /> <span>Send</span></>
-            )}
-          </button>
+          {/* Actions: Schedule Email & Send Now */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSchedule((prev) => !prev)}
+              disabled={sending || to.length === 0}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer disabled:opacity-50 ${
+                showSchedule
+                  ? "bg-purple-100 text-purple-800 border-purple-300"
+                  : "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
+              }`}
+              title="Schedule this email for future delivery"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Schedule Email</span>
+              <span className="sm:hidden">Schedule</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={sending || to.length === 0}
+              style={{ backgroundColor: to.length === 0 ? "#a78bfa" : "#7c3aed" }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-black shadow-md shadow-purple-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer border border-purple-600"
+            >
+              {sending ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> <span>Sending...</span></>
+              ) : (
+                <><Send className="w-3.5 h-3.5 text-white -rotate-12" /> <span>Send Now</span></>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

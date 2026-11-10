@@ -4,6 +4,7 @@ import {
   createScheduledDelivery,
   getScheduledDeliveries,
   getScheduledStats,
+  getQuicksendOverview,
   getScheduledDeliveryById,
   updateScheduledDelivery,
   cancelScheduledDelivery,
@@ -18,6 +19,7 @@ router.use(authMiddleware);
 router.post("/", createScheduledDelivery);
 router.get("/", getScheduledDeliveries);
 router.get("/stats", getScheduledStats);
+router.get("/overview", getQuicksendOverview);
 router.get("/:id", getScheduledDeliveryById);
 router.put("/:id", updateScheduledDelivery);
 router.delete("/:id", cancelScheduledDelivery);

@@ -227,10 +227,10 @@ export const fetchGmailMessages = async (account, options = {}) => {
 
   if (folder === "INBOX") {
     queryParts.push("in:inbox");
-    // Handle Gmail category tabs
-    if (category === "primary") {
-      queryParts.push("category:primary");
-    } else if (category === "promotions") {
+    // Handle Gmail category tabs:
+    // In Gmail search API, categories are: promotions, social, updates, forums.
+    // 'primary' is the standard inbox; 'category:primary' is NOT a valid search operator in Gmail API and causes 400 errors.
+    if (category === "promotions") {
       queryParts.push("category:promotions");
     } else if (category === "social") {
       queryParts.push("category:social");
@@ -276,10 +276,29 @@ export const fetchGmailMessages = async (account, options = {}) => {
   if (q) urlParams.set("q", q);
   if (pageToken) urlParams.set("pageToken", pageToken);
 
-  const listRes = await fetch(
+  let listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?${urlParams.toString()}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+
+  // Fallback: If query fails (e.g. invalid query syntax), retry with simple folder query
+  if (!listRes.ok && q) {
+    console.warn(`[Gmail API] Search query "${q}" returned status ${listRes.status}. Retrying with folder fallback...`);
+    const fallbackParams = new URLSearchParams({
+      maxResults: String(maxResults),
+      includeSpamTrash: folder === "TRASH" || folder === "SPAM" ? "true" : "false",
+    });
+    if (folder === "INBOX") fallbackParams.set("q", "in:inbox");
+    else if (folder === "SENT") fallbackParams.set("q", "in:sent");
+    else if (folder === "DRAFTS") fallbackParams.set("q", "in:draft");
+    else if (folder === "STARRED") fallbackParams.set("q", "is:starred");
+    if (pageToken) fallbackParams.set("pageToken", pageToken);
+
+    listRes = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?${fallbackParams.toString()}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
 
   if (!listRes.ok) {
     const err = await listRes.json().catch(() => ({}));
@@ -336,12 +355,13 @@ export const fetchGmailMessages = async (account, options = {}) => {
     .map((msg) => {
       const headers = msg.payload?.headers || [];
       const getHeader = (name) =>
-        headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+        headers.find((h) => h?.name && h.name.toLowerCase() === name.toLowerCase())?.value || "";
 
       const rawFrom = getHeader("From");
       const { name: fromName, email: fromEmail } = parseEmailAddress(rawFrom);
       const rawDate = getHeader("Date");
       const timestamp = msg.internalDate ? Number(msg.internalDate) : new Date(rawDate).getTime();
+      const safeTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
       const labelIds = msg.labelIds || [];
 
       // Detect attachment presence from snippet or headers
@@ -359,9 +379,9 @@ export const fetchGmailMessages = async (account, options = {}) => {
         to: getHeader("To"),
         subject: getHeader("Subject") || "(no subject)",
         snippet: msg.snippet || "",
-        date: new Date(timestamp).toISOString(),
-        displayDate: formatGmailDate(timestamp),
-        timestamp,
+        date: new Date(safeTimestamp).toISOString(),
+        displayDate: formatGmailDate(safeTimestamp),
+        timestamp: safeTimestamp,
         isRead: !labelIds.includes("UNREAD"),
         isStarred: labelIds.includes("STARRED"),
         isImportant: labelIds.includes("IMPORTANT"),
@@ -396,11 +416,13 @@ export const fetchGmailMessageDetail = async (account, messageId) => {
   const msg = await res.json();
   const headers = msg.payload?.headers || [];
   const getHeader = (name) =>
-    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+    headers.find((h) => h?.name && h.name.toLowerCase() === name.toLowerCase())?.value || "";
 
   const rawFrom = getHeader("From");
   const { name: fromName, email: fromEmail } = parseEmailAddress(rawFrom);
-  const timestamp = msg.internalDate ? Number(msg.internalDate) : new Date(getHeader("Date")).getTime();
+  const rawDate = getHeader("Date");
+  const timestamp = msg.internalDate ? Number(msg.internalDate) : new Date(rawDate).getTime();
+  const safeTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
   const labelIds = msg.labelIds || [];
 
   const { html, text, attachments } = extractMimeContent(msg.payload);
@@ -419,9 +441,9 @@ export const fetchGmailMessageDetail = async (account, messageId) => {
     snippet: msg.snippet || "",
     body: text || "",
     htmlBody: html || (text ? `<pre style="font-family: inherit; white-space: pre-wrap;">${text}</pre>` : ""),
-    date: new Date(timestamp).toISOString(),
-    displayDate: formatGmailDate(timestamp),
-    timestamp,
+    date: new Date(safeTimestamp).toISOString(),
+    displayDate: formatGmailDate(safeTimestamp),
+    timestamp: safeTimestamp,
     isRead: !labelIds.includes("UNREAD"),
     isStarred: labelIds.includes("STARRED"),
     isImportant: labelIds.includes("IMPORTANT"),
