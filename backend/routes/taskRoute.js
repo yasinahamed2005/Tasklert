@@ -72,7 +72,7 @@ taskRouter.post("/upload", authMiddleware, (req, res) => {
     const backendBase = (
       process.env.BACKEND_URL ||
       (process.env.NODE_ENV === "production"
-        ? "https://tasklert-production.up.railway.app"
+        ? "https://tasklert.onrender.com"
         : `http://localhost:${process.env.PORT || 5000}`)
     ).replace(/\/$/, "");
 

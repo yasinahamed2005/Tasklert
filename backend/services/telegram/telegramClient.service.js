@@ -205,7 +205,7 @@ export const clearPendingAuth = (userId) => {
 };
 
 /**
- * Graceful shutdown for Railway backend restarts.
+ * Graceful shutdown for Render backend restarts.
  */
 export const closeAllTelegramClients = async () => {
   console.log("[TelegramClient] Gracefully disconnecting all active user clients...");

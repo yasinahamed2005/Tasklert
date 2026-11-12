@@ -145,7 +145,7 @@ export default function ScheduledItemsPanel({
       </div>
 
       {/* 2. Channel Filter Tabs */}
-      <div className="px-3 pt-2.5 pb-1 border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 bg-gray-50/50">
+      <div className="px-3 pt-2.5 pb-1 border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none shrink-0 bg-gray-50/50">
         <button
           type="button"
           onClick={() => setActiveTab("all")}

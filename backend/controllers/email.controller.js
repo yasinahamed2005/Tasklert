@@ -297,9 +297,15 @@ export const handleGetMessages = async (req, res) => {
       unreadCounts: { INBOX: 0 },
     });
   } catch (err) {
-    return res.status(500).json({
+    console.error("[Email Messages Error]", err);
+    return res.status(200).json({
       success: false,
-      message: err.message || "Failed to fetch messages.",
+      messages: [],
+      total: 0,
+      page: Number(req.query?.page) || 1,
+      hasMore: false,
+      unreadCounts: { INBOX: 0 },
+      error: err.message || "Failed to fetch messages.",
     });
   }
 };

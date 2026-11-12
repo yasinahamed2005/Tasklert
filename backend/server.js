@@ -39,7 +39,7 @@ try {
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Trust reverse proxy (Railway, Vercel)
+// Trust reverse proxy (Render, Vercel, Railway)
 app.set("trust proxy", 1);
 
 // CORS Configuration: Explicit allowlist for production Vercel and local dev origins
@@ -129,6 +129,11 @@ app.get('/', (req, res) => {
   res.send('API WORKING');
 });
 
+// Health check endpoint for Render monitoring
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // Centralized error handling to prevent stack trace leaks
 app.use((err, req, res, next) => {
   if (err && err.message && err.message.startsWith("CORS origin not allowed")) {
@@ -151,7 +156,7 @@ const shutdown = async () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+// Start server: Bind to 0.0.0.0 for Render compatibility
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server running on port ${port}`);
 });

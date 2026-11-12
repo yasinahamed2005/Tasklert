@@ -40,7 +40,9 @@ export const getUserEmailAccounts = async (userId) => {
 export const getGoogleAuthUrl = (userId, hostUrl = "") => {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const rawBase =
-    process.env.BACKEND_URL || hostUrl || "http://localhost:5000";
+    process.env.BACKEND_URL ||
+    hostUrl ||
+    (process.env.NODE_ENV === "production" ? "https://tasklert.onrender.com" : "http://localhost:5000");
   const backendBase = rawBase.trim().replace(/\/+$/, "");
   const redirectUri = `${backendBase}/api/email/auth/gmail/callback`;
 
@@ -93,7 +95,9 @@ export const exchangeGoogleAuthCode = async (code, state, hostUrl = "") => {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   const rawBase =
-    process.env.BACKEND_URL || hostUrl || "http://localhost:5000";
+    process.env.BACKEND_URL ||
+    hostUrl ||
+    (process.env.NODE_ENV === "production" ? "https://tasklert.onrender.com" : "http://localhost:5000");
   const backendBase = rawBase.trim().replace(/\/+$/, "");
   const fallbackRedirectUri = `${backendBase}/api/email/auth/gmail/callback`;
 

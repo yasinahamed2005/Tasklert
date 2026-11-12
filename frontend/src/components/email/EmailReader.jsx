@@ -111,24 +111,35 @@ export default function EmailReader({
   const avatarColor = getAvatarColor(senderName);
 
   const rawHtml = email.htmlBody || email.body || "";
-  const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
+
+  // 1. Resolve or neutralize unresolved cid: schemes BEFORE DOMPurify parses the HTML.
+  // This prevents the browser DOM parser from ever attempting to resolve cid: URLs, eliminating ERR_UNKNOWN_URL_SCHEME.
+  const resolvedHtml = (rawHtml || "")
+    .replace(
+      /(src|srcset|background|poster)\s*=\s*["']?\s*cid:([^"'\s>]+)\s*["']?/gi,
+      (match, attr, cid) => {
+        const cleanCid = cid.replace(/^<|>$/g, "").trim();
+        const found = (email.attachments || []).find(
+          (a) =>
+            a.contentId === cleanCid ||
+            a.contentId === `<${cleanCid}>` ||
+            a.filename === cleanCid ||
+            a.attachmentId === cleanCid
+        );
+        if (found && (found.dataUrl || found.url)) {
+          return `${attr}="${found.dataUrl || found.url}"`;
+        }
+        return `${attr}="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-cid="${cleanCid}"`;
+      }
+    )
+    .replace(
+      /url\(\s*["']?\s*cid:([^"'\)]+)\s*["']?\s*\)/gi,
+      'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")'
+    );
+
+  const cleanHtml = DOMPurify.sanitize(resolvedHtml, {
     FORBID_TAGS: ["script", "iframe", "form", "input"],
   });
-
-  // Replace unresolved cid: schemes with a 1x1 transparent placeholder so the browser doesn't log ERR_UNKNOWN_URL_SCHEME
-  const cleanHtml = sanitizedHtml.replace(
-    /src=["']cid:([^"']+)["']/gi,
-    (match, cid) => {
-      // Check if attachment has matching contentId or filename
-      const found = (email.attachments || []).find(
-        (a) => a.contentId === cid || a.filename === cid || a.attachmentId === cid
-      );
-      if (found && (found.dataUrl || found.url)) {
-        return `src="${found.dataUrl || found.url}"`;
-      }
-      return 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-cid="' + cid + '"';
-    }
-  );
 
   const attachments = email.attachments || [];
 

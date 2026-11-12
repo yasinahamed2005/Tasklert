@@ -450,7 +450,7 @@ const Landing = () => {
             &quot;Tasklert helped our team stop missing critical deadlines. The priority sorting, email reminders, and QuickSend feature made our workflow effortless.&quot;
           </p>
           <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-purple-300">
-            Riya Sharma — Product Lead
+            ISRATH YASIN AHAMAD — Product Lead
           </p>
         </div>
       </section>

@@ -23,6 +23,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import DOMPurify from "dompurify";
 import { TasklertMailIcon, SimpleMailIcon } from "../TasklertLogo";
 import {
   fetchTasklertSentMails,
@@ -563,7 +564,18 @@ export default function TasklertMailDashboard({ onOpenCompose, onOpenSchedule })
                 <div
                   className="p-4 rounded-2xl border border-gray-200 bg-white text-xs leading-relaxed text-gray-800 overflow-x-auto whitespace-pre-wrap"
                   dangerouslySetInnerHTML={{
-                    __html: selectedEmail.htmlBody || selectedEmail.body || selectedEmail.snippet,
+                    __html: DOMPurify.sanitize(
+                      (selectedEmail.htmlBody || selectedEmail.body || selectedEmail.snippet || "")
+                        .replace(
+                          /(src|srcset|background|poster)\s*=\s*["']?\s*cid:([^"'\s>]+)\s*["']?/gi,
+                          '$1="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"'
+                        )
+                        .replace(
+                          /url\(\s*["']?\s*cid:([^"'\)]+)\s*["']?\s*\)/gi,
+                          'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")'
+                        ),
+                      { FORBID_TAGS: ["script", "iframe", "form", "input"] }
+                    ),
                   }}
                 />
               </div>

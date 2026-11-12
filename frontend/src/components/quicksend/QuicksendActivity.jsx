@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { fetchQuicksendOverview } from "../../services/unifiedScheduleApi";
 
-export function QuicksendActivity({ onSelectChannel }) {
+export default function QuicksendActivity({ onSelectChannel }) {
   const [data, setData] = useState({
     stats: {
       messagesSent: 0,
@@ -151,5 +151,5 @@ export function QuicksendActivity({ onSelectChannel }) {
   );
 }
 
-export default QuicksendActivity;
+export { QuicksendActivity };
 

@@ -150,12 +150,12 @@ describe("Phase 2: Gmail OAuth 2.0 + PKCE Integration Test Suite", () => {
       "Trailing slash on BACKEND_URL must be stripped to prevent double-slash redirect_uri_mismatch"
     );
 
-    // Production Railway simulation test
-    process.env.BACKEND_URL = "https://taskflow-production.up.railway.app";
-    const resRailway = getGoogleAuthUrl("64f1a2b3c4d5e6f7a8b9c0d1");
+    // Production Render simulation test
+    process.env.BACKEND_URL = "https://tasklert.onrender.com";
+    const resRender = getGoogleAuthUrl("64f1a2b3c4d5e6f7a8b9c0d1");
     assert.strictEqual(
-      resRailway.redirectUri,
-      "https://taskflow-production.up.railway.app/api/email/auth/gmail/callback"
+      resRender.redirectUri,
+      "https://tasklert.onrender.com/api/email/auth/gmail/callback"
     );
   });
 

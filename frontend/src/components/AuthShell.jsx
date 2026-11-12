@@ -165,7 +165,7 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
               priority sorting, and clear workflow made task tracking effortless.&quot;
             </p>
             <p className="mt-1 text-[11px] font-medium text-[#D946EF]">
-              Riya Sharma, Product Lead
+              ISRATH YASIN AHAMAD, Product Lead
             </p>
           </div>
 

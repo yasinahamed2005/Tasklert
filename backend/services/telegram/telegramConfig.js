@@ -27,7 +27,7 @@ export const requireTelegramConfig = () => {
   const config = getTelegramConfig();
   if (!config.isConfigured) {
     throw new Error(
-      "Telegram MTProto credentials missing. Please set TELEGRAM_API_ID and TELEGRAM_API_HASH in your backend environment variables (Railway / .env)."
+      "Telegram MTProto credentials missing. Please set TELEGRAM_API_ID and TELEGRAM_API_HASH in your backend environment variables (Render / .env)."
     );
   }
   return config;

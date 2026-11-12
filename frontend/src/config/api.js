@@ -3,8 +3,8 @@
 /**
  * Standardized API base configuration for Tasklert.
  * - In local development: uses VITE_API_URL or defaults to http://localhost:5000.
- * - In production builds: uses VITE_API_URL or defaults to the production Railway backend
- *   (https://tasklert-production.up.railway.app), never silently falling back to localhost.
+ * - In production builds: uses VITE_API_URL or defaults to the production Render backend
+ *   (https://tasklert.onrender.com), never silently falling back to localhost.
  */
 
 const PRODUCTION_FALLBACK = "https://tasklert.onrender.com";
@@ -28,15 +28,23 @@ export const API_BASE_URL = getApiBaseUrl();
 /**
  * Helper to resolve attachment URLs:
  * Handles legacy attachments stored with http://localhost:5000,
+ * old Railway URLs (tasklert-production.up.railway.app),
  * relative paths starting with /uploads/, or already valid absolute URLs.
  */
 export const resolveAttachmentUrl = (url) => {
   if (!url || typeof url !== "string") return "";
 
-  // If URL already points to an external link (http/https not localhost)
+  // If URL already points to an external link (http/https)
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    if (url.includes("localhost:5000")) {
-      return url.replace(/http:\/\/localhost:5000/g, API_BASE_URL);
+    if (
+      url.includes("localhost:5000") ||
+      url.includes("tasklert-production.up.railway.app") ||
+      url.includes("railway.app")
+    ) {
+      return url
+        .replace(/https?:\/\/localhost:5000/g, API_BASE_URL)
+        .replace(/https?:\/\/[a-zA-Z0-9-]+\.up\.railway\.app/g, API_BASE_URL)
+        .replace(/https?:\/\/[a-zA-Z0-9-]+\.railway\.app/g, API_BASE_URL);
     }
     return url;
   }

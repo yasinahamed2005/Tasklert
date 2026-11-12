@@ -61,7 +61,7 @@ const getBackendUrl = (req) => {
     }
   }
   if (process.env.NODE_ENV === "production") {
-    return "https://tasklert-production.up.railway.app";
+    return "https://tasklert.onrender.com";
   }
   return (process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
 };
