@@ -19,10 +19,16 @@ const generateOtp = () => crypto.randomInt(100000, 1000000).toString(); // alway
 
 // STEP 1 of signup: validate details, email a 6-digit code, don't create the account yet.
 export async function requestSignupOtp(req, res) {
-  const { name, email, password } = req.body;
+  const { name, email, password, termsAccepted, termsVersion = "1.0", privacyVersion = "1.0" } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, message: "All fields are required" });
+  }
+  if (!termsAccepted) {
+    return res.status(400).json({
+      success: false,
+      message: "You must accept Tasklert's Terms of Service and Privacy Policy to create an account.",
+    });
   }
   if (!validator.isEmail(email)) {
     return res.status(400).json({ success: false, message: "Invalid email" });
@@ -64,6 +70,10 @@ export async function requestSignupOtp(req, res) {
         codeHash,
         name,
         passwordHash,
+        termsAccepted: true,
+        termsVersion: String(termsVersion),
+        privacyVersion: String(privacyVersion),
+        acceptedAt: new Date(),
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
         lastSentAt: new Date(),
       },
@@ -173,6 +183,13 @@ export async function verifySignupOtp(req, res) {
       name: record.name,
       email: normalizedEmail,
       password: record.passwordHash,
+      legalAcceptance: {
+        termsAccepted: record.termsAccepted !== undefined ? record.termsAccepted : true,
+        privacyAccepted: record.termsAccepted !== undefined ? record.termsAccepted : true,
+        termsVersion: record.termsVersion || "1.0",
+        privacyVersion: record.privacyVersion || "1.0",
+        acceptedAt: record.acceptedAt || new Date(),
+      },
     });
 
     await EmailOtp.deleteOne({ _id: record._id });

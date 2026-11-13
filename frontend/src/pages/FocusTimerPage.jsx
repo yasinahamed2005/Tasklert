@@ -675,7 +675,9 @@ export const FocusTimerPage = () => {
       setSessionType(nextMode);
       setRemainingSeconds(nextDurationSec);
 
-      broadcastChannelRef.current?.postMessage({ type: "FOCUS_SESSION_COMPLETED" });
+      try {
+        broadcastChannelRef.current?.postMessage({ type: "FOCUS_SESSION_COMPLETED" });
+      } catch (_) {}
       fetchHistory();
     } catch (err) {
       console.error("Completion handling error:", err);

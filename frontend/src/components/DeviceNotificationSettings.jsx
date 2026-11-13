@@ -611,6 +611,98 @@ export const DeviceNotificationSettings = () => {
           )}
         </div>
       </div>
+
+      {/* MULTI-DEVICE ARBITRATION ARCHITECTURE CARD */}
+      <div className="rounded-3xl border border-purple-100 bg-gradient-to-b from-[#110C24] to-[#0A0716] text-white p-5 sm:p-6 shadow-md space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
+            <h4 className="text-sm font-extrabold text-white tracking-wide">
+              Tasklert Unified Multi-Device Architecture
+            </h4>
+          </div>
+          <span className="text-[11px] font-bold text-purple-300 bg-purple-900/60 px-2.5 py-0.5 rounded-full border border-purple-700/50">
+            Active Priority System
+          </span>
+        </div>
+
+        {/* Level 1: One Tasklert account */}
+        <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+          <p className="text-xs font-bold text-purple-200">One Tasklert Account</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            One reminder database • One global ringtone • One alarm identity
+          </p>
+        </div>
+
+        {/* Connector */}
+        <div className="flex justify-center -my-2 text-purple-400 text-xs">↓</div>
+
+        {/* Level 2: Three modules */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-center">
+            <Clock className="w-4 h-4 text-purple-300 mx-auto mb-1" />
+            <span className="text-xs font-bold text-gray-200 block">Focus</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-center">
+            <Bell className="w-4 h-4 text-purple-300 mx-auto mb-1" />
+            <span className="text-xs font-bold text-gray-200 block">Clock</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-center">
+            <CheckCircle className="w-4 h-4 text-purple-300 mx-auto mb-1" />
+            <span className="text-xs font-bold text-gray-200 block">Reminder</span>
+          </div>
+        </div>
+
+        {/* Connector */}
+        <div className="flex justify-center -my-2 text-purple-400 text-xs">↓</div>
+
+        {/* Level 3: Central Alarm Engine */}
+        <div className="p-3 rounded-2xl bg-purple-950/60 border border-purple-700/60 text-center shadow-xs">
+          <p className="text-xs font-extrabold text-purple-200">Central Alarm Engine</p>
+          <p className="text-[11px] text-purple-300/80 mt-0.5">
+            Exact scheduling • Global ringtone • Snooze • Dismiss • Synchronization
+          </p>
+        </div>
+
+        {/* Connector */}
+        <div className="flex justify-center -my-2 text-purple-400 text-xs">↓</div>
+
+        {/* Level 4: Priority Arbitration Split */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Mobile Primary */}
+          <div className="p-3.5 rounded-2xl bg-purple-900/30 border-2 border-purple-500/80 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-purple-400" />
+                1. Samsung Android
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                Primary
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-300 leading-relaxed">
+              Native alarms, background ringtone and permitted lock-screen alert
+            </p>
+          </div>
+
+          {/* Laptop Fallback */}
+          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                <Laptop className="w-4 h-4 text-blue-400" />
+                2. Laptop / Browser
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40">
+                Fallback
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-300 leading-relaxed">
+              Browser notifications and ringtone when active and permitted (suppresses duplicate ringing when phone confirms)
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">

@@ -9,6 +9,7 @@
  */
 
 import { soundManager } from "./soundManager";
+import { centralAlarmEngine } from "./centralAlarmEngine";
 
 class DeviceAlarmManager {
   constructor() {
@@ -100,7 +101,7 @@ class DeviceAlarmManager {
   }
 
   /**
-   * Schedule an exact alarm on Native Android and Web (For Task Reminders & Calendar)
+   * Schedule an exact alarm on Native Android and Web (For Task Reminders, Calendar & Clocks)
    */
   async scheduleAlarm(reminder) {
     if (!reminder || !reminder.scheduledAt) return;
@@ -118,57 +119,17 @@ class DeviceAlarmManager {
       return;
     }
 
-    // 1. Android Native Scheduling (Capacitor)
-    if (this.isNativePlatform()) {
-      try {
-        const LocalNotifications = await this.getLocalNotificationsPlugin();
-        if (LocalNotifications?.schedule) {
-          await LocalNotifications.createChannel?.({
-            id: "tasklert-alarms",
-            name: "Tasklert Phone Alarms",
-            description: "High-priority alarms with sound and vibration",
-            importance: 5,
-            visibility: 1,
-            sound: "alarm_bell.wav",
-            vibration: true,
-            lights: true,
-          }).catch(() => {});
-
-          const notifId = this.hashStringToInt(id);
-          await LocalNotifications.schedule({
-            notifications: [
-              {
-                id: notifId,
-                title: reminder.title ? `⏰ Alarm: ${reminder.title}` : "⏰ Tasklert Alarm",
-                body: reminder.notes || reminder.message || "Scheduled alarm is ringing!",
-                schedule: { at: schedDate, allowWhileIdle: true },
-                channelId: "tasklert-alarms",
-                sound: "alarm_bell.wav",
-                extra: {
-                  alarmId: id,
-                  taskId: reminder.task?._id || reminder.task || null,
-                  sound: reminder.sound || reminder.soundType || "digital",
-                },
-              },
-            ],
-          });
-        }
-      } catch (err) {
-        console.warn("Could not schedule native Capacitor alarm:", err);
-      }
-    }
-
-    // 2. Web / PWA Foreground & Background Timer Scheduling
-    if (delayMs > 0 && delayMs <= 86400000) {
-      const timer = setTimeout(() => {
-        this.triggerAlarmRinging(reminder);
-      }, delayMs);
-
-      this.activeTimers.set(String(id), timer);
-    } else if (delayMs <= 0 && delayMs >= -60000) {
-      // Alarm is due right now
-      this.triggerAlarmRinging(reminder);
-    }
+    // Unified scheduling via Central Alarm Engine (authoritative Samsung-grade AlarmManager on Android)
+    await centralAlarmEngine.scheduleAlarm({
+      id: String(id),
+      title: reminder.title || "Tasklert Alarm",
+      message: reminder.notes || reminder.message || "",
+      alarmType: reminder.source === "clock" || reminder.alarmType === "clock" ? "clock" : "reminder",
+      scheduledAt: schedDate,
+      volume: reminder.volume !== undefined ? reminder.volume : 80,
+      vibration: reminder.vibrationEnabled !== false,
+      snoozeDuration: reminder.snoozeDuration || 5,
+    });
   }
 
   /**
@@ -253,129 +214,29 @@ class DeviceAlarmManager {
     mode = "focus",
     durationSeconds = 1500,
     targetEndAt,
-    sound = "chime",
     volume = 80,
     vibration = true,
-    customAudioUrl = null,
-    customAudioRecord = null,
-    customAudioName = null,
   }) {
     if (!targetEndAt) return;
     const focusId = String(id || "active-focus-session");
-    const schedDate = new Date(targetEndAt);
-    const now = Date.now();
-    const delayMs = schedDate.getTime() - now;
-
-    // Cancel existing focus alarm if any
-    await this.cancelFocusAlarm(focusId);
-
-    // If alarm expired in the past (> 60s ago), skip
-    if (delayMs < -60000) return;
-
-    // Preload audio into Web Audio memory buffer so playback at 0:00 is instant with zero latency
-    if (customAudioRecord?.data) {
-      soundManager.preloadCustomAudio(mode, customAudioRecord.data);
-    }
-
-    // Start Web Audio silent keep-alive to keep AudioContext active in background tabs
-    soundManager.startKeepAlive();
-
     const notifTitle = title || (mode === "focus" ? "🎯 Focus Session Complete!" : "☕ Break Over!");
-    const mins = Math.max(1, Math.round(durationSeconds / 60));
     const notifBody = mode === "focus"
-      ? `Completed ${mins} minutes deep focus. Time for a well-deserved breather!`
+      ? `Completed ${Math.max(1, Math.round(durationSeconds / 60))} minutes deep focus. Time for a well-deserved breather!`
       : `Recharge complete! Ready to start your next focus session?`;
 
-    // 1. Android Native Scheduling (TasklertAlarmEngine via setAlarmClock + LocalNotifications fallback)
-    if (this.isNativePlatform()) {
-      try {
-        const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
-        if (TasklertAlarmEngine) {
-          await TasklertAlarmEngine.scheduleAlarm({
-            id: focusId,
-            title: notifTitle,
-            mode,
-            targetEndAtMs: schedDate.getTime(),
-            sound,
-            volume,
-            vibration: Boolean(vibration),
-            ringtoneFileName: customAudioName || customAudioRecord?.name || "Tere Vaaste.mp3",
-          });
-          console.log("[deviceAlarmManager] Exact alarm scheduled via TasklertAlarmEngine.setAlarmClock() for: " + schedDate.toISOString());
-        } else {
-          const LocalNotifications = await this.getLocalNotificationsPlugin();
-          if (LocalNotifications?.schedule) {
-            await LocalNotifications.createChannel?.({
-              id: "tasklert-focus-alarms",
-              name: "Tasklert Focus Alarms",
-              description: "High-priority alarms with sound and vibration for Focus sessions",
-              importance: 5,
-              visibility: 1, // Public lockscreen visibility
-              vibration: Boolean(vibration),
-              lights: true,
-            }).catch(() => {});
+    // Start silent keep-alive for background tab audio context resilience
+    soundManager.startKeepAlive();
 
-            const notifIntId = this.hashStringToInt(`focus-${focusId}`);
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  id: notifIntId,
-                  title: notifTitle,
-                  body: notifBody,
-                  schedule: { at: schedDate, allowWhileIdle: true }, // exact alarm across Android Doze / screen-off
-                  channelId: "tasklert-focus-alarms",
-                  extra: {
-                    isFocusAlarm: true,
-                    focusId,
-                    mode,
-                    durationMinutes: mins,
-                    sound,
-                    volume,
-                    customAudioName: customAudioName || (customAudioRecord?.name || null),
-                  },
-                },
-              ],
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("Could not schedule native Android focus alarm:", err);
-      }
-    }
-
-    // 2. Web / Desktop timer fallback
-    if (delayMs > 0) {
-      const timerKey = `focus-${focusId}`;
-      const timer = setTimeout(() => {
-        this.triggerFocusAlarmRinging({
-          id: focusId,
-          title: notifTitle,
-          mode,
-          durationSeconds,
-          sound,
-          volume,
-          vibration,
-          customAudioUrl,
-          customAudioRecord,
-          customAudioName,
-        });
-      }, delayMs);
-      this.activeTimers.set(timerKey, timer);
-    } else if (delayMs <= 0 && delayMs >= -60000) {
-      // Alarm due right now
-      this.triggerFocusAlarmRinging({
-        id: focusId,
-        title: notifTitle,
-        mode,
-        durationSeconds,
-        sound,
-        volume,
-        vibration,
-        customAudioUrl,
-        customAudioRecord,
-        customAudioName,
-      });
-    }
+    await centralAlarmEngine.scheduleAlarm({
+      id: focusId,
+      title: notifTitle,
+      message: notifBody,
+      alarmType: mode,
+      scheduledAt: targetEndAt,
+      volume,
+      vibration,
+      snoozeDuration: 5,
+    });
   }
 
   /**
@@ -398,13 +259,10 @@ class DeviceAlarmManager {
         if (TasklertAlarmEngine) {
           await TasklertAlarmEngine.cancelAlarm({ id: focusId });
         }
-        const LocalNotifications = await this.getLocalNotificationsPlugin();
-        if (LocalNotifications?.cancel) {
-          const notifIntId = this.hashStringToInt(`focus-${focusId}`);
-          await LocalNotifications.cancel({ notifications: [{ id: notifIntId }] });
-        }
       } catch {}
     }
+
+    this.stopSound();
   }
 
   /**

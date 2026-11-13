@@ -116,7 +116,7 @@ export default function EmailReader({
   // This prevents the browser DOM parser from ever attempting to resolve cid: URLs, eliminating ERR_UNKNOWN_URL_SCHEME.
   const resolvedHtml = (rawHtml || "")
     .replace(
-      /(src|srcset|background|poster)\s*=\s*["']?\s*cid:([^"'\s>]+)\s*["']?/gi,
+      /(src|srcset|background|poster|href|data-src)\s*=\s*["']?\s*cid:([^"'\s>]+)\s*["']?/gi,
       (match, attr, cid) => {
         const cleanCid = cid.replace(/^<|>$/g, "").trim();
         const found = (email.attachments || []).find(
@@ -135,6 +135,10 @@ export default function EmailReader({
     .replace(
       /url\(\s*["']?\s*cid:([^"'\)]+)\s*["']?\s*\)/gi,
       'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")'
+    )
+    .replace(
+      /(["'])\s*cid:([^"'\s>]+)\s*(["'])/gi,
+      '$1data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7$3'
     );
 
   const cleanHtml = DOMPurify.sanitize(resolvedHtml, {

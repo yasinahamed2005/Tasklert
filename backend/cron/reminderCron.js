@@ -168,6 +168,10 @@ export const processScheduledAlarms = async (now = new Date()) => {
       let inAppSuccess = false;
       let emailSuccess = false;
 
+      const isMobileOwnedAndConfirmed = Boolean(
+        claimed.deviceOwner === "mobile_primary" && claimed.mobileConfirmedAt
+      );
+
       // 1. DISPATCH WEB PUSH
       if (claimed.channels?.push !== false) {
         if (isVapidConfigured()) {
@@ -181,10 +185,11 @@ export const processScheduledAlarms = async (now = new Date()) => {
             alarmId: reminderId,
             taskId: taskId,
             priority: claimed.priority || "Medium",
-            sound: claimed.sound || prefs?.defaultSound || "digital",
+            sound: claimed.globalRingtoneId || claimed.sound || prefs?.defaultSound || "digital",
             volume: inQuietHours ? 0 : (claimed.volume || prefs?.defaultVolume || 80),
             scheduledAt: claimed.scheduledAt,
             silent: inQuietHours,
+            mobileOwned: isMobileOwnedAndConfirmed,
             actions: [
               { action: "open", title: "Open Task" },
               { action: "snooze", title: `Snooze ${claimed.snoozeDuration || 5}m` },

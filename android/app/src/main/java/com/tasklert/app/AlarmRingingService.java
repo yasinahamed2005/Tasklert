@@ -164,12 +164,20 @@ public class AlarmRingingService extends Service {
             }
 
             if (!loaded) {
-                // Check if general focus ringtone exists
-                File fallbackFile = new File(new File(getFilesDir(), "ringtones"), "focus.mp3");
-                if (fallbackFile.exists() && fallbackFile.canRead()) {
-                    mediaPlayer.setDataSource(fallbackFile.getAbsolutePath());
+                // Check if ONE GLOBAL TASKLERT RINGTONE exists (Phase 4 requirement)
+                File ringDir = new File(getFilesDir(), "ringtones");
+                File globalFile = new File(ringDir, TasklertAlarmPlugin.GLOBAL_RINGTONE_FILE);
+                if (globalFile.exists() && globalFile.canRead()) {
+                    mediaPlayer.setDataSource(globalFile.getAbsolutePath());
                     loaded = true;
-                    sourceDesc = "Fallback MP3: " + fallbackFile.getAbsolutePath();
+                    sourceDesc = "Global MP3: " + globalFile.getAbsolutePath();
+                } else {
+                    File fallbackFile = new File(ringDir, "focus.mp3");
+                    if (fallbackFile.exists() && fallbackFile.canRead()) {
+                        mediaPlayer.setDataSource(fallbackFile.getAbsolutePath());
+                        loaded = true;
+                        sourceDesc = "Fallback MP3: " + fallbackFile.getAbsolutePath();
+                    }
                 }
             }
 

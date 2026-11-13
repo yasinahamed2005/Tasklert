@@ -99,12 +99,21 @@ export const customRingtoneStorage = {
         window.Capacitor?.Plugins?.TasklertAlarmEngine
       ) {
         const base64Data = arrayBufferToBase64(arrayBuffer);
-        await window.Capacitor.Plugins.TasklertAlarmEngine.saveCustomRingtone({
-          slot: String(slot),
-          fileName: String(fileName),
-          base64Data,
-        });
-        console.log(`[customRingtoneStorage] Synced ringtone "${fileName}" to native Android slot: ${slot}`);
+        // Phase 4: Save as authoritative ONE GLOBAL TASKLERT RINGTONE
+        if (window.Capacitor.Plugins.TasklertAlarmEngine.saveGlobalRingtone) {
+          await window.Capacitor.Plugins.TasklertAlarmEngine.saveGlobalRingtone({
+            fileName: String(fileName),
+            base64Data,
+          });
+        }
+        if (window.Capacitor.Plugins.TasklertAlarmEngine.saveCustomRingtone) {
+          await window.Capacitor.Plugins.TasklertAlarmEngine.saveCustomRingtone({
+            slot: String(slot),
+            fileName: String(fileName),
+            base64Data,
+          });
+        }
+        console.log(`[customRingtoneStorage] Synced ringtone "${fileName}" to native Android global storage`);
       }
     } catch (nativeErr) {
       console.warn("[customRingtoneStorage] Native Android ringtone sync failed:", nativeErr);
@@ -112,8 +121,8 @@ export const customRingtoneStorage = {
   },
 
   /**
-   * Save a user audio file for a mode ('focus', 'short_break', 'long_break')
-   * If applyToAll is true OR unified mode is active, writes to all 3 slots simultaneously.
+   * Save a user audio file for a mode ('global_ringtone', 'focus', etc.)
+   * In unified mode, writes to 'global_ringtone', 'focus', 'short_break', 'long_break' simultaneously.
    */
   async saveRingtone(key, file, applyToAll = null) {
     if (!file) return null;
@@ -124,8 +133,8 @@ export const customRingtoneStorage = {
         applyToAll === true || (applyToAll === null && this.getUseSameRingtoneForAll());
 
       const slots = shouldApplyToAll
-        ? ["focus", "short_break", "long_break"]
-        : [String(key || "focus")];
+        ? ["global_ringtone", "focus", "short_break", "long_break"]
+        : [String(key || "global_ringtone")];
 
       const db = await openDatabase();
 
@@ -181,11 +190,15 @@ export const customRingtoneStorage = {
    */
   async getRingtone(key) {
     const isUnified = this.getUseSameRingtoneForAll();
-    // In unified mode, always prioritize 'focus' as the single source of truth
-    const targetKey = isUnified ? "focus" : String(key || "focus");
+    const primaryKey = key === "global_ringtone" || isUnified ? "global_ringtone" : String(key || "global_ringtone");
 
     try {
-      let record = memoryFallback.get(targetKey);
+      let record = memoryFallback.get(primaryKey);
+
+      if (!record && (primaryKey === "global_ringtone" || isUnified)) {
+        // Fallback to legacy 'focus' key
+        record = memoryFallback.get("focus");
+      }
 
       if (!record) {
         const db = await openDatabase();
@@ -194,13 +207,27 @@ export const customRingtoneStorage = {
             try {
               const tx = db.transaction(STORE_NAME, "readonly");
               const store = tx.objectStore(STORE_NAME);
-              const req = store.get(targetKey);
+              const req = store.get(primaryKey);
               req.onsuccess = () => resolve(req.result || null);
               req.onerror = () => resolve(null);
             } catch {
               resolve(null);
             }
           });
+
+          if (!record && (primaryKey === "global_ringtone" || isUnified)) {
+            record = await new Promise((resolve) => {
+              try {
+                const tx = db.transaction(STORE_NAME, "readonly");
+                const store = tx.objectStore(STORE_NAME);
+                const req = store.get("focus");
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
+              } catch {
+                resolve(null);
+              }
+            });
+          }
         }
       }
 

@@ -66,6 +66,13 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     }
   };
 
+  const isFocusAlarm =
+    alarm.alarmType === "focus" ||
+    alarm.alarmType === "short_break" ||
+    alarm.alarmType === "long_break" ||
+    String(alarm.alarmId || "").startsWith("focus-") ||
+    String(alarm.title || "").toLowerCase().includes("focus");
+
   const handleDismiss = async () => {
     soundManager.stop();
     setLoadingAction(true);
@@ -74,24 +81,34 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      // 1. If alarmId exists, call dismissReminder on backend
-      // (which now automatically marks the linked task completed in MongoDB!)
-      if (token && alarm.alarmId) {
-        await axios.post(
-          `${API_BASE}/api/reminders/${alarm.alarmId}/dismiss`,
-          { completeLinkedTask: true },
-          { headers }
-        );
+      // 1. If alarmId exists and is NOT a local focus session, call dismissReminder on backend
+      // (which automatically marks the linked task completed in MongoDB)
+      if (token && alarm.alarmId && !isFocusAlarm) {
+        try {
+          await axios.post(
+            `${API_BASE}/api/reminders/${alarm.alarmId}/dismiss`,
+            { completeLinkedTask: true },
+            { headers }
+          );
+        } catch (serverErr) {
+          // If the reminder doesn't exist or is already deleted (404), it's already dismissed on server.
+          // Never block the user from closing the alarm!
+          if (serverErr.response?.status !== 404) {
+            console.warn("Server dismiss warning:", serverErr.message);
+          }
+        }
       }
 
       // 2. If taskId exists and alarmId was missing (e.g. foreground trigger),
       // mark task completed directly
       if (token && alarm.taskId && !alarm.alarmId) {
-        await axios.put(
-          `${API_BASE}/api/tasks/${alarm.taskId}`,
-          { completed: true },
-          { headers }
-        );
+        try {
+          await axios.put(
+            `${API_BASE}/api/tasks/${alarm.taskId}`,
+            { completed: true },
+            { headers }
+          );
+        } catch (_) {}
       }
 
       onActionCompleted?.({
@@ -101,11 +118,14 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       });
       onClose();
     } catch (err) {
-      console.error("Error dismissing alarm:", err);
-      const msg =
-        err.response?.data?.message ||
-        "Failed to dismiss alarm on server. Please try again.";
-      setErrorMessage(msg);
+      console.warn("Alarm dismiss fallback:", err);
+      // Clean up audio and close modal cleanly
+      onActionCompleted?.({
+        dismissed: true,
+        taskId: alarm.taskId,
+        alarmId: alarm.alarmId,
+      });
+      onClose();
     } finally {
       soundManager.stop();
       setLoadingAction(false);
@@ -118,12 +138,18 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     setErrorMessage(null);
     try {
       const token = localStorage.getItem("token");
-      if (token && alarm.alarmId) {
-        await axios.post(
-          `${API_BASE}/api/reminders/${alarm.alarmId}/snooze`,
-          { durationMinutes: selectedSnooze },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+      if (token && alarm.alarmId && !isFocusAlarm) {
+        try {
+          await axios.post(
+            `${API_BASE}/api/reminders/${alarm.alarmId}/snooze`,
+            { durationMinutes: selectedSnooze },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } catch (serverErr) {
+          if (serverErr.response?.status !== 404) {
+            console.warn("Server snooze warning:", serverErr.message);
+          }
+        }
       }
       soundManager.stop();
       onActionCompleted?.({
@@ -134,12 +160,10 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       });
       onClose();
     } catch (err) {
-      console.error("Error snoozing alarm:", err);
-      const msg =
-        err.response?.data?.message ||
-        "Failed to snooze alarm on server. Please try again.";
-      setErrorMessage(msg);
+      console.warn("Alarm snooze fallback:", err);
+      onClose();
     } finally {
+      soundManager.stop();
       setLoadingAction(false);
     }
   };
@@ -196,10 +220,10 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
             </div>
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#D946EF]">
-                Tasklert Clock
+                {isFocusAlarm ? "Tasklert Focus" : alarm.alarmType === "reminder" ? "Tasklert Reminder" : "Tasklert Clock"}
               </span>
               <p className="text-xs font-semibold text-slate-300">
-                {isLinkedToTask ? "Task Alarm Ringing" : "Alarm Ringing"}
+                {isFocusAlarm ? "Focus Interval Ringing" : isLinkedToTask ? "Task Alarm Ringing" : "Alarm Ringing"}
               </p>
             </div>
           </div>
@@ -249,10 +273,12 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
 
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <span
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${priorityClass}`}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                isFocusAlarm ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : priorityClass
+              }`}
             >
               <Flag className="h-3 w-3" />
-              {alarm.priority || "Medium"} Priority
+              {isFocusAlarm ? "Focus Timer" : `${alarm.priority || "Medium"} Priority`}
             </span>
             {isLinkedToTask && (
               <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/20 px-2.5 py-0.5 text-[11px] font-bold text-purple-200">

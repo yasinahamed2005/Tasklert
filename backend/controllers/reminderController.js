@@ -43,10 +43,17 @@ export const createReminder = async (req, res) => {
       channels,
       priority,
       source,
+      alarmType,
+      globalRingtoneId,
+      globalRingtoneName,
+      deviceOwner,
+      deviceId,
     } = req.body;
 
     const isCalendarSource = !taskId || source === "calendar" || source === "calendar_reminder" || Boolean(req.body.isCalendar);
     const finalSource = isCalendarSource ? "calendar_reminder" : (source || "task");
+    const finalAlarmType = alarmType || (source === "clock" ? "clock" : source === "focus" ? "focus" : "reminder");
+    const isMobilePrimary = deviceOwner === "mobile_primary";
 
     const finalMessage = notes || message || "";
     const finalSound = sound || soundType || "digital";
@@ -159,6 +166,11 @@ export const createReminder = async (req, res) => {
         email: isCalendarSource ? false : emailRequested,
       },
       source: finalSource,
+      alarmType: finalAlarmType,
+      globalRingtoneId: globalRingtoneId || "chime",
+      globalRingtoneName: globalRingtoneName || "Gentle Chime",
+      deviceOwner: isMobilePrimary ? "mobile_primary" : (deviceOwner || "unassigned"),
+      mobileConfirmedAt: isMobilePrimary ? new Date() : null,
       status: "scheduled",
       priority: priority || linkedTask.priority || "Medium",
       deliveryAttempts: 0,
@@ -317,6 +329,10 @@ export const updateReminder = async (req, res) => {
     }
     if (data.sound && !data.soundType) {
       data.soundType = data.sound;
+    }
+
+    if (data.deviceOwner === "mobile_primary") {
+      data.mobileConfirmedAt = new Date();
     }
 
     const isCalendar = existing.source === "calendar_reminder" || existing.source === "calendar" || Boolean(existing.task?.isCalendarEvent);

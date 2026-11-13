@@ -146,6 +146,27 @@ select:-webkit-autofill:focus {
   }
 }
 
+/* ==========================================================================
+   PREMIUM LANDING PAGE PARTICLES & INTERACTIVE GLOW
+   ========================================================================== */
+@keyframes landingParticleFloat {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-24px) translateX(12px);
+    opacity: 0.65;
+  }
+}
+
+.landing-particle {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  animation: landingParticleFloat 8s ease-in-out infinite;
+}
+
 /* Theme color classes matching Tasklert Accent Themes */
 .theme-blue {
   --primary: #1e88e5;

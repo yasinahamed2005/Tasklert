@@ -11,8 +11,24 @@ const userPreferencesSchema = new mongoose.Schema(
     },
     defaultSound: {
       type: String,
-      enum: ["digital", "classic", "chime", "bell", "soft"],
-      default: "digital",
+      default: "chime",
+    },
+    globalRingtoneId: {
+      type: String,
+      default: "chime",
+    },
+    globalRingtoneName: {
+      type: String,
+      default: "Gentle Chime",
+    },
+    globalRingtoneType: {
+      type: String,
+      enum: ["preset", "custom"],
+      default: "preset",
+    },
+    globalRingtoneUrl: {
+      type: String,
+      default: "",
     },
     defaultVolume: {
       type: Number,

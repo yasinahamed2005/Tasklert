@@ -187,82 +187,98 @@ export function QuicksendOverview({
               </p>
             </div>
 
-            {/* Desktop: 3 in a row. Mobile: 3 full-width vertical cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+            {/* Desktop: 3 in a row. Mobile: 3 full-width horizontal cards matching reference */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {/* Card 1: Tasklert Mail */}
               <div
                 onClick={() => onSelectChannel?.("tasklert_mail")}
-                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-3.5 sm:p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-row sm:flex-col items-center sm:items-stretch justify-between gap-3 sm:gap-0"
               >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                      <Mail className="w-4 h-4 text-purple-600" />
+                {/* Mobile: Row Layout (Icon left, Title+Subtitle center) | Desktop: Column Layout */}
+                <div className="flex sm:block items-center gap-3 min-w-0 flex-1">
+                  <div className="flex items-center justify-between sm:mb-3 shrink-0">
+                    <div className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                      <Mail className="w-5 h-5 sm:w-4 sm:h-4 text-purple-600" />
                     </div>
-                    <span className="bg-[#E8F8F1] text-[#079B68] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-[#BCECD7]">
+                    <span className="hidden sm:inline-block bg-[#E8F8F1] text-[#079B68] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-[#BCECD7]">
                       Pro Delivery
                     </span>
                   </div>
 
-                  <h3 className="text-sm font-bold text-[#17133D] mt-3 group-hover:text-purple-700 transition">
-                    Tasklert Mail
-                  </h3>
-                  <p className="text-xs text-[#77738F] mt-1 leading-relaxed">
-                    Send professional emails with verified sender.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-[#17133D] group-hover:text-purple-700 transition">
+                        Tasklert Mail
+                      </h3>
+                      <span className="sm:hidden bg-[#E8F8F1] text-[#079B68] text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border border-[#BCECD7]">
+                        Pro Delivery
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#77738F] mt-0.5 sm:mt-1 leading-relaxed truncate sm:whitespace-normal">
+                      Send professional emails with verified sender.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end text-purple-600 mt-4 pt-2 border-t border-purple-50/60">
+                <div className="flex items-center justify-end text-purple-600 shrink-0 sm:mt-4 sm:pt-2 sm:border-t sm:border-purple-50/60">
                   <ArrowRight className="w-4 h-4 hidden sm:block group-hover:translate-x-1 transition duration-150" />
-                  <ChevronRight className="w-4 h-4 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
+                  <ChevronRight className="w-5 h-5 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
                 </div>
               </div>
 
               {/* Card 2: Google Mail */}
               <div
                 onClick={() => onSelectChannel?.("email")}
-                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-3.5 sm:p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-row sm:flex-col items-center sm:items-stretch justify-between gap-3 sm:gap-0"
               >
-                <div>
-                  <div className="w-9 h-9 rounded-xl bg-white border border-gray-100 flex items-center justify-center shrink-0 shadow-2xs">
-                    <GmailLogo className="w-5 h-5" />
+                <div className="flex sm:block items-center gap-3 min-w-0 flex-1">
+                  <div className="sm:mb-3 shrink-0">
+                    <div className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-white border border-gray-100 flex items-center justify-center shrink-0 shadow-2xs">
+                      <GmailLogo className="w-5 h-5 sm:w-5 sm:h-5" />
+                    </div>
                   </div>
 
-                  <h3 className="text-sm font-bold text-[#17133D] mt-3 group-hover:text-purple-700 transition">
-                    Google Mail
-                  </h3>
-                  <p className="text-xs text-[#77738F] mt-1 leading-relaxed">
-                    Use your connected Gmail account.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold text-[#17133D] group-hover:text-purple-700 transition">
+                      Google Mail
+                    </h3>
+                    <p className="text-xs text-[#77738F] mt-0.5 sm:mt-1 leading-relaxed truncate sm:whitespace-normal">
+                      Use your connected Gmail account.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end text-purple-600 mt-4 pt-2 border-t border-purple-50/60">
+                <div className="flex items-center justify-end text-purple-600 shrink-0 sm:mt-4 sm:pt-2 sm:border-t sm:border-purple-50/60">
                   <ArrowRight className="w-4 h-4 hidden sm:block group-hover:translate-x-1 transition duration-150" />
-                  <ChevronRight className="w-4 h-4 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
+                  <ChevronRight className="w-5 h-5 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
                 </div>
               </div>
 
               {/* Card 3: Telegram */}
               <div
                 onClick={() => onSelectChannel?.("telegram")}
-                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                className="group bg-white rounded-2xl border border-purple-100 hover:border-purple-300 p-3.5 sm:p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-row sm:flex-col items-center sm:items-stretch justify-between gap-3 sm:gap-0"
               >
-                <div>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
-                    <TelegramLogo className="w-8 h-8" />
+                <div className="flex sm:block items-center gap-3 min-w-0 flex-1">
+                  <div className="sm:mb-3 shrink-0">
+                    <div className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0">
+                      <TelegramLogo className="w-8 h-8 sm:w-8 sm:h-8" />
+                    </div>
                   </div>
 
-                  <h3 className="text-sm font-bold text-[#17133D] mt-3 group-hover:text-purple-700 transition">
-                    Telegram
-                  </h3>
-                  <p className="text-xs text-[#77738F] mt-1 leading-relaxed">
-                    Send messages to your Telegram contacts.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold text-[#17133D] group-hover:text-purple-700 transition">
+                      Telegram
+                    </h3>
+                    <p className="text-xs text-[#77738F] mt-0.5 sm:mt-1 leading-relaxed truncate sm:whitespace-normal">
+                      Send messages to your Telegram contacts.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end text-purple-600 mt-4 pt-2 border-t border-purple-50/60">
+                <div className="flex items-center justify-end text-purple-600 shrink-0 sm:mt-4 sm:pt-2 sm:border-t sm:border-purple-50/60">
                   <ArrowRight className="w-4 h-4 hidden sm:block group-hover:translate-x-1 transition duration-150" />
-                  <ChevronRight className="w-4 h-4 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
+                  <ChevronRight className="w-5 h-5 sm:hidden text-gray-400 group-hover:text-purple-600 transition" />
                 </div>
               </div>
             </div>

@@ -425,6 +425,19 @@ const Layout = ({ onLogout, user }) => {
     const handleAlarmEvent = (e) => {
       if (e.detail) {
         console.log("⏰ Tasklert device alarm triggered:", e.detail);
+
+        // If user is currently on the /focus page and this is a focus completion alarm,
+        // FocusTimerPage has its own dedicated completion modal. Do not show duplicate AlarmModal!
+        const isFocusAlarm =
+          e.detail.alarmType === "focus" ||
+          e.detail.alarmType === "short_break" ||
+          e.detail.alarmType === "long_break" ||
+          String(e.detail.alarmId || "").startsWith("focus-");
+
+        if (window.location.pathname.startsWith("/focus") && isFocusAlarm) {
+          return;
+        }
+
         setActiveAlarm(e.detail);
       }
     };

@@ -65,10 +65,23 @@ public class AlarmAlertActivity extends Activity {
         tvTitle = findViewById(R.id.tvTitle);
         tvRingtoneName = findViewById(R.id.tvRingtoneName);
         tvSnoozeLabel = findViewById(R.id.tvSnoozeLabel);
+        TextView tvBrand = findViewById(R.id.tvBrand);
 
         // Bind intent data
         String title = getIntent().getStringExtra("title");
         String ringtoneName = getIntent().getStringExtra("ringtoneFileName");
+        String mode = getIntent().getStringExtra("mode");
+        String alarmType = getIntent().getStringExtra("alarmType");
+
+        if (tvBrand != null) {
+            if ("clock".equalsIgnoreCase(mode) || "clock".equalsIgnoreCase(alarmType)) {
+                tvBrand.setText("TASKLERT CLOCK ALARM");
+            } else if ("reminder".equalsIgnoreCase(mode) || "reminder".equalsIgnoreCase(alarmType)) {
+                tvBrand.setText("TASKLERT SMART REMINDER");
+            } else {
+                tvBrand.setText("TASKLERT FOCUS");
+            }
+        }
 
         if (title != null && !title.isEmpty()) {
             tvTitle.setText(title);

@@ -25,6 +25,7 @@ import analyticsRouter from './routes/analyticsRoute.js';
 import telegramRouter from './routes/telegram.routes.js';
 import emailRouter from './routes/email.routes.js';
 import scheduledRouter from './routes/unifiedScheduleRoute.js';
+import deviceRouter from './routes/deviceRoutes.js';
 import { closeAllTelegramClients } from './services/telegram/telegramClient.service.js';
 import { startReminderCron } from './cron/reminderCron.js';
 
@@ -124,6 +125,7 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/telegram", telegramRouter);
 app.use("/api/email", emailRouter);
 app.use("/api/scheduled", scheduledRouter);
+app.use("/api/devices", deviceRouter);
 
 app.get('/', (req, res) => {
   res.send('API WORKING');

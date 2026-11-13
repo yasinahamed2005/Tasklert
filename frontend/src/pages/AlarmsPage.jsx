@@ -25,6 +25,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
+import { centralAlarmEngine } from "../utils/centralAlarmEngine";
 import AlarmModal from "../components/AlarmModal";
 import { API_BASE_URL } from "../config/api";
 import PageTransitionLoader from "../components/PageTransitionLoader";
@@ -130,6 +131,21 @@ export const AlarmsPage = () => {
       });
       if (data.success && Array.isArray(data.reminders)) {
         setAlarms(data.reminders);
+        // Register active future alarms with Central Alarm Engine
+        data.reminders.forEach((a) => {
+          if (a.alarmEnabled && new Date(a.scheduledAt).getTime() > Date.now()) {
+            centralAlarmEngine.scheduleAlarm({
+              id: a._id,
+              time: new Date(a.scheduledAt).getTime(),
+              title: a.title,
+              alarmType: "clock",
+              message: a.message,
+              sound: a.sound || "global",
+              volume: a.volume || 85,
+              taskId: a.task?._id || a.task,
+            });
+          }
+        });
       }
     } catch (err) {
       console.error("Failed to load alarms:", err);
@@ -173,8 +189,22 @@ export const AlarmsPage = () => {
       if (data.success) {
         if (!currentEnabled) {
           toast.success("⏰ Alarm turned ON");
+          const target = alarms.find((a) => a._id === alarmId);
+          if (target && new Date(target.scheduledAt).getTime() > Date.now()) {
+            centralAlarmEngine.scheduleAlarm({
+              id: target._id,
+              time: new Date(target.scheduledAt).getTime(),
+              title: target.title,
+              alarmType: "clock",
+              message: target.message,
+              sound: target.sound || "global",
+              volume: target.volume || 85,
+              taskId: target.task?._id || target.task,
+            });
+          }
         } else {
           toast.info("Alarm turned OFF");
+          centralAlarmEngine.cancelAlarm(alarmId);
         }
         fetchAlarms();
         refreshTasks?.();
@@ -196,6 +226,7 @@ export const AlarmsPage = () => {
     if (!window.confirm("Are you sure you want to delete this alarm?")) return;
 
     try {
+      centralAlarmEngine.cancelAlarm(alarmId);
       const token = localStorage.getItem("token");
       await axios.delete(`${API_BASE}/${alarmId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -305,6 +336,19 @@ export const AlarmsPage = () => {
       });
 
       if (data.success) {
+        const createdReminder = data.reminder || data.data;
+        if (createdReminder) {
+          centralAlarmEngine.scheduleAlarm({
+            id: createdReminder._id,
+            time: targetDate.getTime(),
+            title: createdReminder.title || alarmTitle.trim() || "Alarm",
+            alarmType: "clock",
+            message: createdReminder.message,
+            sound: "global",
+            volume: Number(alarmVolume),
+            taskId: linkedTaskId || undefined,
+          });
+        }
         toast.success(
           `Alarm set for ${targetDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}! ⏰`
         );
@@ -321,61 +365,31 @@ export const AlarmsPage = () => {
     }
   };
 
-  // REAL-TIME ALARM TICKER (Checks every second if an alarm is due)
+  // REAL-TIME ALARM LISTENER (Driven by Central Alarm Engine)
   useEffect(() => {
-    const checkAlarmsDue = () => {
-      const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const currentTimestamp = now.getTime();
-
-      alarms.forEach((alarm) => {
-        if (!alarm.alarmEnabled) return;
-
-        const alarmDate = new Date(alarm.scheduledAt);
-        const alarmHours = alarmDate.getHours();
-        const alarmMinutes = alarmDate.getMinutes();
-
-        const minuteKey = `${alarm._id}-${now.toDateString()}-${currentHours}:${currentMinutes}`;
-
-        // Check if hours and minutes match and hasn't fired in this minute
-        const isTimeMatch = currentHours === alarmHours && currentMinutes === alarmMinutes;
-        const isWithinWindow = Math.abs(currentTimestamp - alarmDate.getTime()) < 60000;
-
-        if ((isTimeMatch || isWithinWindow) && !firedTrackerRef.current.has(minuteKey)) {
-          firedTrackerRef.current.add(minuteKey);
-
-          // Trigger ringing alarm modal with taskId passed for completion
-          setActiveRingingAlarm({
-            alarmId: alarm._id,
-            taskId: alarm.task?._id || alarm.task,
-            title: `⏰ ${alarm.title || "Alarm"}`,
-            body: alarm.message || `Alarm set for ${alarmDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} is ringing!`,
-            sound: alarm.sound || "digital",
-            volume: alarm.volume || 85,
-            priority: alarm.priority || "High",
-            scheduledAt: alarm.scheduledAt,
-          });
-
-          // Device vibration if supported
-          if (typeof navigator !== "undefined" && navigator.vibrate) {
-            try {
-              navigator.vibrate([400, 200, 400, 200, 600]);
-            } catch (_) {}
-          }
-
-          // Safe cross-platform browser notification
-          showBrowserNotification(`⏰ ${alarm.title || "Tasklert Alarm"}`, {
-            body: `Alarm is ringing now!`,
-            requireInteraction: true,
-          });
-        }
+    const handleAlarmTrigger = (e) => {
+      const alarmData = e.detail;
+      if (!alarmData) return;
+      setActiveRingingAlarm({
+        alarmId: alarmData.id,
+        taskId: alarmData.taskId,
+        title: `⏰ ${alarmData.title || "Alarm"}`,
+        body: alarmData.message || `Alarm is ringing!`,
+        sound: alarmData.sound || "global",
+        volume: alarmData.volume || 85,
+        priority: alarmData.priority || "High",
+        scheduledAt: new Date(alarmData.time || Date.now()).toISOString(),
       });
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([400, 200, 400, 200, 600]);
+        } catch (_) {}
+      }
     };
 
-    const interval = setInterval(checkAlarmsDue, 1000);
-    return () => clearInterval(interval);
-  }, [alarms]);
+    window.addEventListener("tasklert:triggerAlarm", handleAlarmTrigger);
+    return () => window.removeEventListener("tasklert:triggerAlarm", handleAlarmTrigger);
+  }, []);
 
   // Next upcoming active alarm calculation
   const nextAlarm = useMemo(() => {
@@ -880,11 +894,45 @@ export const AlarmsPage = () => {
                   </div>
                 </div>
 
-                {/* Sound Tone Selection */}
+                {/* One Global Tasklert Ringtone Selection */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Alarm Sound Tone
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Volume2 className="w-4 h-4 text-purple-600" />
+                      <span>Unified Tasklert Ringtone</span>
+                    </label>
+                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                      One Ringtone for All
+                    </span>
+                  </div>
+
+                  {/* Active Ringtone Display */}
+                  <div className="p-3 rounded-2xl border border-purple-200 bg-purple-50/50 mb-2 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold text-purple-950 truncate">
+                        🎵 {centralAlarmEngine.getGlobalRingtoneName()}
+                      </p>
+                      <p className="text-[10px] text-purple-600">
+                        Plays identically for Clocks, Focus Timer &amp; Smart Reminders
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewSound(alarmSound)}
+                      className={`p-2 rounded-xl border border-purple-200 text-purple-700 hover:bg-purple-100 transition cursor-pointer shrink-0 ${
+                        previewingSound ? "bg-purple-200 animate-pulse" : "bg-white"
+                      }`}
+                      title={previewingSound ? "Stop preview" : "Play preview"}
+                    >
+                      {previewingSound ? (
+                        <Square className="w-3.5 h-3.5 fill-purple-700" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-purple-700" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Built-in Preset Alternatives */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {SOUND_OPTIONS.map((snd) => {
                       const isSelected = alarmSound === snd.id;
@@ -893,7 +941,10 @@ export const AlarmsPage = () => {
                       return (
                         <div
                           key={snd.id}
-                          onClick={() => setAlarmSound(snd.id)}
+                          onClick={() => {
+                            setAlarmSound(snd.id);
+                            centralAlarmEngine.setGlobalRingtonePreset(snd.id);
+                          }}
                           className={`px-3 py-2 rounded-xl border flex items-center justify-between cursor-pointer transition text-xs ${
                             isSelected
                               ? "border-purple-600 bg-purple-50/70 text-purple-900 shadow-2xs font-bold"

@@ -480,6 +480,13 @@ export async function handleOAuthCallback(req, res) {
         provider,
         providerId: profile.providerId,
         avatar: profile.avatar || "",
+        legalAcceptance: {
+          termsAccepted: true,
+          privacyAccepted: true,
+          termsVersion: "1.0",
+          privacyVersion: "1.0",
+          acceptedAt: new Date(),
+        },
       });
     } else {
       // Update avatar if provider provided a new one

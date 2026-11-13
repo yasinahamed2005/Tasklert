@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { TasklertIcon } from "./TasklertLogo";
@@ -10,6 +10,7 @@ import { API_BASE_URL } from "../config/api";
 const API_URL = API_BASE_URL;
 const INITIAL_FORM = { name: "", email: "", password: "", confirmPassword: "" };
 const RESEND_COOLDOWN_SECONDS = 60;
+const DRAFT_KEY = "tasklert_signup_draft";
 
 // Calculate password strength
 const getPasswordStrength = (pass) => {
@@ -48,6 +49,35 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
   const otpInputRef = useRef(null);
 
   const pwdStrength = getPasswordStrength(formData.password);
+
+  // Restore draft details if user navigated to Terms or Privacy Policy and returned
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          setFormData((prev) => ({
+            ...prev,
+            name: parsed.name || prev.name,
+            email: parsed.email || prev.email,
+          }));
+          if (parsed.agreeTerms) setAgreeTerms(true);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const handleTermsChange = (e) => {
+    const checked = e.target.checked;
+    setAgreeTerms(checked);
+    try {
+      sessionStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ name: formData.name, email: formData.email, agreeTerms: checked })
+      );
+    } catch (_) {}
+  };
 
   // Handle OAuth callback parameters (e.g. ?oauth_success=true&token=... or ?error=...)
   useEffect(() => {
@@ -104,7 +134,11 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
     e.preventDefault();
 
     if (!agreeTerms) {
-      toast.error("Please agree to the Terms of Service & Privacy Policy to continue.");
+      toast.error("Please accept Tasklert's Terms of Service and Privacy Policy to continue.");
+      setMessage({
+        text: "Please accept Tasklert's Terms of Service and Privacy Policy to continue.",
+        type: "error",
+      });
       return;
     }
 
@@ -123,7 +157,14 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
 
     try {
       const { name, email, password } = formData;
-      const { data } = await axios.post(`${API_URL}/api/user/register/request-otp`, { name, email, password });
+      const { data } = await axios.post(`${API_URL}/api/user/register/request-otp`, {
+        name,
+        email,
+        password,
+        termsAccepted: true,
+        termsVersion: "1.0",
+        privacyVersion: "1.0",
+      });
       setStep("otp");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setMessage({
@@ -168,6 +209,9 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
       onSubmit?.({ token: data.token, ...data.user });
 
       toast.success("Registration successful! Welcome to Tasklert.");
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch (_) {}
       setFormData(INITIAL_FORM);
       setOtp("");
       setStep("form");
@@ -357,14 +401,28 @@ const SignUp = ({ onSwitchMode, onSubmit, showSwitchLink = true }) => {
                 type="checkbox"
                 id="agreeTerms"
                 checked={agreeTerms}
-                onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-[#34445F] bg-[#19243A] accent-[#8B2CF5] text-[#8B2CF5] focus:ring-[#8B2CF5]/40 cursor-pointer"
+                onChange={handleTermsChange}
+                className="mt-0.5 h-4 w-4 rounded border-[#34445F] bg-[#19243A] accent-[#8B2CF5] text-[#8B2CF5] focus:ring-[#8B2CF5]/40 cursor-pointer shrink-0"
                 required
               />
-              <label htmlFor="agreeTerms" className="ml-2 text-xs leading-4.5 text-[#AAB8CF] cursor-pointer select-none">
+              <label htmlFor="agreeTerms" className="ml-2 text-xs leading-relaxed text-[#AAB8CF] cursor-pointer select-none">
                 I agree to Tasklert&apos;s{" "}
-                <span className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline">Terms of Service</span> and{" "}
-                <span className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline">Privacy Policy</span>.
+                <Link
+                  to="/terms"
+                  className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline font-semibold"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  to="/privacy"
+                  className="text-[#8B2CF5] hover:text-[#D946EF] hover:underline font-semibold"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </Link>
+                .
               </label>
             </div>
 

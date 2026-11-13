@@ -111,9 +111,33 @@ const reminderSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ["calendar", "calendar_reminder", "task", "system"],
+      enum: ["calendar", "calendar_reminder", "task", "clock", "focus", "system"],
       default: "calendar_reminder",
       index: true,
+    },
+    alarmType: {
+      type: String,
+      enum: ["reminder", "clock", "focus", "short_break", "long_break"],
+      default: "reminder",
+      index: true,
+    },
+    globalRingtoneId: {
+      type: String,
+      default: "chime",
+    },
+    globalRingtoneName: {
+      type: String,
+      default: "Gentle Chime",
+    },
+    deviceOwner: {
+      type: String,
+      enum: ["mobile_primary", "laptop_fallback", "unassigned"],
+      default: "unassigned",
+      index: true,
+    },
+    mobileConfirmedAt: {
+      type: Date,
+      default: null,
     },
     status: {
       type: String,

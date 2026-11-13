@@ -66,7 +66,15 @@ public class AlarmDismissReceiver extends BroadcastReceiver {
             AlarmLogger.logError("ALARM_NOTIFICATION_CANCELLED", sessionId, "Failed to cancel notification", e);
         }
 
-        // 3. Mark alarm as inactive & record dismissal timestamp
+        // 3. Mark alarm as inactive in registry & record dismissal timestamp
+        try {
+            org.json.JSONObject registry = TasklertAlarmPlugin.getAlarmRegistry(context);
+            if (sessionId != null && registry.has(sessionId)) {
+                registry.remove(sessionId);
+                TasklertAlarmPlugin.saveAlarmRegistry(context, registry);
+            }
+        } catch (Exception ignored) {}
+
         prefs.edit()
             .putBoolean("alarm_active", false)
             .putString("last_dismissed_session_id", sessionId)
@@ -97,23 +105,43 @@ public class AlarmDismissReceiver extends BroadcastReceiver {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
         if (alarmManager != null) {
-            Intent intent = new Intent(context, FocusAlarmReceiver.class);
-            intent.setAction("com.tasklert.app.ALARM_TRIGGER");
-            intent.putExtra("id", sessionId);
-            intent.putExtra("title", "⏰ Snoozed Focus Alarm");
-            intent.putExtra("mode", "focus");
+            String mode = intent != null ? intent.getStringExtra("mode") : "reminder";
+            String title = intent != null ? intent.getStringExtra("title") : "Tasklert Alarm";
+            String resolvedAudioPath = TasklertAlarmPlugin.resolveRingtonePath(context, null, mode);
 
+            Intent ringIntent = new Intent(context, FocusAlarmReceiver.class);
+            ringIntent.setAction("com.tasklert.app.ALARM_TRIGGER");
+            ringIntent.putExtra("id", sessionId);
+            ringIntent.putExtra("title", "⏰ Snoozed (" + minutes + "m): " + (title != null ? title : "Alarm"));
+            ringIntent.putExtra("mode", mode != null ? mode : "reminder");
+            ringIntent.putExtra("customAudioPath", resolvedAudioPath);
+
+            int requestCode = Math.abs(sessionId.hashCode());
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pi = PendingIntent.getBroadcast(context, 777, intent, flags);
+            PendingIntent pi = PendingIntent.getBroadcast(context, requestCode, ringIntent, flags);
 
             Intent showIntent = new Intent(context, MainActivity.class);
-            PendingIntent showPi = PendingIntent.getActivity(context, 0, showIntent, flags);
+            PendingIntent showPi = PendingIntent.getActivity(context, requestCode, showIntent, flags);
 
             AlarmManager.AlarmClockInfo clockInfo = new AlarmManager.AlarmClockInfo(targetMs, showPi);
             alarmManager.setAlarmClock(clockInfo, pi);
+
+            // Update multi-alarm registry
+            try {
+                org.json.JSONObject registry = TasklertAlarmPlugin.getAlarmRegistry(context);
+                org.json.JSONObject alarmRecord = registry.optJSONObject(sessionId);
+                if (alarmRecord == null) {
+                    alarmRecord = new org.json.JSONObject();
+                    alarmRecord.put("id", sessionId);
+                }
+                alarmRecord.put("targetEndAtMs", targetMs);
+                alarmRecord.put("title", "Snoozed (" + minutes + "m)");
+                registry.put(sessionId, alarmRecord);
+                TasklertAlarmPlugin.saveAlarmRegistry(context, registry);
+            } catch (Exception ignored) {}
 
             // Update SharedPreferences with new target time
             SharedPreferences prefs = context.getSharedPreferences(TasklertAlarmPlugin.PREFS_NAME, Context.MODE_PRIVATE);

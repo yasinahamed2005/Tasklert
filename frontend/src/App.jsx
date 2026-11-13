@@ -47,6 +47,8 @@ const CalendarPage = lazyWithRetry(() => import("./pages/CalendarPage"));
 const AnalyticsPage = lazyWithRetry(() => import("./pages/AnalyticsPage"));
 const FocusTimerPage = lazyWithRetry(() => import("./pages/FocusTimerPage"));
 const AlarmsPage = lazyWithRetry(() => import("./pages/AlarmsPage"));
+const TermsOfService = lazyWithRetry(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazyWithRetry(() => import("./pages/PrivacyPolicy"));
 
 const App = () => {
   const navigate = useNavigate();
@@ -155,6 +157,24 @@ const App = () => {
       <Route
         path="/signup"
         element={<AuthPage initialMode="signup" onAuthSubmit={handleAuthSubmit} />}
+      />
+
+      {/* Public Legal Document Pages */}
+      <Route
+        path="/terms"
+        element={
+          <Suspense fallback={<PageTransitionLoader message="Loading Terms of Service..." />}>
+            <TermsOfService />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/privacy"
+        element={
+          <Suspense fallback={<PageTransitionLoader message="Loading Privacy Policy..." />}>
+            <PrivacyPolicy />
+          </Suspense>
+        }
       />
 
       {/* Protected Routes — Layout stays stably mounted, instant navigation */}
