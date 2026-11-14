@@ -117,7 +117,13 @@ export async function sendPushToUser(userId, payload, metadata = {}) {
     });
 
     if (!subscriptions || subscriptions.length === 0) {
-      return { success: true, acceptedCount: 0, totalDevices: 0, message: "No active devices subscribed" };
+      return {
+        success: false,
+        reason: "NO_ACTIVE_SUBSCRIPTIONS",
+        acceptedCount: 0,
+        totalDevices: 0,
+        message: "No active device push subscriptions found for user",
+      };
     }
 
     const payloadString = JSON.stringify(payload);

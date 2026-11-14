@@ -11,6 +11,7 @@ import SignUp from "./components/SignUp";
 import { AppStartupFallback } from "./components/PageSkeletons";
 import PageTransitionLoader from "./components/PageTransitionLoader";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { clearAuthTokenForSW } from "./utils/pushManager";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -47,6 +48,7 @@ const CalendarPage = lazyWithRetry(() => import("./pages/CalendarPage"));
 const AnalyticsPage = lazyWithRetry(() => import("./pages/AnalyticsPage"));
 const FocusTimerPage = lazyWithRetry(() => import("./pages/FocusTimerPage"));
 const AlarmsPage = lazyWithRetry(() => import("./pages/AlarmsPage"));
+const ReminderDiagnosticsPage = lazyWithRetry(() => import("./pages/ReminderDiagnosticsPage"));
 const TermsOfService = lazyWithRetry(() => import("./pages/TermsOfService"));
 const PrivacyPolicy = lazyWithRetry(() => import("./pages/PrivacyPolicy"));
 
@@ -105,6 +107,7 @@ const App = () => {
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
+    clearAuthTokenForSW().catch(() => {});
     setCurrentUser(null);
     navigate("/login", { replace: true });
   }, [navigate]);
@@ -226,6 +229,8 @@ const App = () => {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/focus" element={<FocusTimerPage />} />
+        <Route path="/diagnostics" element={<ReminderDiagnosticsPage />} />
+        <Route path="/reminders/diagnostics" element={<Navigate to="/diagnostics" replace />} />
       </Route>
 
       {/* Catch-all */}

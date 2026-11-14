@@ -18,6 +18,7 @@ import {
   unsubscribeDevice,
   updateDevice,
 } from "../controllers/pushController.js";
+import { confirmDeliveryAck } from "../controllers/reminderController.js";
 
 const notificationRouter = express.Router();
 
@@ -25,6 +26,7 @@ const notificationRouter = express.Router();
 notificationRouter.get("/vapid-public-key", getVapidPublicKey);
 
 // Web Push Subscription & Device Management
+notificationRouter.post("/delivery-ack", confirmDeliveryAck);
 notificationRouter.post("/subscribe", authMiddleware, subscribeDevice);
 notificationRouter.post("/unsubscribe", authMiddleware, unsubscribeDevice);
 notificationRouter.get("/devices", authMiddleware, getDevices);

@@ -2,6 +2,8 @@ import Reminder from "../models/reminderModel.js";
 import Task from "../models/taskModel.js";
 import Notification from "../models/notificationModel.js";
 import UserPreferences from "../models/userPreferencesModel.js";
+import PushSubscription from "../models/pushSubscriptionModel.js";
+import UserDevice from "../models/userDeviceModel.js";
 import { normalizeRecurrence, getNextDueDate } from "./taskController.js";
 import {
   isValidTimeZone,
@@ -139,6 +141,22 @@ export const createReminder = async (req, res) => {
       );
     }
 
+    // Rule 6: Determine real verified delivery armed status.
+    // Never show SCHEDULED merely because the reminder exists in MongoDB!
+    const activePushCount = await PushSubscription.countDocuments({
+      owner: userId,
+      subscriptionStatus: "active",
+    });
+
+    let initialDeliveryStatus = "NOT VERIFIED";
+    if (isMobilePrimary) {
+      initialDeliveryStatus = "NATIVE ALARM SCHEDULED";
+    } else if (activePushCount > 0) {
+      initialDeliveryStatus = "SCHEDULED";
+    } else {
+      initialDeliveryStatus = "PERMISSION REQUIRED";
+    }
+
     const reminder = new Reminder({
       owner: userId,
       task: linkedTask._id,
@@ -172,6 +190,7 @@ export const createReminder = async (req, res) => {
       deviceOwner: isMobilePrimary ? "mobile_primary" : (deviceOwner || "unassigned"),
       mobileConfirmedAt: isMobilePrimary ? new Date() : null,
       status: "scheduled",
+      deliveryStatus: initialDeliveryStatus,
       priority: priority || linkedTask.priority || "Medium",
       deliveryAttempts: 0,
       nextRetryAt: null,
@@ -662,6 +681,211 @@ export const updateUserPreferences = async (req, res) => {
     );
 
     res.json({ success: true, preferences: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET REMINDER SCHEDULING DIAGNOSTICS (Rule 6)
+export const getReminderDiagnostics = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const now = new Date();
+
+    // 1. Fetch user devices and push subscriptions
+    const [pushSubscriptions, userDevices, reminders] = await Promise.all([
+      PushSubscription.find({ owner: userId, subscriptionStatus: "active" }),
+      UserDevice.find({ owner: userId }).sort({ lastSeenAt: -1 }),
+      Reminder.find({ owner: userId })
+        .sort({ scheduledAt: -1 })
+        .limit(100)
+        .populate("task", "title completed dueDate priority"),
+    ]);
+
+    const activePushCount = pushSubscriptions.length;
+    const hasNativeDevice = userDevices.some(
+      (d) => d.nativeAlarmCapability && d.exactAlarmPermission
+    );
+
+    const items = reminders.map((r) => {
+      const scheduledUtc = new Date(r.scheduledAt);
+      const isFuture = scheduledUtc.getTime() > now.getTime();
+      const tz = r.timeZone || "UTC";
+
+      // Format scheduled local time string
+      let scheduledLocal = "";
+      try {
+        scheduledLocal = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          dateStyle: "medium",
+          timeStyle: "medium",
+        }).format(scheduledUtc);
+      } catch (_) {
+        scheduledLocal = scheduledUtc.toLocaleString();
+      }
+
+      // Backend job status: PENDING, CLAIMED, DISPATCHED, RETRYING, SNOOZED, COMPLETED, FAILED, CANCELLED
+      let backendJobStatus = "PENDING";
+      if (r.status === "completed" || (r.task && isCompleted(r.task.completed))) {
+        backendJobStatus = "COMPLETED";
+      } else if (r.status === "dismissed") {
+        backendJobStatus = "DISMISSED";
+      } else if (r.status === "cancelled") {
+        backendJobStatus = "CANCELLED";
+      } else if (r.status === "snoozed") {
+        backendJobStatus = "SNOOZED";
+      } else if (r.status === "failed") {
+        backendJobStatus = "FAILED";
+      } else if (r.status === "failed_retryable") {
+        backendJobStatus = "RETRYING";
+      } else if (r.isClaimed) {
+        backendJobStatus = "CLAIMED";
+      } else if (r.status === "dispatched") {
+        backendJobStatus = "DISPATCHED";
+      } else if (isFuture) {
+        backendJobStatus = "PENDING";
+      } else {
+        backendJobStatus = "OVERDUE";
+      }
+
+      // Push subscription status
+      const pushSubStatus = activePushCount > 0
+        ? `ACTIVE (${activePushCount} device${activePushCount > 1 ? "s" : ""})`
+        : "NO_SUBSCRIPTION";
+
+      // Native alarm scheduled status
+      let nativeAlarmStatus = "NOT_APPLICABLE_PWA";
+      if (r.mobileConfirmedAt) {
+        nativeAlarmStatus = "CONFIRMED_EXACT_ALARM";
+      } else if (hasNativeDevice) {
+        nativeAlarmStatus = "REGISTERED_NOT_CONFIRMED";
+      }
+
+      // Last delivery attempt timestamp
+      const lastDeliveryAttempt =
+        r.channelOutcomes?.push?.attemptedAt ||
+        r.lastDispatchedAt ||
+        null;
+
+      // Last trigger timestamp
+      const lastTriggerTimestamp = r.lastDispatchedAt || null;
+
+      // Last notification result
+      let lastNotificationResult = "PENDING";
+      if (r.channelOutcomes?.push?.status) {
+        lastNotificationResult = r.channelOutcomes.push.status.toUpperCase();
+      } else if (r.lastDispatchedAt) {
+        lastNotificationResult = "ACCEPTED";
+      } else if (r.lastError) {
+        lastNotificationResult = "ERROR";
+      }
+
+      // Computed status strictly matching Rule 6:
+      // SCHEDULED, PUSH SENT, DELIVERY CONFIRMED, NATIVE ALARM SCHEDULED, FAILED, PERMISSION REQUIRED, NOT VERIFIED
+      let computedStatus = "NOT VERIFIED";
+      if (r.deliveryConfirmedAt || r.status === "dismissed") {
+        computedStatus = "DELIVERY CONFIRMED";
+      } else if (r.mobileConfirmedAt && hasNativeDevice) {
+        computedStatus = "NATIVE ALARM SCHEDULED";
+      } else if (r.status === "dispatched" && (r.channelOutcomes?.push?.status === "accepted" || !r.lastError)) {
+        computedStatus = "PUSH SENT";
+      } else if (r.status === "failed") {
+        computedStatus = "FAILED";
+      } else if (r.status === "scheduled" || r.status === "snoozed") {
+        if (isFuture) {
+          if (activePushCount > 0) {
+            computedStatus = "SCHEDULED";
+          } else {
+            computedStatus = "PERMISSION REQUIRED";
+          }
+        } else {
+          // Overdue without dispatch confirmation
+          computedStatus = activePushCount > 0 ? "FAILED" : "PERMISSION REQUIRED";
+        }
+      } else {
+        computedStatus = "NOT VERIFIED";
+      }
+
+      return {
+        id: String(r._id),
+        reminderId: String(r._id),
+        title: r.title,
+        taskTitle: r.task?.title || null,
+        taskId: r.task?._id ? String(r.task._id) : null,
+        scheduledLocal,
+        scheduledUTC: scheduledUtc.toISOString(),
+        userTimeZone: tz,
+        backendJobStatus,
+        pushSubscriptionStatus: pushSubStatus,
+        lastDeliveryAttempt: lastDeliveryAttempt ? new Date(lastDeliveryAttempt).toISOString() : null,
+        nativeAlarmScheduledStatus: nativeAlarmStatus,
+        lastTriggerTimestamp: lastTriggerTimestamp ? new Date(lastTriggerTimestamp).toISOString() : null,
+        lastNotificationResult,
+        lastFailureReason: r.lastError || null,
+        status: computedStatus,
+        priority: r.priority || "Medium",
+        sound: r.globalRingtoneName || r.sound || "Gentle Chime",
+        deliveryAttempts: r.deliveryAttempts || 0,
+      };
+    });
+
+    res.json({
+      success: true,
+      summary: {
+        totalReminders: reminders.length,
+        activePushSubscriptions: activePushCount,
+        hasNativeDevice,
+        isVapidConfigured: isVapidConfigured(),
+        serverTimeUTC: now.toISOString(),
+        devices: userDevices.map((d) => ({
+          deviceName: d.deviceName,
+          deviceType: d.deviceType,
+          platform: d.platform,
+          lastSeenAt: d.lastSeenAt,
+          exactAlarmPermission: d.exactAlarmPermission,
+          notificationPermission: d.notificationPermission,
+        })),
+        pushDevices: pushSubscriptions.map((p) => ({
+          deviceName: p.deviceName,
+          browser: p.browser,
+          deviceType: p.deviceType,
+          isPWA: p.isPWA,
+          lastActive: p.lastActive,
+        })),
+      },
+      items,
+    });
+  } catch (err) {
+    console.error("getReminderDiagnostics error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// CONFIRM DELIVERY ACKNOWLEDGMENT (from Service Worker on device arrival)
+export const confirmDeliveryAck = async (req, res) => {
+  try {
+    const { alarmId } = req.body;
+    if (!alarmId) {
+      return res.status(400).json({ success: false, message: "alarmId required" });
+    }
+
+    const updated = await Reminder.findByIdAndUpdate(
+      alarmId,
+      {
+        deliveryConfirmedAt: new Date(),
+        deliveryStatus: "DELIVERY CONFIRMED",
+        $push: {
+          history: {
+            action: "delivery_confirmed",
+            timestamp: new Date(),
+            details: "Push notification receipt confirmed by client Service Worker",
+          },
+        },
+      },
+      { new: true }
+    );
+
+    res.json({ success: true, confirmed: Boolean(updated) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

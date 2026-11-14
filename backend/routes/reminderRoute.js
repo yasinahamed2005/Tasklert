@@ -13,6 +13,8 @@ import {
   toggleReminder,
   updateReminder,
   updateUserPreferences,
+  getReminderDiagnostics,
+  confirmDeliveryAck,
 } from "../controllers/reminderController.js";
 
 const reminderRouter = express.Router();
@@ -23,6 +25,8 @@ reminderRouter.route("/")
   .post(authMiddleware, createReminder);
 
 // Special routes (must be defined before /:id)
+reminderRouter.get("/diagnostics", authMiddleware, getReminderDiagnostics);
+reminderRouter.post("/delivery-ack", confirmDeliveryAck);
 reminderRouter.get("/upcoming", authMiddleware, getUpcomingAlarms);
 reminderRouter.get("/history", authMiddleware, getReminderHistory);
 reminderRouter.route("/preferences")

@@ -484,7 +484,12 @@ export const FocusTimerPage = () => {
         };
 
         return () => {
-          channel.close();
+          try {
+            channel.close();
+          } catch (_) {}
+          if (broadcastChannelRef.current === channel) {
+            broadcastChannelRef.current = null;
+          }
         };
       } catch (_) {}
     }
@@ -571,7 +576,9 @@ export const FocusTimerPage = () => {
     const currentCycle = cycleCountRef.current;
 
     releaseScreenWakeLock();
-    deviceAlarmManager.cancelFocusAlarm(currentSession?._id || "active-focus-session");
+    const sid = currentSession?._id || currentSession?.id || "active-focus-session";
+    deviceAlarmManager.cancelFocusAlarm(sid);
+    deviceAlarmManager.cancelFocusAlarm("active-focus-session");
 
     localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
     setIsRunning(false);

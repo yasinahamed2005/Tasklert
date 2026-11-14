@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createPortal } from "react-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext, Link } from "react-router-dom";
 import {
   AlarmClock,
   Plus,
@@ -23,6 +23,7 @@ import {
   CheckCheck,
   Settings,
   ListTodo,
+  Activity,
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
 import { centralAlarmEngine } from "../utils/centralAlarmEngine";
@@ -567,14 +568,24 @@ export const AlarmsPage = () => {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchAlarms}
-          className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition cursor-pointer"
-          title="Refresh alarms"
-        >
-          <RotateCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/diagnostics"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition"
+            title="Inspect background delivery diagnostics"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Diagnostics</span>
+          </Link>
+          <button
+            type="button"
+            onClick={fetchAlarms}
+            className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition cursor-pointer"
+            title="Refresh alarms"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* SAMSUNG CLOCK ALARMS LIST */}

@@ -15,7 +15,7 @@ const TaskDetailModal = React.lazy(() =>
 const TaskModal = React.lazy(() => import("./TaskModal"));
 import NotificationPermissionBanner from "./NotificationPermissionBanner";
 import ErrorBoundary from "./ErrorBoundary";
-import { showBrowserNotification } from "../utils/pushManager";
+import { showBrowserNotification, syncPushSubscription } from "../utils/pushManager";
 import { API_BASE_URL } from "../config/api";
 
 const API_BASE = API_BASE_URL;
@@ -379,6 +379,21 @@ const Layout = ({ onLogout, user }) => {
     };
   }, [tasks, isTaskCompleted]);
 
+  // Rule 3: Automatically ensure Web Push subscription is registered & synchronized with backend
+  useEffect(() => {
+    syncPushSubscription().catch(() => {});
+
+    if (typeof navigator !== "undefined" && navigator.permissions?.query) {
+      navigator.permissions.query({ name: "notifications" }).then((status) => {
+        status.onchange = () => {
+          if (status.state === "granted") {
+            syncPushSubscription({ force: true }).catch(() => {});
+          }
+        };
+      }).catch(() => {});
+    }
+  }, []);
+
   // 1. Listen for background push notifications and action clicks forwarded via Service Worker
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -432,7 +447,9 @@ const Layout = ({ onLogout, user }) => {
           e.detail.alarmType === "focus" ||
           e.detail.alarmType === "short_break" ||
           e.detail.alarmType === "long_break" ||
-          String(e.detail.alarmId || "").startsWith("focus-");
+          String(e.detail.alarmId || "").startsWith("focus-") ||
+          String(e.detail.title || "").toLowerCase().includes("focus") ||
+          String(e.detail.title || "").toLowerCase().includes("break");
 
         if (window.location.pathname.startsWith("/focus") && isFocusAlarm) {
           return;

@@ -250,6 +250,17 @@ class DeviceAlarmManager {
       clearTimeout(this.activeTimers.get(timerKey));
       this.activeTimers.delete(timerKey);
     }
+    if (this.activeTimers.has(focusId)) {
+      clearTimeout(this.activeTimers.get(focusId));
+      this.activeTimers.delete(focusId);
+    }
+
+    // Cancel in centralAlarmEngine as well so no duplicate alarms or timers fire
+    try {
+      centralAlarmEngine.cancelAlarm(focusId);
+      centralAlarmEngine.cancelAlarm(timerKey);
+      centralAlarmEngine.cancelAlarm("active-focus-session");
+    } catch (_) {}
 
     soundManager.stopKeepAlive();
 
@@ -258,6 +269,7 @@ class DeviceAlarmManager {
         const TasklertAlarmEngine = window.Capacitor?.Plugins?.TasklertAlarmEngine;
         if (TasklertAlarmEngine) {
           await TasklertAlarmEngine.cancelAlarm({ id: focusId });
+          await TasklertAlarmEngine.cancelAlarm({ id: "active-focus-session" });
         }
       } catch {}
     }

@@ -139,6 +139,24 @@ const reminderSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    deliveryConfirmedAt: {
+      type: Date,
+      default: null,
+    },
+    deliveryStatus: {
+      type: String,
+      enum: [
+        "SCHEDULED",
+        "PUSH SENT",
+        "DELIVERY CONFIRMED",
+        "NATIVE ALARM SCHEDULED",
+        "FAILED",
+        "PERMISSION REQUIRED",
+        "NOT VERIFIED",
+      ],
+      default: "NOT VERIFIED",
+      index: true,
+    },
     status: {
       type: String,
       enum: [

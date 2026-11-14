@@ -22,6 +22,36 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// Helper: Read stored auth token from IndexedDB so background push actions can authenticate without an open window
+function getStoredAuthToken() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("tasklert_pwa_auth", 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("tokens")) {
+          db.createObjectStore("tokens");
+        }
+      };
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        try {
+          const tx = db.transaction("tokens", "readonly");
+          const store = tx.objectStore("tokens");
+          const getReq = store.get("authToken");
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        } catch (_) {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
 // 1. PUSH EVENT: Receive server Web Push notification
 self.addEventListener("push", (event) => {
   let data = {};
@@ -38,8 +68,8 @@ self.addEventListener("push", (event) => {
     body: data.body || "You have a scheduled reminder.",
     icon: data.icon || "/tasklert-icon.svg",
     badge: data.badge || "/favicon.png",
-    tag: data.tag || `tasklert-alarm-${Date.now()}`,
-    vibrate: [300, 150, 300, 150, 400],
+    tag: data.tag || `tasklert-alarm-${data.alarmId || Date.now()}`,
+    vibrate: [400, 200, 400, 200, 800],
     requireInteraction: true, // Keep notification active until user dismisses or acts
     data: {
       url: data.url || "/",
@@ -53,11 +83,20 @@ self.addEventListener("push", (event) => {
       timestamp: Date.now(),
     },
     actions: data.actions || [
-      { action: "open", title: "👉 Open" },
+      { action: "open", title: "👉 Open Task" },
       { action: "snooze", title: "💤 Snooze 5m" },
-      { action: "dismiss", title: "✕ Dismiss" },
+      { action: "dismiss", title: "✓ Dismiss" },
     ],
   };
+
+  // Immediate delivery acknowledgment to backend for Rule 6 diagnostics
+  if (data.alarmId) {
+    fetch("/api/notifications/delivery-ack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alarmId: data.alarmId }),
+    }).catch(() => {});
+  }
 
   // Notify any active open browser window tabs so the active page can play alarm sound and show modal
   const broadcastPromise = self.clients
@@ -97,19 +136,28 @@ self.addEventListener("notificationclick", (event) => {
 
   // ACTION: DISMISS
   // Silences the alarm and dismisses the session directly from the notification shade
-  // WITHOUT opening or focusing Tasklert or navigating the browser!
+  // Sends durable fetch to backend even if browser / PWA window is completely closed!
   if (action === "dismiss") {
     event.waitUntil(
-      self.clients
-        .matchAll({ type: "window", includeUncontrolled: true })
-        .then((clientList) => {
-          for (const client of clientList) {
-            client.postMessage({
-              type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
-              action: "dismiss",
-              mode: notifData.mode,
-              focusId: notifData.focusId,
+      (async () => {
+        const token = await getStoredAuthToken();
+        if (notifData.alarmId) {
+          const headers = { "Content-Type": "application/json" };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+          try {
+            await fetch(`/api/reminders/${notifData.alarmId}/dismiss`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ completeLinkedTask: true }),
             });
+          } catch (err) {
+            console.warn("[SW] Background dismiss error:", err);
+          }
+        }
+
+        try {
+          const clientList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+          for (const client of clientList) {
             client.postMessage({
               type: "TASKLERT_NOTIFICATION_ACTION",
               action: "dismiss",
@@ -117,28 +165,46 @@ self.addEventListener("notificationclick", (event) => {
               taskId: notifData.taskId,
             });
           }
-        })
+        } catch (_) {}
+      })()
     );
     return;
   }
 
   // ACTION: SNOOZE
-  // Snoozes the alarm directly from the notification shade WITHOUT opening any window!
+  // Snoozes the alarm directly from the notification shade without opening a window
+  // Sends durable fetch to backend even if browser / PWA window is completely closed!
   if (action === "snooze") {
     event.waitUntil(
-      self.clients
-        .matchAll({ type: "window", includeUncontrolled: true })
-        .then((clientList) => {
+      (async () => {
+        const token = await getStoredAuthToken();
+        if (notifData.alarmId) {
+          const headers = { "Content-Type": "application/json" };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+          try {
+            await fetch(`/api/reminders/${notifData.alarmId}/snooze`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ durationMinutes: 5 }),
+            });
+          } catch (err) {
+            console.warn("[SW] Background snooze error:", err);
+          }
+        }
+
+        try {
+          const clientList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
           for (const client of clientList) {
             client.postMessage({
-              type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
+              type: "TASKLERT_NOTIFICATION_ACTION",
               action: "snooze",
-              mode: notifData.mode,
-              focusId: notifData.focusId,
+              alarmId: notifData.alarmId,
+              taskId: notifData.taskId,
               snoozeMinutes: 5,
             });
           }
-        })
+        } catch (_) {}
+      })()
     );
     return;
   }

@@ -71,7 +71,9 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     alarm.alarmType === "short_break" ||
     alarm.alarmType === "long_break" ||
     String(alarm.alarmId || "").startsWith("focus-") ||
-    String(alarm.title || "").toLowerCase().includes("focus");
+    String(alarm.title || "").toLowerCase().includes("focus") ||
+    String(alarm.title || "").toLowerCase().includes("break") ||
+    String(alarm.title || "").toLowerCase().includes("session");
 
   const handleDismiss = async () => {
     soundManager.stop();
@@ -81,9 +83,20 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      // 1. If alarmId exists and is NOT a local focus session, call dismissReminder on backend
-      // (which automatically marks the linked task completed in MongoDB)
-      if (token && alarm.alarmId && !isFocusAlarm) {
+      // 1. If this is a focus alarm, cancel focus timers and do NOT call reminder routes
+      if (isFocusAlarm) {
+        try {
+          if (alarm.alarmId) {
+            axios.post(
+              `${API_BASE}/api/focus/${alarm.alarmId}/stop`,
+              {},
+              { headers }
+            ).catch(() => {});
+          }
+        } catch (_) {}
+      } else if (token && alarm.alarmId) {
+        // 2. Regular reminder alarm: call dismissReminder on backend
+        // (which automatically marks the linked task completed in MongoDB)
         try {
           await axios.post(
             `${API_BASE}/api/reminders/${alarm.alarmId}/dismiss`,
@@ -99,9 +112,9 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
         }
       }
 
-      // 2. If taskId exists and alarmId was missing (e.g. foreground trigger),
+      // 3. If taskId exists and alarmId was missing (e.g. foreground trigger),
       // mark task completed directly
-      if (token && alarm.taskId && !alarm.alarmId) {
+      if (token && alarm.taskId && !alarm.alarmId && !isFocusAlarm) {
         try {
           await axios.put(
             `${API_BASE}/api/tasks/${alarm.taskId}`,
@@ -119,7 +132,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       onClose();
     } catch (err) {
       console.warn("Alarm dismiss fallback:", err);
-      // Clean up audio and close modal cleanly
+      // Clean up audio and close modal cleanly without trapping the user
       onActionCompleted?.({
         dismissed: true,
         taskId: alarm.taskId,

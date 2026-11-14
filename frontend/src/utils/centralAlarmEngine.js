@@ -468,6 +468,11 @@ class CentralAlarmEngine {
       clearTimeout(this.activeTimers.get(alarmId));
       this.activeTimers.delete(alarmId);
     }
+    const focusKey = `focus-${alarmId}`;
+    if (this.activeTimers.has(focusKey)) {
+      clearTimeout(this.activeTimers.get(focusKey));
+      this.activeTimers.delete(focusKey);
+    }
 
     if (this.isNativePlatform() && window.Capacitor?.Plugins?.TasklertAlarmEngine) {
       try {

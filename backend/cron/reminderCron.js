@@ -286,16 +286,24 @@ export const processScheduledAlarms = async (now = new Date()) => {
         }
       }
 
-      // F. EVALUATE DISPATCH OUTCOMES & RETRIES
-      const pushSuccess = pushResult ? pushResult.success : true;
-      const anySuccess = (pushResult && pushResult.acceptedCount > 0) || inAppSuccess || emailSuccess;
+      // F. EVALUATE DISPATCH OUTCOMES & RETRIES (Rule 3 & Rule 6)
+      const pushRequested = claimed.channels?.push !== false;
+      const pushAccepted = Boolean(pushResult && pushResult.acceptedCount > 0);
       const pushFailedRetryable = pushResult && !pushResult.success && pushResult.hasRetryableError;
+      const noSubscriptions = pushResult && pushResult.reason === "NO_ACTIVE_SUBSCRIPTIONS";
 
-      // If all requested channels failed and push is retryable, apply exponential backoff
-      if (!anySuccess && pushFailedRetryable) {
+      // If push was requested and user has NO mobile native confirmation,
+      // an in-app database record alone DOES NOT count as successful background delivery!
+      const isPushDelivered = pushAccepted || isMobileOwnedAndConfirmed;
+
+      if (pushRequested && !isPushDelivered) {
         const currentAttempts = (claimed.deliveryAttempts || 0) + 1;
+        const errReason = noSubscriptions
+          ? "No active Web Push device subscriptions registered for user"
+          : (pushResult?.errors?.[0] || pushResult?.reason || "Web Push delivery failed");
+
         if (currentAttempts <= (claimed.maxRetries || 3)) {
-          // Bounded exponential backoff: 30s, 60s, 120s, up to 300s
+          // Retry with backoff: 30s, 60s, 120s
           const backoffSeconds = Math.min(30 * Math.pow(2, currentAttempts - 1), 300);
           const nextRetryAt = new Date(now.getTime() + backoffSeconds * 1000);
 
@@ -303,11 +311,17 @@ export const processScheduledAlarms = async (now = new Date()) => {
             { _id: claimed._id },
             {
               status: "failed_retryable",
+              deliveryStatus: noSubscriptions ? "PERMISSION REQUIRED" : "FAILED",
               isClaimed: false,
               claimedAt: null,
               deliveryAttempts: currentAttempts,
               nextRetryAt,
-              lastError: pushResult?.errors?.[0] || "All channels failed, scheduled for retry",
+              lastError: errReason,
+              "channelOutcomes.push": {
+                status: noSubscriptions ? "no_subscription" : "error",
+                attemptedAt: now,
+                error: errReason,
+              },
             }
           );
           continue;
@@ -317,11 +331,17 @@ export const processScheduledAlarms = async (now = new Date()) => {
             { _id: claimed._id },
             {
               status: "failed",
+              deliveryStatus: "FAILED",
               isClaimed: false,
               claimedAt: null,
               nextRetryAt: null,
               deliveryAttempts: currentAttempts,
-              lastError: "Maximum retry attempts exceeded",
+              lastError: `Max retries exceeded: ${errReason}`,
+              "channelOutcomes.push": {
+                status: "failed",
+                attemptedAt: now,
+                error: `Max retries exceeded: ${errReason}`,
+              },
             }
           );
           continue;
@@ -329,6 +349,10 @@ export const processScheduledAlarms = async (now = new Date()) => {
       }
 
       // G. DISPATCH SUCCESSFUL: UPDATE OCCURRENCE / RECURRENCE
+      const finalDeliveryStatus = isMobileOwnedAndConfirmed
+        ? "NATIVE ALARM SCHEDULED"
+        : (pushAccepted ? "PUSH SENT" : "SCHEDULED");
+
       // If repeating, calculate next wall-clock occurrence in user's timezone
       if (claimed.repeat && claimed.repeat !== "never") {
         const nextDate = getNextWallClockOccurrence(claimed.scheduledAt, claimed.repeat, userTz);
@@ -338,6 +362,7 @@ export const processScheduledAlarms = async (now = new Date()) => {
             {
               scheduledAt: nextDate,
               status: "scheduled",
+              deliveryStatus: finalDeliveryStatus,
               isClaimed: false,
               claimedAt: null,
               lastDispatchedAt: now,
@@ -345,6 +370,11 @@ export const processScheduledAlarms = async (now = new Date()) => {
               deliveryAttempts: 0,
               nextRetryAt: null,
               lastError: null,
+              "channelOutcomes.push": {
+                status: pushAccepted ? "accepted" : "skipped",
+                attemptedAt: now,
+                error: null,
+              },
               $inc: { occurrenceCount: 1 },
             }
           );
@@ -357,12 +387,18 @@ export const processScheduledAlarms = async (now = new Date()) => {
         { _id: claimed._id },
         {
           status: "dispatched",
+          deliveryStatus: finalDeliveryStatus,
           isClaimed: false,
           claimedAt: null,
           lastDispatchedAt: now,
           deliveryAttempts: 0,
           nextRetryAt: null,
           lastError: null,
+          "channelOutcomes.push": {
+            status: pushAccepted ? "accepted" : "skipped",
+            attemptedAt: now,
+            error: null,
+          },
           $inc: { occurrenceCount: 1 },
         }
       );

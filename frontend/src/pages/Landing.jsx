@@ -525,7 +525,7 @@ export default function Landing() {
         {/* RIGHT COLUMN: ATTRACTIVE DASHBOARD PREVIEW */}
         <section className="relative flex flex-col items-center justify-center pt-2 lg:pt-0 w-full max-w-lg mx-auto">
           {/* Live Reminder Alert Badge (Clean non-overlapping alert card on mobile, floating badge on desktop) */}
-          <div className="w-full sm:w-auto relative sm:absolute sm:-top-5 sm:-right-2 z-20 mb-3 sm:mb-0 flex items-center gap-3 rounded-2xl border border-purple-400/40 bg-slate-900/95 p-3 sm:p-3.5 shadow-xl shadow-purple-950/80 backdrop-blur-xl animate-bounce-slow max-w-full sm:max-w-xs">
+          <div className="w-full lg:w-auto relative lg:absolute lg:-top-5 lg:-right-3 z-20 mb-3 lg:mb-0 flex items-center gap-3 rounded-2xl border border-purple-400/40 bg-slate-900/95 p-3 sm:p-3.5 shadow-xl shadow-purple-950/80 backdrop-blur-xl animate-bounce-slow max-w-full lg:max-w-xs">
             <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-md">
               <BellRing className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-pulse" />
             </div>

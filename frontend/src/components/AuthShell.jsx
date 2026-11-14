@@ -12,7 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { TasklertIcon } from "./TasklertLogo";
 
-const featureCards = [
+const loginFeatureCards = [
   {
     title: "Plan Faster",
     text: "Capture tasks in seconds and organize by priority, deadline, and status.",
@@ -27,6 +27,24 @@ const featureCards = [
     title: "Secure Access",
     text: "Your workspace is protected with token-based authentication.",
     icon: ShieldCheck,
+  },
+];
+
+const signupFeatureCards = [
+  {
+    title: "Organize Everything",
+    text: "Bring your tasks, projects and priorities together in one place.",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Never Miss a Deadline",
+    text: "Stay on track with scheduled reminders, recurring tasks and calendar planning.",
+    icon: Clock3,
+  },
+  {
+    title: "Improve Every Day",
+    text: "Track your progress, build focus habits and understand your productivity.",
+    icon: BarChart3,
   },
 ];
 
@@ -52,7 +70,9 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
 
   return (
     <div
-      className="auth-page relative min-h-screen min-h-[100dvh] w-full bg-[#111A2E] text-[#F8FAFC] flex flex-col justify-between overflow-x-hidden"
+      className={`auth-page relative min-h-screen min-h-[100dvh] w-full bg-[#111A2E] text-[#F8FAFC] flex flex-col justify-between overflow-x-hidden ${
+        mode === "signup" ? "lg:h-screen lg:max-h-screen lg:overflow-hidden" : ""
+      }`}
       style={{ backgroundColor: "#111A2E" }}
     >
       <div className="auth-blob auth-blob-one" />
@@ -61,7 +81,9 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
 
       {/* Header */}
       <header
-        className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-4 pt-5 sm:px-6 lg:px-10 bg-transparent border-0"
+        className={`relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10 bg-transparent border-0 ${
+          mode === "signup" ? "pt-3 sm:pt-4 lg:pt-3.5" : "pt-5"
+        }`}
         style={{ backgroundColor: "transparent", borderColor: "transparent" }}
       >
         <button
@@ -77,20 +99,22 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${mode === "login"
+            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              mode === "login"
                 ? "bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] text-white shadow-sm"
                 : "text-[#AAB8CF] hover:text-[#F8FAFC] hover:bg-[#222F49]"
-              }`}
+            }`}
           >
             Login
           </button>
           <button
             type="button"
             onClick={onSwitchToSignup}
-            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${mode === "signup"
+            className={`rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              mode === "signup"
                 ? "bg-gradient-to-r from-[#8B2CF5] to-[#D946EF] text-white shadow-sm"
                 : "text-[#AAB8CF] hover:text-[#F8FAFC] hover:bg-[#222F49]"
-              }`}
+            }`}
           >
             Sign Up
           </button>
@@ -98,89 +122,158 @@ const AuthShell = ({ mode = "login", onSwitchToLogin, onSwitchToSignup, children
       </header>
 
       {/* Main Content Layout */}
-      <main className="relative z-10 mx-auto w-full max-w-7xl flex flex-col justify-center min-h-[calc(100dvh-4.5rem)] px-3 py-3 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-10 lg:px-10 lg:py-6">
+      <main
+        className={`relative z-10 mx-auto w-full max-w-7xl flex flex-col justify-center px-3 sm:px-6 lg:grid lg:grid-cols-2 lg:px-10 ${
+          mode === "signup"
+            ? "min-h-[calc(100dvh-4rem)] lg:min-h-0 lg:h-[calc(100vh-3.8rem)] lg:py-2 lg:gap-8 xl:gap-10 py-2"
+            : "min-h-[calc(100dvh-4.5rem)] lg:gap-10 lg:py-6 py-3"
+        }`}
+      >
         {/* Left Side: Branding and Highlights (Desktop only to prevent mobile scroll/whitespace) */}
-        <section className="hidden lg:flex flex-col justify-center my-auto max-w-lg">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B2CF5]/40 bg-[#8B2CF5]/10 px-3.5 py-1 text-xs font-semibold text-[#D946EF]">
-            <Sparkles className="h-3.5 w-3.5 text-[#8B2CF5]" />
-            Task &amp; Reminder Workspace
-          </div>
+        {mode === "login" ? (
+          /* 1. STRICTLY PRESERVED LOGIN LEFT SECTION */
+          <section className="hidden lg:flex flex-col justify-center my-auto max-w-lg">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B2CF5]/40 bg-[#8B2CF5]/10 px-3.5 py-1 text-xs font-semibold text-[#D946EF]">
+              <Sparkles className="h-3.5 w-3.5 text-[#8B2CF5]" />
+              Task &amp; Reminder Workspace
+            </div>
 
-          <div className="mt-3.5 flex items-center gap-2.5">
-            <TasklertIcon size={40} idPrefix="authshell" />
-            <h1 className="text-3xl font-black tracking-tight text-[#F8FAFC] sm:text-4xl">
-              Tasklert
-            </h1>
-          </div>
+            <div className="mt-3.5 flex items-center gap-2.5">
+              <TasklertIcon size={40} idPrefix="authshell-login" />
+              <h1 className="text-3xl font-black tracking-tight text-[#F8FAFC] sm:text-4xl">
+                Tasklert
+              </h1>
+            </div>
 
-          <p className="mt-2.5 text-xs sm:text-sm leading-5 text-[#AAB8CF]">
-            Intelligent task priority management, automatic reminders, and quick messaging. Everything organized in one workspace.
-          </p>
+            <p className="mt-2.5 text-xs sm:text-sm leading-5 text-[#AAB8CF]">
+              Intelligent task priority management, automatic reminders, and quick messaging. Everything organized in one workspace.
+            </p>
 
-          <div className="mt-4 space-y-2">
-            {featureCards.map(({ title, text, icon: Icon }) => (
-              <div
-                key={title}
-                className="flex items-start gap-2.5 rounded-xl border border-[#34445F]/70 bg-[#19243A]/60 p-2.5 backdrop-blur-sm"
-              >
-                <div className="mt-0.5 rounded-lg bg-[#222F49] p-1.5 text-[#8B2CF5]">
-                  <Icon className="h-3.5 w-3.5" />
+            <div className="mt-4 space-y-2">
+              {loginFeatureCards.map(({ title, text, icon: Icon }) => (
+                <div
+                  key={title}
+                  className="flex items-start gap-2.5 rounded-xl border border-[#34445F]/70 bg-[#19243A]/60 p-2.5 backdrop-blur-sm"
+                >
+                  <div className="mt-0.5 rounded-lg bg-[#222F49] p-1.5 text-[#8B2CF5]">
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-[#F8FAFC]">{title}</h3>
+                    <p className="mt-0.5 text-[11px] leading-4 text-[#AAB8CF]">{text}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-[#F8FAFC]">{title}</h3>
-                  <p className="mt-0.5 text-[11px] leading-4 text-[#AAB8CF]">{text}</p>
-                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-[#8B2CF5]/30 bg-gradient-to-br from-[#8B2CF5]/10 to-[#D946EF]/10 p-3 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold tracking-wider text-[#D946EF] uppercase">
+                  Productivity Snapshot
+                </p>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                  <BarChart3 className="h-3 w-3" />
+                  Trending Up
+                </span>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-[#8B2CF5]/30 bg-gradient-to-br from-[#8B2CF5]/10 to-[#D946EF]/10 p-3 backdrop-blur-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold tracking-wider text-[#D946EF] uppercase">
-                Productivity Snapshot
-              </p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                <BarChart3 className="h-3 w-3" />
-                Trending Up
-              </span>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {quickStats.map((item) => (
+                  <div key={item.label} className="rounded-lg bg-[#19243A]/80 border border-[#34445F]/60 p-1.5 text-center">
+                    <p className="text-xs sm:text-sm font-bold text-[#F8FAFC]">{item.value}</p>
+                    <p className="mt-0.5 text-[10px] leading-3 text-[#AAB8CF]">{item.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {quickStats.map((item) => (
-                <div key={item.label} className="rounded-lg bg-[#19243A]/80 border border-[#34445F]/60 p-1.5 text-center">
-                  <p className="text-xs sm:text-sm font-bold text-[#F8FAFC]">{item.value}</p>
-                  <p className="mt-0.5 text-[10px] leading-3 text-[#AAB8CF]">{item.label}</p>
+
+            <div className="mt-2.5 rounded-xl border border-[#34445F]/70 bg-[#19243A]/60 p-3 backdrop-blur-sm">
+              <div className="mb-1 flex items-center gap-1 text-amber-400">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star key={index} className="h-3.5 w-3.5 fill-amber-400" />
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-[#F8FAFC]">
+                &quot;Tasklert helped our team stop missing deadlines. The smart reminders,
+                priority sorting, and clear workflow made task tracking effortless.&quot;
+              </p>
+              <p className="mt-1 text-[11px] font-medium text-[#D946EF]">
+                ISRATH YASIN AHAMAD, Product Lead
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate("/welcome")}
+              className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-[#D946EF] hover:text-[#f0abfc] transition-colors cursor-pointer w-fit text-left group"
+            >
+              <span>Explore Tasklert Workspace</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            </button>
+          </section>
+        ) : (
+          /* 2. DEDICATED SIGNUP LEFT SECTION */
+          <section className="hidden lg:flex flex-col justify-center my-auto max-w-lg">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B2CF5]/40 bg-[#8B2CF5]/10 px-3 py-1 text-xs font-semibold text-[#D946EF]">
+              <Sparkles className="h-3.5 w-3.5 text-[#8B2CF5]" />
+              YOUR PRODUCTIVITY JOURNEY STARTS HERE
+            </div>
+
+            <div className="mt-3 flex items-center gap-2.5">
+              <TasklertIcon size={38} idPrefix="authshell-signup" />
+              <h1 className="text-3xl font-black tracking-tight text-[#F8FAFC] sm:text-4xl">
+                Welcome to Tasklert
+              </h1>
+            </div>
+
+            <p className="mt-2 text-xs sm:text-sm leading-5 text-[#AAB8CF]">
+              Build better routines, stay organized and take control of your daily work with one intelligent productivity workspace.
+            </p>
+
+            <div className="mt-3.5 space-y-2">
+              {signupFeatureCards.map(({ title, text, icon: Icon }) => (
+                <div
+                  key={title}
+                  className="flex items-start gap-2.5 rounded-xl border border-[#34445F]/70 bg-[#19243A]/60 p-2.5 backdrop-blur-sm"
+                >
+                  <div className="mt-0.5 rounded-lg bg-[#222F49] p-1.5 text-[#8B2CF5]">
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-[#F8FAFC]">{title}</h3>
+                    <p className="mt-0.5 text-[11px] leading-4 text-[#AAB8CF]">{text}</p>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="mt-2.5 rounded-xl border border-[#34445F]/70 bg-[#19243A]/60 p-3 backdrop-blur-sm">
-            <div className="mb-1 flex items-center gap-1 text-amber-400">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star key={index} className="h-3.5 w-3.5 fill-amber-400" />
-              ))}
+            {/* Sign Up Bottom Section */}
+            <div className="mt-3 rounded-2xl border border-[#8B2CF5]/30 bg-gradient-to-br from-[#8B2CF5]/10 to-[#D946EF]/10 p-3 backdrop-blur-sm">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[#8B2CF5] shrink-0" />
+                <h4 className="text-xs sm:text-sm font-bold text-[#F8FAFC]">
+                  Your Work. Your Progress. Your Control.
+                </h4>
+              </div>
+              <p className="mt-1 text-xs text-[#AAB8CF] leading-relaxed">
+                Start organizing your day and make every task count.
+              </p>
             </div>
-            <p className="text-xs leading-5 text-[#F8FAFC]">
-              &quot;Tasklert helped our team stop missing deadlines. The smart reminders,
-              priority sorting, and clear workflow made task tracking effortless.&quot;
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-[#D946EF]">
-              ISRATH YASIN AHAMAD, Product Lead
-            </p>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => navigate("/welcome")}
-            className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-[#D946EF] hover:text-[#f0abfc] transition-colors cursor-pointer w-fit text-left group"
-          >
-            <span>Explore Tasklert Workspace</span>
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-          </button>
-        </section>
+            <button
+              type="button"
+              onClick={() => navigate("/welcome")}
+              className="mt-3.5 inline-flex items-center gap-2 text-xs font-medium text-[#D946EF] hover:text-[#f0abfc] transition-colors cursor-pointer w-fit text-left group"
+            >
+              <span>Explore Tasklert Workspace</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            </button>
+          </section>
+        )}
 
         {/* Right Side: Authentication Card */}
-        <section className="w-full flex items-center justify-center my-auto py-1 sm:py-2">{children}</section>
+        <section className="w-full flex items-center justify-center my-auto py-1 sm:py-2">
+          {children}
+        </section>
       </main>
     </div>
   );

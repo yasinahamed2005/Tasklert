@@ -141,6 +141,9 @@ export async function subscribeToDevicePush() {
     throw new Error("User must be authenticated to enable device notifications.");
   }
 
+  // Persist token in IndexedDB for background Service Worker
+  persistAuthTokenForSW(token).catch(() => {});
+
   // 1. Request browser notification permission explicitly
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
@@ -299,6 +302,142 @@ export async function showBrowserNotification(title, options = {}) {
     }
   } catch (err) {
     console.warn("Could not dispatch browser notification:", err);
+  }
+}
+
+/**
+ * Persist user auth token in IndexedDB so the background Service Worker can read it
+ * and execute dismiss/snooze actions even when Chrome/PWA is completely closed.
+ */
+export async function persistAuthTokenForSW(token) {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return;
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("tasklert_pwa_auth", 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("tokens")) {
+          db.createObjectStore("tokens");
+        }
+      };
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        try {
+          const tx = db.transaction("tokens", "readwrite");
+          const store = tx.objectStore("tokens");
+          store.put(token, "authToken");
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      };
+      req.onerror = () => resolve(false);
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Remove auth token from IndexedDB on logout
+ */
+export async function clearAuthTokenForSW() {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return;
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("tasklert_pwa_auth", 1);
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        try {
+          const tx = db.transaction("tokens", "readwrite");
+          const store = tx.objectStore("tokens");
+          store.delete("authToken");
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      };
+      req.onerror = () => resolve(false);
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Automatically synchronize Web Push subscription with the backend.
+ * Rule 3: Must ensure the device is securely registered with VAPID on the backend
+ * whenever notification permission is granted, so background reminders arrive without relying on an open window.
+ */
+export async function syncPushSubscription(options = { force: false }) {
+  if (!isPushSupported()) return null;
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  // 1. Always keep SW auth token fresh in IndexedDB
+  persistAuthTokenForSW(token).catch(() => {});
+
+  if (Notification.permission !== "granted") {
+    return null;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+
+    const lastSynced = localStorage.getItem("tasklert_push_synced_at");
+    const isStale = !lastSynced || (Date.now() - Number(lastSynced) > 12 * 60 * 60 * 1000);
+
+    // If subscription already exists and sync is recent, reuse it
+    if (subscription && !options.force && !isStale) {
+      return subscription;
+    }
+
+    // 2. Fetch server's public VAPID key
+    const { data: vapidData } = await axios.get(`${API_BASE}/api/notifications/vapid-public-key`);
+    if (!vapidData.success || !vapidData.publicKey) {
+      console.warn("VAPID public key not configured on backend");
+      return null;
+    }
+
+    const applicationServerKey = urlBase64ToUint8Array(vapidData.publicKey);
+
+    // 3. Subscribe or refresh
+    if (!subscription || options.force) {
+      if (subscription && options.force) {
+        try {
+          await subscription.unsubscribe();
+        } catch (_) {}
+      }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+    }
+
+    const subscriptionJson = subscription.toJSON();
+    const deviceInfo = getDeviceInfo();
+
+    // 4. Send subscription to backend
+    await axios.post(
+      `${API_BASE}/api/notifications/subscribe`,
+      {
+        endpoint: subscriptionJson.endpoint,
+        keys: subscriptionJson.keys,
+        ...deviceInfo,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    localStorage.setItem("tasklert_push_synced_at", String(Date.now()));
+    console.log("✅ Web Push subscription synchronized with backend");
+    return subscription;
+  } catch (err) {
+    console.warn("Web Push sync failed:", err.message);
+    return null;
   }
 }
 
