@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useBodyScrollLock } from "../utils/scrollLock";
+import { lockBodyScroll, unlockBodyScroll } from "../utils/scrollLock";
 import {
   Search,
   X,
@@ -499,7 +499,11 @@ export const GlobalSearch = ({
   }, [mobileMode]);
 
   // Lock background body scroll when mobile search is open
-  useBodyScrollLock(mobileMode && isOpen);
+  useEffect(() => {
+    if (!(mobileMode && isOpen)) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [mobileMode, isOpen]);
 
   // Select and execute an item
   const handleSelect = useCallback(

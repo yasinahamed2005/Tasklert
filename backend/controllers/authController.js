@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import AuthCode from "../models/authCodeModel.js";
+import { createDeviceSession } from "./securityController.js";
 import { getJwtSecret } from "../config/jwt.js";
 
 const ALLOWED_FRONTEND_DOMAINS = [
@@ -497,13 +498,10 @@ export async function handleOAuthCallback(req, res) {
     }
 
     // 6. Establish application session via JWT token
-    const token = jwt.sign({ id: user._id }, getJwtSecret(), { expiresIn: "24h" });
-
     // 7. Secure single-use handoff code (prevents JWT exposure in query parameters)
     const handoffCode = crypto.randomBytes(32).toString("hex");
     await AuthCode.create({
       code: handoffCode,
-      token,
       user: {
         id: String(user._id),
         name: user.name,
@@ -545,13 +543,17 @@ export async function exchangeOAuthCode(req, res) {
       });
     }
 
+    const user = await User.findById(record.user.id);
+    if (!user) return res.status(401).json({ success: false, message: "Account not found." });
+    if (!req.body.deviceId) return res.status(400).json({ success: false, message: "Device identifier is required." });
+    const { token } = await createDeviceSession(user, req, String(req.body.deviceId));
     res.json({
       success: true,
-      token: record.token,
+      token,
       user: record.user,
     });
   } catch (err) {
     console.error("Exchange OAuth code error:", err);
-    res.status(500).json({ success: false, message: "Failed to exchange authorization code." });
+    res.status(err.status || 500).json({ success: false, message: err.message || "Failed to exchange authorization code." });
   }
 }

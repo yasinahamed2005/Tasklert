@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendEmail } from '../utils/mailer.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { createDeviceSession } from './securityController.js';
 
 // JWT_SECRET handled via getJwtSecret()
 const TOKEN_EXPIRES = '24h';
@@ -225,8 +226,10 @@ export async function verifySignupOtp(req, res) {
     if (!match) {
       return res.status(401).json({ success: false, message: "Invalid credentials." });
     }
-    const token = createToken(user._id);
-     res.json({success: true,token,user: {id: user._id, name: user.name, email: user.email}});
+    const deviceId = String(req.body.deviceId || "");
+    if (!deviceId) return res.status(400).json({ success: false, message: "Device identifier is required. Connect to the internet and try again." });
+    const { token } = await createDeviceSession(user, req, deviceId);
+    res.json({success: true,token,user: {id: user._id, name: user.name, email: user.email, provider: user.provider}});
  }
  catch(err){
     console.log(err);

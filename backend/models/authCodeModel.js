@@ -14,7 +14,7 @@ const authCodeSchema = new mongoose.Schema({
   },
   token: {
     type: String,
-    required: true,
+    required: false,
   },
   user: {
     id: { type: String, required: true },

@@ -1,94 +1,110 @@
-// Tasklert Web Push & PWA Service Worker (v2)
-const CACHE_NAME = "tasklert-v2";
-const PRECACHE_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/tasklert-icon.svg",
-  "/logo.png",
-  "/favicon.png"
-];
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from "workbox-precaching";
+import { registerRoute, NavigationRoute, setCatchHandler } from "workbox-routing";
+import { CacheFirst, StaleWhileRevalidate, NetworkFirst } from "workbox-strategies";
+import { clientsClaim } from "workbox-core";
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn("Precache non-critical asset failure:", err);
-      });
-    })
-  );
+// 1. Immediately claim clients and skip waiting
+self.skipWaiting();
+clientsClaim();
+
+// 2. Precache all build assets injected by Workbox / Vite
+// This includes index.html, JS chunks (Dashboard, FocusTimerPage, CalendarPage, etc.), CSS, and static assets
+precacheAndRoute(self.__WB_MANIFEST || []);
+
+// 3. Clean up older cache versions
+cleanupOutdatedCaches();
+
+// 4. Runtime Caching for Google Fonts stylesheets & webfont binaries
+registerRoute(
+  ({ url }) => url.origin === "https://fonts.googleapis.com",
+  new StaleWhileRevalidate({
+    cacheName: "google-fonts-stylesheets",
+  })
+);
+
+registerRoute(
+  ({ url }) => url.origin === "https://fonts.gstatic.com",
+  new CacheFirst({
+    cacheName: "google-fonts-webfonts",
+  })
+);
+
+// 5. Runtime Caching for Media, Audio & Static Icons (not precached)
+registerRoute(
+  ({ request, url }) =>
+    request.destination === "audio" ||
+    request.destination === "image" ||
+    url.pathname.endsWith(".mp3") ||
+    url.pathname.endsWith(".wav") ||
+    url.pathname.endsWith(".svg") ||
+    url.pathname.endsWith(".png"),
+  new CacheFirst({
+    cacheName: "tasklert-media-cache",
+  })
+);
+
+// 6. Navigation Route: Direct SPA routes (/focus, /dashboard, /tasks, /calendar, /projects, /analytics)
+// workbox navigation handler serves the precached /index.html app shell without network access
+const handler = createHandlerBoundToURL("/index.html");
+const navigationRoute = new NavigationRoute(handler, {
+  denylist: [/^\/api\//],
 });
+registerRoute(navigationRoute);
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    }).then(() => self.clients.claim())
-  );
-});
+// 7. Embedded Tasklert Branded Offline Fallback HTML
+const OFFLINE_FALLBACK_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Tasklert - Offline Mode</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #F9FAFB; color: #1E293B; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .card { background: white; border: 1px solid #E9D5FF; border-radius: 24px; padding: 32px 24px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 10px 25px -5px rgba(139, 44, 245, 0.1); }
+    .icon-box { width: 56px; height: 56px; background-color: #F3E8FF; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; color: #8B2CF5; }
+    h1 { font-size: 20px; font-weight: 800; color: #0F172A; margin-bottom: 8px; }
+    p { font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 24px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px 20px; border-radius: 14px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background-color: #8B2CF5; color: white; margin-bottom: 10px; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-secondary { background-color: #FAF5FF; color: #7E22CE; border: 1px solid #E9D5FF; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-box">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+        <line x1="12" y1="20" x2="12.01" y2="20"></line>
+      </svg>
+    </div>
+    <h1>You're Offline</h1>
+    <p>Tasklert could not connect to the network. Your cached tasks and offline dashboard remain available.</p>
+    <button class="btn btn-primary" onclick="window.location.reload()">Try Again</button>
+    <button class="btn btn-secondary" onclick="window.location.href='/'">Return to Dashboard</button>
+  </div>
+</body>
+</html>`;
 
-// 0. FETCH EVENT: Offline shell caching, asset cache-first, navigation fallback
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
-  const url = new URL(request.url);
-
-  // Strictly skip non-GET and API / dynamic backend endpoints
-  if (request.method !== "GET" || url.pathname.startsWith("/api/")) {
-    return;
-  }
-
-  // 1. Navigation requests (HTML routes): Network-first with /index.html offline fallback
+// 8. Catch handler: If any navigation request completely fails, serve offline fallback
+setCatchHandler(async ({ request }) => {
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const fallbackShell = await caches.match("/index.html");
-          if (fallbackShell) return fallbackShell;
-          return caches.match("/");
-        })
-    );
-    return;
+    return new Response(OFFLINE_FALLBACK_HTML, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
-
-  // 2. Static versioned / static assets: Cache-first with network fallback
-  if (
-    url.pathname.startsWith("/assets/") ||
-    url.pathname.match(/\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ico)$/i)
-  ) {
-    event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return networkResponse;
-        });
-      })
-    );
-    return;
-  }
+  return Response.error();
 });
 
-// Clean message listener for manual cache purge or ping
-self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
-});
+// =========================================================================
+// 9. WEB PUSH NOTIFICATIONS, BACKGROUND ALARMS & SYNC
+// =========================================================================
 
 // Helper: Read stored auth token from IndexedDB so background push actions can authenticate without an open window
 function getStoredAuthToken() {
@@ -120,7 +136,7 @@ function getStoredAuthToken() {
   });
 }
 
-// 1. PUSH EVENT: Receive server Web Push notification
+// Push Event: Receive server Web Push notification
 self.addEventListener("push", (event) => {
   let data = {};
   if (event.data) {
@@ -138,7 +154,7 @@ self.addEventListener("push", (event) => {
     badge: data.badge || "/favicon.png",
     tag: data.tag || `tasklert-alarm-${data.alarmId || Date.now()}`,
     vibrate: [400, 200, 400, 200, 800],
-    requireInteraction: true, // Keep notification active until user dismisses or acts
+    requireInteraction: true,
     data: {
       url: data.url || "/",
       alarmId: data.alarmId || null,
@@ -157,7 +173,7 @@ self.addEventListener("push", (event) => {
     ],
   };
 
-  // Immediate delivery acknowledgment to backend for Rule 6 diagnostics
+  // Immediate delivery acknowledgment to backend
   if (data.alarmId) {
     fetch("/api/notifications/delivery-ack", {
       method: "POST",
@@ -166,7 +182,7 @@ self.addEventListener("push", (event) => {
     }).catch(() => {});
   }
 
-  // Notify any active open browser window tabs so the active page can play alarm sound and show modal
+  // Notify any active open browser window tabs
   const broadcastPromise = self.clients
     .matchAll({ type: "window", includeUncontrolled: true })
     .then((clients) => {
@@ -190,21 +206,17 @@ self.addEventListener("push", (event) => {
 
   // Display native OS push notification
   const notifyPromise = self.registration.showNotification(title, options);
-
   event.waitUntil(Promise.all([notifyPromise, broadcastPromise]));
 });
 
-// 2. NOTIFICATION CLICK: Open task or trigger action
+// Notification Click: Open task or trigger action
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-
   const action = event.action || "open";
   const notifData = event.notification.data || {};
   let targetUrl = notifData.url || "/";
 
   // ACTION: DISMISS
-  // Silences the alarm and dismisses the session directly from the notification shade
-  // Sends durable fetch to backend even if browser / PWA window is completely closed!
   if (action === "dismiss") {
     event.waitUntil(
       (async () => {
@@ -240,8 +252,6 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   // ACTION: SNOOZE
-  // Snoozes the alarm directly from the notification shade without opening a window
-  // Sends durable fetch to backend even if browser / PWA window is completely closed!
   if (action === "snooze") {
     event.waitUntil(
       (async () => {
@@ -277,7 +287,7 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // ACTION: VIEW TIMER / OPEN (User explicitly clicked "View Timer" or tapped notification body)
+  // ACTION: VIEW TIMER / OPEN
   if (notifData.alarmId) {
     const separator = targetUrl.includes("?") ? "&" : "?";
     targetUrl = `${targetUrl}${separator}alarmId=${encodeURIComponent(notifData.alarmId)}`;
@@ -286,14 +296,12 @@ self.addEventListener("notificationclick", (event) => {
     }
   }
 
-  // Open or focus Tasklert client window
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
           if (client.url && "focus" in client) {
-            // Send action to open client
             if (notifData.isFocus || targetUrl.includes("/focus")) {
               client.postMessage({
                 type: "TASKLERT_FOCUS_NOTIFICATION_ACTION",
@@ -325,7 +333,7 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// 3. BACKGROUND SYNC: Responds to browser background sync events
+// Background Sync
 self.addEventListener("sync", (event) => {
   if (event.tag === "tasklert-sync") {
     event.waitUntil(
@@ -340,3 +348,12 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// Message Listener
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+  if (event.data?.type === "CHECK_OFFLINE_READY") {
+    event.ports?.[0]?.postMessage({ ready: true });
+  }
+});

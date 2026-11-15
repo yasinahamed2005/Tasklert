@@ -7,6 +7,7 @@ import SocialAuthButtons from "./SocialAuthButtons";
 import { TasklertIcon } from "./TasklertLogo";
 import { useModalAccessibility } from "../utils/scrollLock";
 import { API_BASE_URL } from "../config/api";
+import { getDeviceId } from "../db/tasklertDb";
 
 const INITIAL_FORM = { email: "", password: "" };
 
@@ -62,7 +63,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
 
       (async () => {
         try {
-          const { data } = await axios.post(`${url}/api/auth/exchange`, { code: oauthCode });
+          const { data } = await axios.post(`${url}/api/auth/exchange`, { code: oauthCode, deviceId: getDeviceId() });
           if (data.success && data.token) {
             localStorage.setItem("token", data.token);
             if (data.user?.id) localStorage.setItem("userId", data.user.id);
@@ -134,7 +135,7 @@ const Login = ({ onSubmit, onSwitchMode, showSwitchLink = true }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await axios.post(`${url}/api/user/login`, formData);
+      const { data } = await axios.post(`${url}/api/user/login`, { ...formData, deviceId: getDeviceId() });
       if (!data.token) throw new Error(data.message || "Login failed");
 
       const userId = data.user?.id || "";

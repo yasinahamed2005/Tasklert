@@ -34,7 +34,7 @@ import {
   Laptop,
 } from "lucide-react";
 import { TasklertLogo } from "../components/TasklertLogo";
-import { useBodyScrollLock } from "../utils/scrollLock";
+import { lockBodyScroll, unlockBodyScroll } from "../utils/scrollLock";
 
 // ============================================================================
 // DATA: 9 REAL IMPLEMENTED MODULES
@@ -174,7 +174,11 @@ export default function Landing() {
   const mousePosSecondaryRef = useRef({ x: -1000, y: -1000 });
   const isTouchRef = useRef(false);
 
-  useBodyScrollLock(mobileOpen);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [mobileOpen]);
 
   // Background and Root setup
   useEffect(() => {

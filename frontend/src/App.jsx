@@ -14,6 +14,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { clearAuthTokenForSW } from "./utils/pushManager";
 import { accountManager } from "./db/accountManager";
 import { syncEngine } from "./services/syncEngine";
+import SecurityActionPage from "./pages/SecurityActionPage";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -21,16 +22,14 @@ const lazyWithRetry = (factory) =>
     try {
       return await factory();
     } catch (err) {
-      console.warn("Chunk load failed, checking network/deployment...", err);
+      console.warn("Chunk load failed, checking connectivity...", err);
+      // If offline, DO NOT wipe caches and DO NOT reload; propagate error to ErrorBoundary
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw err;
+      }
       const sessionKey = "chunk_retry_" + window.location.pathname;
       if (!sessionStorage.getItem(sessionKey)) {
         sessionStorage.setItem(sessionKey, "1");
-        if ("caches" in window) {
-          try {
-            const keys = await caches.keys();
-            await Promise.all(keys.map((k) => caches.delete(k)));
-          } catch (_) {}
-        }
         window.location.reload();
         return new Promise(() => {});
       }
@@ -71,6 +70,18 @@ const App = () => {
       );
       document.documentElement.classList.add(savedTheme);
     }
+  }, []);
+
+  // Listen for initial service worker offline cache completion
+  useEffect(() => {
+    const handleOfflineReady = () => {
+      toast.success("Tasklert is ready for offline use!", {
+        toastId: "tasklert-offline-ready",
+        autoClose: 4000,
+      });
+    };
+    window.addEventListener("tasklert-offline-ready", handleOfflineReady);
+    return () => window.removeEventListener("tasklert-offline-ready", handleOfflineReady);
   }, []);
 
   const [currentUser, setCurrentUser] = useState(() => {
@@ -129,6 +140,12 @@ const App = () => {
     navigate("/login", { replace: true });
   }, [navigate]);
 
+  useEffect(() => {
+    const onRevoked = () => { handleLogout(); };
+    window.addEventListener("tasklert:session-revoked", onRevoked);
+    return () => window.removeEventListener("tasklert:session-revoked", onRevoked);
+  }, [handleLogout]);
+
   // Lightweight idle chunk preloading for primary task routes (excluding heavy analytics)
   useEffect(() => {
     if (currentUser) {
@@ -178,6 +195,7 @@ const App = () => {
         path="/signup"
         element={<AuthPage initialMode="signup" onAuthSubmit={handleAuthSubmit} />}
       />
+      <Route path="/security-action" element={<SecurityActionPage />} />
 
       {/* Public Legal Document Pages */}
       <Route

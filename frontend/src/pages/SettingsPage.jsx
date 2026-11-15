@@ -33,6 +33,7 @@ import { notify } from "../utils/toastManager";
 import { soundManager } from "../utils/soundManager";
 import UserAvatar from "../components/UserAvatar";
 import DeviceNotificationSettings from "../components/DeviceNotificationSettings";
+import SecurityDevices from "../components/SecurityDevices";
 
 const THEMES = [
   { name: "theme-blue", label: "Ocean Blue", color: "#1e88e5", desc: "Cool, calm and focused productivity" },
@@ -749,6 +750,7 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
                     Sign Out
                   </button>
                 </div>
+                <SecurityDevices />
               </div>
             )}
 

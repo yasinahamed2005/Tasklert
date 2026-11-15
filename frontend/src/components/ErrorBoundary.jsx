@@ -28,16 +28,11 @@ export class ErrorBoundary extends React.Component {
       errorMsg.includes("Unexpected token '<'") ||
       error?.name === "ChunkLoadError";
 
-    if (isChunkError) {
+    if (isChunkError && typeof navigator !== "undefined" && navigator.onLine) {
       const reloadKey = "tasklert_chunk_recovery_" + window.location.pathname;
       if (!sessionStorage.getItem(reloadKey)) {
         sessionStorage.setItem(reloadKey, "1");
-        console.warn("Stale deployment chunk detected. Refreshing application cache...");
-        if ("caches" in window) {
-          caches.keys().then((names) => {
-            names.forEach((name) => caches.delete(name));
-          });
-        }
+        console.warn("Stale deployment chunk detected while online. Refreshing application...");
         window.location.reload();
       }
     }
@@ -98,10 +93,14 @@ export class ErrorBoundary extends React.Component {
 
             <div className="space-y-1">
               <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">
-                Something went wrong
+                {typeof navigator !== "undefined" && !navigator.onLine
+                  ? "You're Offline"
+                  : "Something went wrong"}
               </h2>
               <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                Tasklert encountered an unexpected issue while loading this page. You can retry or return to your dashboard safely.
+                {typeof navigator !== "undefined" && !navigator.onLine
+                  ? "This section was not yet cached on your device. Connect to the internet to load it, or return to your Dashboard where your cached tasks are safely available."
+                  : "Tasklert encountered an unexpected issue while loading this page. You can retry or return to your dashboard safely."}
               </p>
             </div>
 

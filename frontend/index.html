@@ -33,8 +33,13 @@
                 var installing = reg.installing;
                 if (installing) {
                   installing.onstatechange = function() {
-                    if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-                      console.log('New Tasklert version installed and ready.');
+                    if (installing.state === 'installed') {
+                      if (navigator.serviceWorker.controller) {
+                        console.log('New Tasklert version installed and ready.');
+                      } else {
+                        console.log('Tasklert is ready for offline use.');
+                        window.dispatchEvent(new CustomEvent('tasklert-offline-ready'));
+                      }
                     }
                   };
                 }

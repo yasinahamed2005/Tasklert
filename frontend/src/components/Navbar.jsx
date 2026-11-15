@@ -5,7 +5,7 @@ import { TasklertLogo } from "./TasklertLogo";
 import AccountDropdown from "./AccountDropdown";
 import GlobalSearch from "./GlobalSearch";
 import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
-import { useBodyScrollLock } from "../utils/scrollLock";
+import { lockBodyScroll, unlockBodyScroll } from "../utils/scrollLock";
 import SyncStatusIndicator from "./sync/SyncStatusIndicator";
 
 const Navbar = ({
@@ -40,7 +40,11 @@ const Navbar = ({
   }, []);
 
   // Lock body scrolling when mobile search is active
-  useBodyScrollLock(mobileSearchOpen);
+  useEffect(() => {
+    if (!mobileSearchOpen) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [mobileSearchOpen]);
 
   return (
     <header className="app-header fixed top-0 left-0 right-0 z-50 h-[var(--app-header-height)] bg-white/98 backdrop-blur-md shadow-xs border-b border-gray-200/80 transition-colors">

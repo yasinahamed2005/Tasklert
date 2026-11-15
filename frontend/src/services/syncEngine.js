@@ -187,6 +187,21 @@ class SyncEngine {
       return { status: "offline" };
     }
 
+    // Validate the device session before touching the existing offline operation queue.
+    try {
+      await axios.get(`${API_BASE}/api/user/me`, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (err) {
+      if ([401, 403].includes(err.response?.status)) {
+        this.syncError = "This device session is no longer active. Sign in again to sync.";
+        if (err.response?.data?.code === "SESSION_REVOKED") {
+          window.dispatchEvent(new CustomEvent("tasklert:session-revoked"));
+        }
+        await this.notify();
+        return { status: "session_revoked" };
+      }
+      return { status: "validation_unavailable" };
+    }
+
     this.isSyncing = true;
     this.syncError = null;
     await this.notify();
