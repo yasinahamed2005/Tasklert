@@ -15,6 +15,7 @@ import { clearAuthTokenForSW } from "./utils/pushManager";
 import { accountManager } from "./db/accountManager";
 import { syncEngine } from "./services/syncEngine";
 import SecurityActionPage from "./pages/SecurityActionPage";
+import { syncSystemNavigationBar } from "./utils/systemBars";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -70,6 +71,19 @@ const App = () => {
       );
       document.documentElement.classList.add(savedTheme);
     }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => syncSystemNavigationBar();
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("themechange", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("themechange", update);
+    };
   }, []);
 
   // Listen for initial service worker offline cache completion

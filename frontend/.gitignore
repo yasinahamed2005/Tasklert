@@ -13,6 +13,7 @@ node_modules/
 # Production build
 dist
 dist-ssr
+dev-dist
 
 # Environment variables
 .env

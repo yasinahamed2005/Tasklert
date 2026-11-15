@@ -18,7 +18,28 @@
 html {
   scroll-behavior: smooth;
   overscroll-behavior-y: none;
-  background-color: #020617;
+  background-color: var(--system-navigation-background, #faf5ff);
+}
+
+/* App and Android system-bar palette follows the selected Tasklert theme. */
+:root {
+  --system-status-background: #ffffff;
+  --system-status-foreground: #111827;
+  --system-navigation-background: var(--surface-1, #faf5ff);
+  --system-navigation-foreground: #111827;
+  --bottom-nav-background: var(--surface-1, #faf5ff);
+  --bottom-nav-active: var(--primary, #8b5cf6);
+  --bottom-nav-inactive: var(--text-muted, #64748b);
+}
+
+/* The established Charcoal theme uses light content surfaces; keep that intact
+   and give only the system/in-app navigation a coordinated dark surface. */
+.theme-dark {
+  --system-navigation-background: #0f172a;
+  --system-navigation-foreground: #f8fafc;
+  --bottom-nav-background: #0f172a;
+  --bottom-nav-active: #93c5fd;
+  --bottom-nav-inactive: #cbd5e1;
 }
 
 body {

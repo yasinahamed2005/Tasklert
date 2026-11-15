@@ -41,7 +41,7 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION BAR */}
       <nav
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[color:var(--surface-1)] backdrop-blur-md border-t border-[color:var(--surface-border)] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[color:var(--bottom-nav-background)] backdrop-blur-md border-t border-[color:var(--surface-border)] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. HOME */}
@@ -50,8 +50,8 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold"
-                  : "text-slate-500 hover:text-slate-800 font-medium"
+                  ? "text-[color:var(--bottom-nav-active)] font-bold"
+                  : "text-[color:var(--bottom-nav-inactive)] hover:text-[color:var(--bottom-nav-active)] font-medium"
               }`
             }
           >
@@ -67,8 +67,8 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold"
-                  : "text-slate-500 hover:text-slate-800 font-medium"
+                  ? "text-[color:var(--bottom-nav-active)] font-bold"
+                  : "text-[color:var(--bottom-nav-inactive)] hover:text-[color:var(--bottom-nav-active)] font-medium"
               }`
             }
           >
@@ -84,8 +84,8 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold"
-                  : "text-slate-500 hover:text-slate-800 font-medium"
+                  ? "text-[color:var(--bottom-nav-active)] font-bold"
+                  : "text-[color:var(--bottom-nav-inactive)] hover:text-[color:var(--bottom-nav-active)] font-medium"
               }`
             }
           >
@@ -104,8 +104,8 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
                 isActive && !moreOpen
-                  ? "text-[color:var(--primary)] font-bold"
-                  : "text-slate-500 hover:text-slate-800 font-medium"
+                  ? "text-[color:var(--bottom-nav-active)] font-bold"
+                  : "text-[color:var(--bottom-nav-inactive)] hover:text-[color:var(--bottom-nav-active)] font-medium"
               }`
             }
           >
@@ -121,8 +121,8 @@ const MobileBottomNav = ({ user, onLogout, tasks = [] }) => {
             onClick={() => setMoreOpen(!moreOpen)}
             className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-colors duration-150 cursor-pointer ${
               isMoreActive
-                ? "text-[color:var(--primary)] font-bold"
-                : "text-slate-500 hover:text-slate-800 font-medium"
+                ? "text-[color:var(--bottom-nav-active)] font-bold"
+                : "text-[color:var(--bottom-nav-inactive)] hover:text-[color:var(--bottom-nav-active)] font-medium"
             }`}
           >
             <div className="relative">
