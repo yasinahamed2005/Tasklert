@@ -18,7 +18,9 @@
 html {
   scroll-behavior: smooth;
   overscroll-behavior-y: none;
-  background-color: var(--system-navigation-background, #faf5ff);
+  /* The page canvas backs the always-white Android status-bar area. The
+     bottom nav and Android navigation bar use their own theme surface. */
+  background-color: var(--system-status-background, #ffffff);
 }
 
 /* App and Android system-bar palette follows the selected Tasklert theme. */

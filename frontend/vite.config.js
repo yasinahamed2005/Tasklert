@@ -35,10 +35,10 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
+      injectRegister: false,
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: true,
-        type: 'classic',
+        enabled: false,
       },
       injectManifest: {
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,

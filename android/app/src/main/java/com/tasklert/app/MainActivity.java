@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(TasklertAlarmPlugin.class);
         registerPlugin(SystemBarsPlugin.class);
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
