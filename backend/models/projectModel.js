@@ -22,6 +22,24 @@ const projectSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    localId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

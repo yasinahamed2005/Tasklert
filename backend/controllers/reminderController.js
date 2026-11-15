@@ -489,7 +489,11 @@ export const dismissReminder = async (req, res) => {
     const reminder = await Reminder.findOne({ _id: req.params.id, owner: userId }).populate("task");
 
     if (!reminder) {
-      return res.status(404).json({ success: false, message: "Reminder not found" });
+      return res.status(200).json({
+        success: true,
+        message: "Reminder already dismissed or not found",
+        alreadyDismissed: true,
+      });
     }
 
     // 1. If reminder is linked to a task, mark the task as Completed in MongoDB

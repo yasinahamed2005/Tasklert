@@ -12,6 +12,8 @@ import { AppStartupFallback } from "./components/PageSkeletons";
 import PageTransitionLoader from "./components/PageTransitionLoader";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { clearAuthTokenForSW } from "./utils/pushManager";
+import { accountManager } from "./db/accountManager";
+import { syncEngine } from "./services/syncEngine";
 
 // Resilient code-splitting loader with automatic retry on stale chunk deployment
 const lazyWithRetry = (factory) =>
@@ -105,8 +107,23 @@ const App = () => {
     navigate("/", { replace: true });
   };
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    try {
+      const hasUnsynced = await accountManager.hasUnsyncedChanges();
+      if (hasUnsynced) {
+        toast.info(
+          "You have unsaved changes on this device. They are safely saved in local storage and will resume syncing when you sign back in.",
+          { autoClose: 6000 }
+        );
+      }
+    } catch (_) {}
+
+    syncEngine.stop();
+    await accountManager.handleLogout();
+
     localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    sessionStorage.removeItem("tasklert_cached_tasks");
     clearAuthTokenForSW().catch(() => {});
     setCurrentUser(null);
     navigate("/login", { replace: true });

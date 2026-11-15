@@ -43,6 +43,8 @@ import ReminderModal from "../components/calendar/ReminderModal";
 import UpcomingEventsSection from "../components/calendar/UpcomingEventsSection";
 import { deviceAlarmManager } from "../utils/deviceAlarmManager";
 import { getPriorityBadgeColor } from "../assets/dummy";
+import { reminderRepository } from "../db/reminderRepository";
+import { accountManager } from "../db/accountManager";
 
 const isCompletedTask = (task) => {
   if (!task) return false;
@@ -97,18 +99,39 @@ const CalendarPage = () => {
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
 
-  // Fetch reminders and sync local alarms
+  // Fetch reminders and sync local alarms (Offline-First)
   const fetchReminders = useCallback(async () => {
     try {
       setIsLoadingReminders(true);
-      const token = localStorage.getItem("token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await axios.get(`${API_BASE_URL}/api/reminders`, { headers });
-      const list = res.data?.reminders || [];
-      setReminders(list);
-      deviceAlarmManager.syncUpcomingAlarms(list);
+      const userId = accountManager.getActiveUserId();
+
+      // 1. Instantly load locally cached reminders
+      if (userId) {
+        try {
+          const cachedList = await reminderRepository.getReminders(userId);
+          if (cachedList && cachedList.length > 0) {
+            setReminders(cachedList);
+            deviceAlarmManager.syncUpcomingAlarms(cachedList);
+          }
+        } catch (e) {
+          console.warn("Could not load local reminders:", e);
+        }
+      }
+
+      // 2. Fetch fresh reminders from backend if online
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const token = localStorage.getItem("token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await axios.get(`${API_BASE_URL}/api/reminders`, { headers });
+        const list = res.data?.reminders || [];
+        setReminders(list);
+        deviceAlarmManager.syncUpcomingAlarms(list);
+        if (userId && list.length > 0) {
+          await reminderRepository.saveReminders(list, userId);
+        }
+      }
     } catch (err) {
-      console.warn("Could not fetch reminders:", err);
+      console.warn("Could not fetch remote reminders:", err);
     } finally {
       setIsLoadingReminders(false);
     }

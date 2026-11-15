@@ -6,6 +6,7 @@ import AccountDropdown from "./AccountDropdown";
 import GlobalSearch from "./GlobalSearch";
 import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { useBodyScrollLock } from "../utils/scrollLock";
+import SyncStatusIndicator from "./sync/SyncStatusIndicator";
 
 const Navbar = ({
   user = {},
@@ -22,6 +23,7 @@ const Navbar = ({
   onAction,
   searchQuery,
   onSearchQueryChange,
+  onOpenEmergencyMode,
 }) => {
   const navigate = useNavigate();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -68,6 +70,8 @@ const Navbar = ({
               />
 
               <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <SyncStatusIndicator onOpenEmergencyMode={onOpenEmergencyMode} />
+
                 <button
                   type="button"
                   onClick={() => setMobileSearchOpen(true)}
@@ -136,8 +140,10 @@ const Navbar = ({
             </div>
           </div>
 
-          {/* RIGHT CONTROLS: NOTIFICATIONS + ACCOUNT MENU */}
+          {/* RIGHT CONTROLS: SYNC STATUS + NOTIFICATIONS + ACCOUNT MENU */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 shrink-0 ml-3">
+            <SyncStatusIndicator onOpenEmergencyMode={onOpenEmergencyMode} />
+
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount}

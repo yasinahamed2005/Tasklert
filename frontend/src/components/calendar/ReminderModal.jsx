@@ -22,6 +22,8 @@ import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { deviceAlarmManager } from "../../utils/deviceAlarmManager";
 import { useModalAccessibility } from "../../utils/scrollLock";
+import { reminderRepository } from "../../db/reminderRepository";
+import { accountManager } from "../../db/accountManager";
 
 const SOUND_OPTIONS = [
   { id: "digital", label: "Tasklert Digital Pulse", desc: "Crisp modern electronic beep" },
@@ -257,22 +259,47 @@ const ReminderModal = ({
       };
 
       let savedReminder;
-      if (reminderToEdit?._id) {
-        // Update existing
-        const res = await axios.put(
-          `${API_BASE_URL}/api/reminders/${reminderToEdit._id}`,
-          payload,
-          { headers }
-        );
-        savedReminder = res.data.reminder;
-      } else {
-        // Create new
-        const res = await axios.post(
-          `${API_BASE_URL}/api/reminders`,
-          payload,
-          { headers }
-        );
-        savedReminder = res.data.reminder;
+      const userId = accountManager.getActiveUserId();
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        try {
+          if (reminderToEdit?._id && !String(reminderToEdit._id).startsWith("loc_")) {
+            // Update existing
+            const res = await axios.put(
+              `${API_BASE_URL}/api/reminders/${reminderToEdit._id}`,
+              payload,
+              { headers }
+            );
+            savedReminder = res.data.reminder;
+          } else {
+            // Create new
+            const res = await axios.post(
+              `${API_BASE_URL}/api/reminders`,
+              payload,
+              { headers }
+            );
+            savedReminder = res.data.reminder;
+          }
+          if (userId && savedReminder) {
+            await reminderRepository.saveReminders([savedReminder], userId);
+          }
+        } catch (netErr) {
+          console.warn("Direct reminder server sync failed, falling back to local DB:", netErr.message);
+        }
+      }
+
+      // If offline or server call failed, save locally
+      if (!savedReminder && userId) {
+        if (reminderToEdit?.localId || reminderToEdit?._id) {
+          const remId = reminderToEdit.localId || reminderToEdit._id;
+          savedReminder = await reminderRepository.updateReminder(remId, payload, userId);
+        } else {
+          savedReminder = await reminderRepository.createReminder(payload, userId);
+        }
+      }
+
+      if (!savedReminder) {
+        savedReminder = { ...payload, _id: reminderToEdit?._id || `rem_${Date.now()}` };
       }
 
       // Schedule real exact alarm on device / browser
@@ -281,7 +308,7 @@ const ReminderModal = ({
         // Request system permissions smoothly in background
         deviceAlarmManager.requestNotificationPermission().catch(() => {});
       } else {
-        deviceAlarmManager.cancelAlarm(savedReminder._id);
+        deviceAlarmManager.cancelAlarm(savedReminder._id || savedReminder.localId);
       }
 
       deviceAlarmManager.stopSound();

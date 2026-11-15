@@ -5,6 +5,8 @@ import axios from 'axios';
 import { soundManager } from '../utils/soundManager';
 import { useModalAccessibility } from '../utils/scrollLock';
 import { API_BASE_URL, resolveAttachmentUrl } from '../config/api';
+import { taskService } from '../services/taskService';
+import { attachmentService } from '../services/attachmentService';
 
 const API_BASE = `${API_BASE_URL}/api/tasks`;
 
@@ -57,17 +59,16 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     const fetchProjectsAndTemplates = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
-        const [projRes, tmplRes] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/api/projects`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          axios.get(`${API_BASE_URL}/api/templates`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
+        const [projList, tmplRes] = await Promise.allSettled([
+          taskService.getProjects(),
+          token
+            ? axios.get(`${API_BASE_URL}/api/templates`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+            : Promise.resolve({ data: { templates: [] } }),
         ]);
-        if (projRes.status === "fulfilled" && projRes.value.data?.projects) {
-          setProjects(projRes.value.data.projects);
+        if (projList.status === "fulfilled" && projList.value) {
+          setProjects(projList.value);
         }
         if (tmplRes.status === "fulfilled" && tmplRes.value.data?.templates) {
           setTemplates(tmplRes.value.data.templates);
@@ -122,7 +123,7 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
             }))
           : [],
         attachments: Array.isArray(taskToEdit.attachments) ? taskToEdit.attachments : [],
-        id: taskToEdit._id,
+        id: taskToEdit._id || taskToEdit.localId || taskToEdit.id,
       });
     } else {
       setTaskData({
@@ -159,8 +160,9 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File size exceeds 10MB limit. Please choose a smaller file.");
+    const validation = attachmentService.validateFile(file);
+    if (!validation.valid) {
+      setError(validation.error);
       return;
     }
 
@@ -169,25 +171,16 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
 
     try {
       const token = localStorage.getItem("token");
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const { data } = await axios.post(`${API_BASE}/upload`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (data.success && data.file) {
+      const uploadedFile = await attachmentService.uploadAttachment(file, token);
+      if (uploadedFile) {
         setTaskData((prev) => ({
           ...prev,
-          attachments: [...(prev.attachments || []), data.file],
+          attachments: [...(prev.attachments || []), uploadedFile],
         }));
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || "File upload failed.");
+      setError(err.message || "File upload failed.");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -332,21 +325,22 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     if (!newProjectName.trim()) return;
     setCreatingProject(true);
     try {
-      const token = localStorage.getItem("token");
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/projects`,
-        { name: newProjectName.trim(), color: newProjectColor },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (data.success && data.project) {
-        setProjects((prev) => [data.project, ...prev]);
-        setTaskData((prev) => ({ ...prev, project: data.project._id }));
+      const newProj = await taskService.createProject({
+        name: newProjectName.trim(),
+        color: newProjectColor,
+      });
+      if (newProj) {
+        setProjects((prev) => [newProj, ...prev]);
+        setTaskData((prev) => ({
+          ...prev,
+          project: newProj._id || newProj.localId,
+        }));
         setNewProjectName("");
         setShowNewProject(false);
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || "Failed to create project");
+      setError(err.message || "Failed to create project");
     } finally {
       setCreatingProject(false);
     }
@@ -369,8 +363,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
     setError(null);
 
     try {
-      const isEdit = Boolean(taskData.id);
-      const url = isEdit ? `${API_BASE}/${taskData.id}/gp` : `${API_BASE}/gp`;
+      const taskIdToEdit = taskData.id || taskData._id || taskData.localId;
+      const isEdit = Boolean(taskIdToEdit);
 
       const recurrencePayload = taskData.recurrence && taskData.recurrence.frequency !== "none" ? {
         frequency: taskData.recurrence.frequency,
@@ -391,28 +385,23 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout }) => {
         attachments: taskData.attachments || [],
       };
 
-      const resp = await fetch(url, {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        if (resp.status === 401) return onLogout?.();
-        const err = await resp.json();
-        throw new Error(err.message || 'Failed to save task');
+      let saved;
+      if (isEdit) {
+        saved = await taskService.updateTask(taskIdToEdit, payload);
+      } else {
+        saved = await taskService.createTask(payload);
       }
 
-      const saved = await resp.json();
       onSave?.(saved);
       onClose();
     } catch (error) {
       console.error(error);
+      if (error.response?.status === 401) return onLogout?.();
       setError(error.message || 'Error saving task');
     } finally {
       setLoading(false);
     }
-  }, [taskData, today, getHeaders, onLogout, onSave, onClose]);
+  }, [taskData, today, onLogout, onSave, onClose]);
 
   if (!isOpen) return null;
 

@@ -1,8 +1,23 @@
 // Tasklert Web Push & PWA Service Worker (v2)
 const CACHE_NAME = "tasklert-v2";
+const PRECACHE_ASSETS = [
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/tasklert-icon.svg",
+  "/logo.png",
+  "/favicon.png"
+];
 
-self.addEventListener("install", (_event) => {
+self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn("Precache non-critical asset failure:", err);
+      });
+    })
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -13,6 +28,59 @@ self.addEventListener("activate", (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+// 0. FETCH EVENT: Offline shell caching, asset cache-first, navigation fallback
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  // Strictly skip non-GET and API / dynamic backend endpoints
+  if (request.method !== "GET" || url.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // 1. Navigation requests (HTML routes): Network-first with /index.html offline fallback
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const fallbackShell = await caches.match("/index.html");
+          if (fallbackShell) return fallbackShell;
+          return caches.match("/");
+        })
+    );
+    return;
+  }
+
+  // 2. Static versioned / static assets: Cache-first with network fallback
+  if (
+    url.pathname.startsWith("/assets/") ||
+    url.pathname.match(/\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ico)$/i)
+  ) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
 });
 
 // Clean message listener for manual cache purge or ping
@@ -256,3 +324,19 @@ self.addEventListener("notificationclick", (event) => {
       })
   );
 });
+
+// 3. BACKGROUND SYNC: Responds to browser background sync events
+self.addEventListener("sync", (event) => {
+  if (event.tag === "tasklert-sync") {
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: "TASKLERT_TRIGGER_SYNC" });
+          });
+        })
+    );
+  }
+});
+

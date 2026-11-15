@@ -34,6 +34,7 @@ import TaskItem from '../components/TaskItem';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import DeleteModal from '../components/DeleteModal';
 import { API_BASE_URL } from '../config/api';
+import { taskService } from '../services/taskService';
 
 const SORT_OPTIONS = [
   { id: 'recent', label: 'Recently Completed' },
@@ -79,14 +80,15 @@ const CompletedPage = () => {
     const fetchMetadata = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) return;
-        const [pRes, tRes] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/api/projects`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } }),
+        const [localProjs, tRes] = await Promise.allSettled([
+          taskService.getProjects(),
+          token
+            ? axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } })
+            : Promise.resolve({ data: { tags: [] } }),
         ]);
         if (!isMounted) return;
-        if (pRes.status === 'fulfilled' && pRes.value.data?.projects) {
-          setProjects(pRes.value.data.projects);
+        if (localProjs.status === 'fulfilled' && localProjs.value) {
+          setProjects(localProjs.value);
         }
         if (tRes.status === 'fulfilled' && tRes.value.data?.tags) {
           setUserTags(tRes.value.data.tags);
@@ -291,12 +293,7 @@ const CompletedPage = () => {
       setOptimisticRestoringIds((prev) => new Set([...prev, taskId]));
 
       try {
-        const token = localStorage.getItem('token');
-        await axios.put(
-          `${API_BASE_URL}/api/tasks/${taskId}/gp`,
-          { completed: 'No' },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await taskService.completeTask(taskId, false, refreshTasks);
 
         toast.info(
           <div className="flex items-center justify-between gap-3 text-xs">
@@ -304,11 +301,7 @@ const CompletedPage = () => {
             <button
               onClick={async () => {
                 try {
-                  await axios.put(
-                    `${API_BASE_URL}/api/tasks/${taskId}/gp`,
-                    { completed: 'Yes' },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
+                  await taskService.completeTask(taskId, true, refreshTasks);
                   toast.success('Task moved back to Completed');
                   setOptimisticRestoringIds((prev) => {
                     const next = new Set(prev);
@@ -331,7 +324,7 @@ const CompletedPage = () => {
         refreshTasks();
       } catch (err) {
         console.error('Failed to restore task:', err);
-        toast.error(err.response?.data?.message || 'Failed to restore task');
+        toast.error(err.message || 'Failed to restore task');
         // Rollback optimistic removal
         setOptimisticRestoringIds((prev) => {
           const next = new Set(prev);
@@ -346,41 +339,15 @@ const CompletedPage = () => {
   // Single Task Delete
   const handleDeleteTask = useCallback(async () => {
     if (!taskToDelete) return;
-    const taskId = taskToDelete._id || taskToDelete.id;
+    const taskId = taskToDelete._id || taskToDelete.localId || taskToDelete.id;
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/api/tasks/${taskId}/gp`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.info(
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span>Task moved to trash</span>
-          <button
-            onClick={async () => {
-              try {
-                await axios.post(
-                  `${API_BASE_URL}/api/tasks/${taskId}/restore`,
-                  {},
-                  { headers: { Authorization: `Bearer ${token}` } }
-                );
-                toast.success('Task restored!');
-                refreshTasks();
-              } catch (e) {
-                toast.error('Failed to undo delete');
-              }
-            }}
-            className="px-2.5 py-1 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700 transition cursor-pointer"
-          >
-            Undo
-          </button>
-        </div>,
-        { autoClose: 6000 }
-      );
+      await taskService.deleteTask(taskId, refreshTasks);
+      toast.info('Task moved to trash');
       setTaskToDelete(null);
       refreshTasks();
     } catch (err) {
       console.error('Failed to delete task:', err);
-      toast.error('Failed to delete task');
+      toast.error(err.message || 'Failed to delete task');
     }
   }, [taskToDelete, refreshTasks]);
 

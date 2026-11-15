@@ -17,6 +17,10 @@ import NotificationPermissionBanner from "./NotificationPermissionBanner";
 import ErrorBoundary from "./ErrorBoundary";
 import { showBrowserNotification, syncPushSubscription } from "../utils/pushManager";
 import { API_BASE_URL } from "../config/api";
+import { taskRepository, accountManager } from "../db/index.js";
+import { syncEngine } from "../services/syncEngine.js";
+import OfflineStateBanners from "./sync/OfflineStateBanners";
+import EmergencyModeModal from "./emergency/EmergencyModeModal";
 
 const API_BASE = API_BASE_URL;
 
@@ -78,7 +82,20 @@ const Layout = ({ onLogout, user }) => {
   // Selected task & action modal states for Global Search
   const [selectedDetailTask, setSelectedDetailTask] = useState(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [isEmergencyModeOpen, setIsEmergencyModeOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Keyboard shortcut Alt+E to toggle Emergency Mode
+  useEffect(() => {
+    const handleEmergencyKey = (e) => {
+      if (e.altKey && (e.key === "e" || e.key === "E")) {
+        e.preventDefault();
+        setIsEmergencyModeOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleEmergencyKey);
+    return () => window.removeEventListener("keydown", handleEmergencyKey);
+  }, []);
 
   // Synchronize sidebar collapsed preference on account switch
   useEffect(() => {
@@ -156,6 +173,15 @@ const Layout = ({ onLogout, user }) => {
     currentUserIdRef.current = activeId;
   }, [user]);
 
+  // Initialize AccountManager and SyncEngine on mount
+  useEffect(() => {
+    accountManager.init();
+    if (user) {
+      accountManager.handleLogin(user);
+    }
+    syncEngine.init();
+  }, [user]);
+
   // Reset scroll to top on page transition (instant, zero artificial delay)
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -163,6 +189,19 @@ const Layout = ({ onLogout, user }) => {
 
   const fetchTasks = useCallback(async () => {
     setError(null);
+    const userId = accountManager.getActiveUserId();
+
+    // 1. Instantly load local cached tasks from IndexedDB if available
+    if (userId) {
+      try {
+        const cached = await taskRepository.getTasks(userId);
+        if (cached && cached.length > 0) {
+          setTasks(cached);
+          setLoading(false);
+        }
+      } catch (_) {}
+    }
+
     try {
       const token = localStorage.getItem("token");
 
@@ -188,12 +227,28 @@ const Layout = ({ onLogout, user }) => {
         : Array.isArray(data?.data)
         ? data.data
         : [];
-      setTasks(arr);
+
+      if (userId && arr.length > 0) {
+        await taskRepository.bulkUpsertFromServer(arr, userId);
+        const refreshed = await taskRepository.getTasks(userId);
+        setTasks(refreshed);
+      } else {
+        setTasks(arr);
+      }
       try {
         sessionStorage.setItem("tasklert_cached_tasks", JSON.stringify(arr));
       } catch (_) {}
     } catch (err) {
-      console.error(err);
+      console.warn("Server task fetch warning:", err.message);
+      // Fallback: If we have cached tasks in IndexedDB, do not show a blocking error screen!
+      if (userId) {
+        const cached = await taskRepository.getTasks(userId);
+        if (cached && cached.length > 0) {
+          setTasks(cached);
+          setError(null);
+          return;
+        }
+      }
       setError(err.message || "Could not load tasks.");
       if (err.response?.status === 401) onLogoutRef.current?.();
     } finally {
@@ -401,11 +456,33 @@ const Layout = ({ onLogout, user }) => {
     const handleMessage = (event) => {
       if (event.data?.type === "TASKLERT_ALARM_EVENT" && event.data?.alarm) {
         console.log("🔔 Received alarm event from Service Worker:", event.data.alarm);
-        setActiveAlarm(event.data.alarm);
+        const alarm = event.data.alarm;
+        const isFocus =
+          alarm.isFocus === true ||
+          alarm.alarmType === "focus" ||
+          alarm.alarmType === "short_break" ||
+          alarm.alarmType === "long_break" ||
+          String(alarm.alarmId || "").startsWith("focus-") ||
+          String(alarm.title || "").toLowerCase().includes("focus") ||
+          String(alarm.title || "").toLowerCase().includes("break");
+
+        const isFocusPage =
+          window.location.pathname.toLowerCase().includes("focus") ||
+          location.pathname.toLowerCase().includes("focus");
+
+        if (isFocusPage && isFocus) {
+          return;
+        }
+
+        setActiveAlarm(alarm);
       } else if (event.data?.type === "TASKLERT_NOTIFICATION_ACTION") {
-        const { action, alarmId } = event.data;
+        const { action, alarmId, isFocus } = event.data;
         const token = localStorage.getItem("token");
-        if (token && alarmId) {
+        const isFocusAction =
+          isFocus ||
+          String(alarmId || "").startsWith("focus-");
+
+        if (token && alarmId && !isFocusAction) {
           if (action === "dismiss") {
             axios
               .post(
@@ -444,6 +521,7 @@ const Layout = ({ onLogout, user }) => {
         // If user is currently on the /focus page and this is a focus completion alarm,
         // FocusTimerPage has its own dedicated completion modal. Do not show duplicate AlarmModal!
         const isFocusAlarm =
+          e.detail.isFocus === true ||
           e.detail.alarmType === "focus" ||
           e.detail.alarmType === "short_break" ||
           e.detail.alarmType === "long_break" ||
@@ -451,7 +529,11 @@ const Layout = ({ onLogout, user }) => {
           String(e.detail.title || "").toLowerCase().includes("focus") ||
           String(e.detail.title || "").toLowerCase().includes("break");
 
-        if (window.location.pathname.startsWith("/focus") && isFocusAlarm) {
+        const isFocusPage =
+          window.location.pathname.toLowerCase().includes("focus") ||
+          location.pathname.toLowerCase().includes("focus");
+
+        if (isFocusPage && isFocusAlarm) {
           return;
         }
 
@@ -568,32 +650,18 @@ const Layout = ({ onLogout, user }) => {
 
 
   const outletContext = useMemo(
-    () => ({ tasks, refreshTasks: fetchTasks, user, loadingTasks: loading, searchQuery, setSearchQuery }),
-    [tasks, fetchTasks, user, loading, searchQuery, setSearchQuery]
+    () => ({
+      tasks,
+      refreshTasks: fetchTasks,
+      user,
+      loadingTasks: loading,
+      searchQuery,
+      setSearchQuery,
+      isEmergencyModeOpen,
+      openEmergencyMode: () => setIsEmergencyModeOpen(true),
+    }),
+    [tasks, fetchTasks, user, loading, searchQuery, setSearchQuery, isEmergencyModeOpen]
   );
-
-  // ERROR (Only block dashboard/tasks when tasks are critical and unavailable)
-  const isTaskCriticalPage = ["/", "/pending", "/Complete"].includes(location.pathname);
-  if (error && tasks.length === 0 && isTaskCriticalPage)
-    return (
-      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-rose-100 shadow-sm max-w-md w-full text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="font-bold text-gray-800 text-base">Could not load tasks</h3>
-            <p className="text-xs text-gray-500 mt-1">{error}</p>
-          </div>
-          <button
-            onClick={fetchTasks}
-            className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
 
   const isMessagesPage = location.pathname === "/messages";
   const isCalendarPage = location.pathname === "/calendar";
@@ -626,6 +694,7 @@ const Layout = ({ onLogout, user }) => {
         }}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
+        onOpenEmergencyMode={() => setIsEmergencyModeOpen(true)}
       />
       <Sidebar user={user} tasks={tasks} collapsed={sidebarCollapsed} />
       <div
@@ -641,6 +710,11 @@ const Layout = ({ onLogout, user }) => {
             : "pt-[calc(var(--app-header-height)+0.75rem)] px-2.5 sm:px-4 md:px-6 pb-24 md:pb-8 xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden xl:flex xl:flex-col xl:pb-0"
         } transition-all duration-300`}
       >
+        {/* Offline & Sync Contextual Status Banners */}
+        <OfflineStateBanners
+          onOpenEmergencyMode={() => setIsEmergencyModeOpen(true)}
+          onCreateTask={() => setIsCreateTaskModalOpen(true)}
+        />
         {isFullWidthPage ? (
           <div className={`w-full min-w-0 ${isFixedViewportPage ? "h-full flex-1 min-h-0 flex flex-col overflow-hidden" : "animate-page-enter"}`}>
             <ErrorBoundary>
@@ -846,6 +920,15 @@ const Layout = ({ onLogout, user }) => {
             onLogout={onLogout}
           />
         </React.Suspense>
+      )}
+
+      {/* EMERGENCY MODE OFFLINE HUB */}
+      {isEmergencyModeOpen && (
+        <EmergencyModeModal
+          isOpen={isEmergencyModeOpen}
+          onClose={() => setIsEmergencyModeOpen(false)}
+          onRefreshApp={fetchTasks}
+        />
       )}
 
       {/* NATIVE-APP MOBILE BOTTOM NAVIGATION */}

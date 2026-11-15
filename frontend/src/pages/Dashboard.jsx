@@ -9,6 +9,8 @@ import TaskItem from '../components/TaskItem';
 const TaskModal = lazy(() => import('../components/TaskModal'));
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { API_BASE_URL } from '../config/api';
+import { taskService } from '../services/taskService';
+import { EmptyCachedTasksState } from '../components/sync/OfflineStateBanners';
 
 const isCompletedTask = isTaskCompleted;
 
@@ -130,14 +132,15 @@ const Dashboard = () => {
     const fetchProjectsAndTags = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
-        const [pRes, tRes] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/api/projects`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } }),
+        const [localProjs, tRes] = await Promise.allSettled([
+          taskService.getProjects(),
+          token
+            ? axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } })
+            : Promise.resolve({ data: { tags: [] } }),
         ]);
         if (!isMounted) return;
-        if (pRes.status === "fulfilled" && pRes.value.data?.projects) {
-          setProjects(pRes.value.data.projects);
+        if (localProjs.status === "fulfilled" && localProjs.value) {
+          setProjects(localProjs.value);
         }
         if (tRes.status === "fulfilled" && tRes.value.data?.tags) {
           setUserTags(tRes.value.data.tags);
@@ -162,50 +165,39 @@ const Dashboard = () => {
     if (!selectedTaskIds.length) return;
     setBulkLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/tasks/bulk`,
-        { taskIds: selectedTaskIds, action, value },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (data.success) {
-        toast.success(data.message || "Bulk operation completed");
-        if (action === "delete") {
-          const deletedIds = [...selectedTaskIds];
-          toast.info(
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <span>{deletedIds.length} tasks moved to trash</span>
-              <button
-                onClick={async () => {
-                  try {
-                    await Promise.all(
-                      deletedIds.map((id) =>
-                        axios.post(`${API_BASE_URL}/api/tasks/${id}/restore`, {}, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        })
-                      )
-                    );
-                    toast.success("Tasks restored!");
-                    refreshTasks();
-                  } catch (e) {
-                    toast.error("Failed to restore some tasks");
-                  }
-                }}
-                className="px-2.5 py-1 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700 transition cursor-pointer"
-              >
-                Undo
-              </button>
-            </div>,
-            { autoClose: 7000 }
-          );
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const token = localStorage.getItem("token");
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/tasks/bulk`,
+          { taskIds: selectedTaskIds, action, value },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (data.success) {
+          toast.success(data.message || "Bulk operation completed");
+          setSelectedTaskIds([]);
+          setIsSelectionMode(false);
+          refreshTasks();
+          return;
         }
-        setSelectedTaskIds([]);
-        setIsSelectionMode(false);
-        refreshTasks();
       }
+
+      // Offline bulk operations fallback
+      for (const id of selectedTaskIds) {
+        if (action === "delete") {
+          await taskService.deleteTask(id);
+        } else if (action === "complete") {
+          await taskService.completeTask(id, true);
+        } else if (action === "priority") {
+          await taskService.updateTask(id, { priority: value });
+        }
+      }
+      toast.success("Bulk operation completed offline");
+      setSelectedTaskIds([]);
+      setIsSelectionMode(false);
+      refreshTasks();
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || "Bulk operation failed");
+      toast.error(err.response?.data?.message || err.message || "Bulk operation failed");
     } finally {
       setBulkLoading(false);
     }
@@ -1343,9 +1335,12 @@ const Dashboard = () => {
             {/* TASK LIST */}
             <div className='space-y-4'>
   {filteredTasks.length === 0 ? (
-    <div className={EMPTY_STATE.wrapper}>
-      <div className={EMPTY_STATE.iconWrapper}>
-        <CalendarIcon className='w-8 h-8 text-purple-500' />
+    typeof navigator !== "undefined" && !navigator.onLine && tasks.length === 0 ? (
+      <EmptyCachedTasksState onCreateTask={() => setShowModal(true)} />
+    ) : (
+      <div className={EMPTY_STATE.wrapper}>
+        <div className={EMPTY_STATE.iconWrapper}>
+          <CalendarIcon className='w-8 h-8 text-purple-500' />
         </div>
         <h3 className='text-lg font-semibold text-gray-800 mb-2'>
           No tasks found
@@ -1377,6 +1372,7 @@ const Dashboard = () => {
           </button>
         </div>
     </div>
+    )
   ) : (
     filteredTasks.map(task => (
       <TaskItem key={task._id || task.id} task={task} 

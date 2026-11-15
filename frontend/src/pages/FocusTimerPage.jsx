@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
 import { deviceAlarmManager } from "../utils/deviceAlarmManager";
+import { centralAlarmEngine } from "../utils/centralAlarmEngine";
 import { customRingtoneStorage } from "../utils/customRingtoneStorage";
 import { API_BASE_URL } from "../config/api";
 import { LiquidTimer } from "../components/focus/LiquidTimer";
@@ -41,6 +42,9 @@ import { FocusCompletionModal } from "../components/focus/FocusCompletionModal";
 import { FocusSettingsModal } from "../components/focus/FocusSettingsModal";
 import { FocusDiagnosticsModal } from "../components/focus/FocusDiagnosticsModal";
 import { precisionTimerWorker } from "../utils/timerWorker";
+import { focusSessionRepository } from "../db/focusSessionRepository";
+import { taskRepository } from "../db/taskRepository";
+import { accountManager } from "../db/accountManager";
 
 const LOCAL_STORAGE_SESSION_KEY = "tasklert_focus_session_v2";
 const LOCAL_STORAGE_SETTINGS_KEY = "tasklert_focus_settings";
@@ -273,6 +277,7 @@ export const FocusTimerPage = () => {
   const timerIntervalRef = useRef(null);
   const timerWorkerRef = useRef(null);
   const broadcastChannelRef = useRef(null);
+  const scheduledAlarmIdRef = useRef(null);
   const isCompletingRef = useRef(false);
   const handleCompleteRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -495,33 +500,77 @@ export const FocusTimerPage = () => {
     }
   }, []);
 
-  // Fetch pending tasks to associate with focus session
+  const safeBroadcast = useCallback((data) => {
+    try {
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.postMessage(data);
+      }
+    } catch (_) {
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const fresh = new BroadcastChannel("tasklert_focus_timer_sync");
+          broadcastChannelRef.current = fresh;
+          fresh.postMessage(data);
+        }
+      } catch (_) {}
+    }
+  }, []);
+
+  // Fetch pending tasks to associate with focus session (Offline-First)
   const fetchTasks = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-      const { data } = await axios.get(`${API_BASE_URL}/api/tasks/gp`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (data.success && Array.isArray(data.tasks)) {
-        setTasks(data.tasks.filter((t) => !t.completed));
+      const userId = accountManager.getActiveUserId();
+      if (userId) {
+        const localTasks = await taskRepository.getTasks(userId);
+        if (localTasks && localTasks.length > 0) {
+          setTasks(localTasks.filter((t) => !t.completed && t.completed !== "Yes"));
+        }
+      }
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const { data } = await axios.get(`${API_BASE_URL}/api/tasks/gp`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (data.success && Array.isArray(data.tasks)) {
+            setTasks(data.tasks.filter((t) => !t.completed && t.completed !== "Yes"));
+          }
+        }
       }
     } catch (err) {
       console.warn("Could not load tasks for timer:", err.message);
     }
   }, []);
 
-  // Fetch focus history from backend
+  // Fetch focus history from backend with IndexedDB fallback
   const fetchHistory = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-      const { data } = await axios.get(`${API_BASE_URL}/api/focus/history?limit=15`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (data.success) {
-        setHistory(data.sessions || []);
-        setHistorySummary(data.summary || {});
+      const userId = accountManager.getActiveUserId();
+      if (userId) {
+        const localSessions = await focusSessionRepository.getSessions(userId, 15);
+        if (localSessions && localSessions.length > 0) {
+          setHistory(localSessions);
+          const totalFocusSec = localSessions.reduce(
+            (acc, s) => acc + (s.actualElapsedSeconds || s.plannedDuration || 0),
+            0
+          );
+          setHistorySummary({
+            totalSessions: localSessions.length,
+            totalFocusMinutes: Math.round(totalFocusSec / 60),
+          });
+        }
+      }
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const { data } = await axios.get(`${API_BASE_URL}/api/focus/history?limit=15`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (data.success) {
+            setHistory(data.sessions || []);
+            setHistorySummary(data.summary || {});
+          }
+        }
       }
     } catch (err) {
       console.warn("Could not load focus history:", err.message);
@@ -576,10 +625,22 @@ export const FocusTimerPage = () => {
     const currentCycle = cycleCountRef.current;
 
     releaseScreenWakeLock();
-    const sid = currentSession?._id || currentSession?.id || "active-focus-session";
+    const sid = currentSession?._id || currentSession?.id || scheduledAlarmIdRef.current || "active-focus-session";
     deviceAlarmManager.cancelFocusAlarm(sid);
+    if (scheduledAlarmIdRef.current) {
+      deviceAlarmManager.cancelFocusAlarm(scheduledAlarmIdRef.current);
+    }
     deviceAlarmManager.cancelFocusAlarm("active-focus-session");
 
+    try {
+      centralAlarmEngine.cancelAlarm(sid);
+      if (scheduledAlarmIdRef.current) {
+        centralAlarmEngine.cancelAlarm(scheduledAlarmIdRef.current);
+      }
+      centralAlarmEngine.cancelAlarm("active-focus-session");
+    } catch (_) {}
+
+    scheduledAlarmIdRef.current = null;
     localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
     setIsRunning(false);
     setIsPaused(false);
@@ -587,8 +648,37 @@ export const FocusTimerPage = () => {
 
     try {
       const token = localStorage.getItem("token");
+      const userId = accountManager.getActiveUserId();
 
-      if (currentSession?._id && token) {
+      const sessionDurationSec =
+        currentMode === "focus"
+          ? currentSettings.focusDuration * 60
+          : currentMode === "short_break"
+          ? currentSettings.shortBreakDuration * 60
+          : currentSettings.longBreakDuration * 60;
+
+      // Record in local IndexedDB focusSessionRepository
+      if (userId) {
+        try {
+          await focusSessionRepository.saveSession(
+            {
+              serverId: currentSession?._id || null,
+              task: currentTaskId || null,
+              sessionType: currentMode,
+              plannedDuration: sessionDurationSec,
+              actualElapsedSeconds: sessionDurationSec,
+              startedAt: new Date(Date.now() - sessionDurationSec * 1000).toISOString(),
+              endedAt: new Date().toISOString(),
+              status: "completed",
+            },
+            userId
+          );
+        } catch (dbErr) {
+          console.warn("Could not save focus session to IndexedDB:", dbErr.message);
+        }
+      }
+
+      if (currentSession?._id && token && typeof navigator !== "undefined" && navigator.onLine) {
         try {
           await axios.post(
             `${API_BASE_URL}/api/focus/${currentSession._id}/complete`,
@@ -682,9 +772,7 @@ export const FocusTimerPage = () => {
       setSessionType(nextMode);
       setRemainingSeconds(nextDurationSec);
 
-      try {
-        broadcastChannelRef.current?.postMessage({ type: "FOCUS_SESSION_COMPLETED" });
-      } catch (_) {}
+      safeBroadcast({ type: "FOCUS_SESSION_COMPLETED" });
       fetchHistory();
     } catch (err) {
       console.error("Completion handling error:", err);
@@ -1043,12 +1131,15 @@ export const FocusTimerPage = () => {
           if (data.success && data.session) {
             setActiveSession(data.session);
             localSession.id = data.session._id;
+            scheduledAlarmIdRef.current = data.session._id;
             localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(localSession));
           }
         } catch (apiErr) {
           console.warn("Backend startSession:", apiErr.message);
         }
       }
+
+      scheduledAlarmIdRef.current = localSession.id;
 
       // 3. Schedule exact alarm with deviceAlarmManager (Android AlarmManager + Web Audio KeepAlive)
       deviceAlarmManager.scheduleFocusAlarm({
@@ -1066,7 +1157,7 @@ export const FocusTimerPage = () => {
 
       deviceAlarmManager.requestNotificationPermission();
 
-      broadcastChannelRef.current?.postMessage({
+      safeBroadcast({
         type: "FOCUS_SESSION_STARTED",
         payload: localSession,
       });
@@ -1211,7 +1302,16 @@ export const FocusTimerPage = () => {
     precisionTimerWorker.stop();
     soundManager.stopKeepAlive();
     soundManager.stop();
-    deviceAlarmManager.cancelFocusAlarm(activeSession?._id || "active-focus-session");
+    const sid = activeSession?._id || scheduledAlarmIdRef.current || "active-focus-session";
+    deviceAlarmManager.cancelFocusAlarm(sid);
+    if (scheduledAlarmIdRef.current) deviceAlarmManager.cancelFocusAlarm(scheduledAlarmIdRef.current);
+    deviceAlarmManager.cancelFocusAlarm("active-focus-session");
+    try {
+      centralAlarmEngine.cancelAlarm(sid);
+      if (scheduledAlarmIdRef.current) centralAlarmEngine.cancelAlarm(scheduledAlarmIdRef.current);
+      centralAlarmEngine.cancelAlarm("active-focus-session");
+    } catch (_) {}
+    scheduledAlarmIdRef.current = null;
     setActionLoading(true);
 
     try {
@@ -1227,7 +1327,7 @@ export const FocusTimerPage = () => {
       }
 
       localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
-      broadcastChannelRef.current?.postMessage({ type: "FOCUS_SESSION_RESET" });
+      safeBroadcast({ type: "FOCUS_SESSION_RESET" });
 
       setActiveSession(null);
       setIsRunning(false);
@@ -2320,12 +2420,30 @@ export const FocusTimerPage = () => {
         todayTotalMinutes={historySummary.todayFocusMinutes || 0}
         onDismiss={() => {
           soundManager.stop();
-          deviceAlarmManager.cancelFocusAlarm();
+          const sid = activeSession?._id || activeSession?.id || scheduledAlarmIdRef.current || "active-focus-session";
+          deviceAlarmManager.cancelFocusAlarm(sid);
+          if (scheduledAlarmIdRef.current) deviceAlarmManager.cancelFocusAlarm(scheduledAlarmIdRef.current);
+          deviceAlarmManager.cancelFocusAlarm("active-focus-session");
+          try {
+            centralAlarmEngine.cancelAlarm(sid);
+            if (scheduledAlarmIdRef.current) centralAlarmEngine.cancelAlarm(scheduledAlarmIdRef.current);
+            centralAlarmEngine.cancelAlarm("active-focus-session");
+          } catch (_) {}
+          scheduledAlarmIdRef.current = null;
           setShowCompletionModal(false);
         }}
         onStartNext={() => {
           soundManager.stop();
-          deviceAlarmManager.cancelFocusAlarm();
+          const sid = activeSession?._id || activeSession?.id || scheduledAlarmIdRef.current || "active-focus-session";
+          deviceAlarmManager.cancelFocusAlarm(sid);
+          if (scheduledAlarmIdRef.current) deviceAlarmManager.cancelFocusAlarm(scheduledAlarmIdRef.current);
+          deviceAlarmManager.cancelFocusAlarm("active-focus-session");
+          try {
+            centralAlarmEngine.cancelAlarm(sid);
+            if (scheduledAlarmIdRef.current) centralAlarmEngine.cancelAlarm(scheduledAlarmIdRef.current);
+            centralAlarmEngine.cancelAlarm("active-focus-session");
+          } catch (_) {}
+          scheduledAlarmIdRef.current = null;
           setShowCompletionModal(false);
           handleStart();
         }}

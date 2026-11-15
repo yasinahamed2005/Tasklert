@@ -7,6 +7,7 @@ import { getPriorityBadgeColor, TI_CLASSES, getPriorityColor, MENU_OPTIONS, isTa
 import { CheckCircle2, MoreVertical, Calendar, Clock, Bell, Paperclip, ExternalLink, RotateCw, Folder, RotateCcw, Check } from "lucide-react";
 import { format, differenceInCalendarDays } from 'date-fns';
 import { API_BASE_URL, resolveAttachmentUrl } from "../config/api";
+import { taskService } from "../services/taskService";
 
 const API_BASE = `${API_BASE_URL}/api/tasks`;
 
@@ -55,22 +56,18 @@ const TaskItem = ({
       return;
     }
     try {
-      const newStatus = isCompleted ? "No" : "Yes";
-      await axios.put(`${API_BASE}/${task._id}/gp`, 
-        { completed: newStatus }, 
-        { headers: getAuthHeaders() }
-      );
-      setIsCompleted(!isCompleted);
-      onRefresh?.();
+      const nextCompleted = !isCompleted;
+      setIsCompleted(nextCompleted);
+      await taskService.completeTask(task, nextCompleted, onRefresh);
     } catch (err) {
-      console.error("Complete task error:", err.response?.data || err.message);
+      console.error("Complete task error:", err.message);
       if (err.response?.status === 401) onLogout?.();
     }
   };
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`${API_BASE}/${task._id}/gp`, { headers: getAuthHeaders() });
+      await taskService.deleteTask(task, onRefresh);
       setShowDeleteModal(false); 
       onRefresh?.();
       toast.info(
@@ -79,9 +76,12 @@ const TaskItem = ({
           <button
             onClick={async () => {
               try {
-                await axios.post(`${API_BASE}/${task._id}/restore`, {}, { headers: getAuthHeaders() });
+                await taskService.updateTask(
+                  task.localId || task._id,
+                  { isDeleted: false, deletedAt: null },
+                  onRefresh
+                );
                 toast.success("Task restored!");
-                onRefresh?.();
               } catch (_restoreErr) {
                 toast.error("Failed to restore task");
               }
@@ -94,7 +94,7 @@ const TaskItem = ({
         { autoClose: 6000 }
       );
     } catch (err) {
-      console.error("Delete task error:", err.response?.data || err.message);
+      console.error("Delete task error:", err.message);
       if (err.response?.status === 401) onLogout?.();
     }
   };

@@ -183,11 +183,28 @@ const taskSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  localId: {
+    type: String,
+    default: null,
+    index: true,
+  },
+  version: {
+    type: Number,
+    default: 1,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+    index: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
+
+taskSchema.index({ owner: 1, updatedAt: 1 });
+taskSchema.index({ owner: 1, localId: 1 });
 
 taskSchema.index({ owner: 1, completed: 1, completedAt: 1 });
 taskSchema.index({ owner: 1, createdAt: 1 });

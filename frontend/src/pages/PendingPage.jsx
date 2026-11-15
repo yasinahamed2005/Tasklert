@@ -35,6 +35,8 @@ import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import { API_BASE_URL } from '../config/api';
+import { taskService } from '../services/taskService';
+import { EmptyCachedTasksState } from '../components/sync/OfflineStateBanners';
 
 const SORT_OPTIONS_LIST = [
   { id: 'smart', label: 'Smart (Urgency)' },
@@ -105,14 +107,15 @@ const PendingPage = () => {
     const fetchMeta = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) return;
-        const [pRes, tRes] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/api/projects`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } }),
+        const [localProjs, tRes] = await Promise.allSettled([
+          taskService.getProjects(),
+          token
+            ? axios.get(`${API_BASE_URL}/api/tasks/tags`, { headers: { Authorization: `Bearer ${token}` } })
+            : Promise.resolve({ data: { tags: [] } }),
         ]);
         if (!isMounted) return;
-        if (pRes.status === 'fulfilled' && pRes.value.data?.projects) {
-          setProjects(pRes.value.data.projects);
+        if (localProjs.status === 'fulfilled' && localProjs.value) {
+          setProjects(localProjs.value);
         }
         if (tRes.status === 'fulfilled' && tRes.value.data?.tags) {
           setUserTags(tRes.value.data.tags);
@@ -380,21 +383,13 @@ const PendingPage = () => {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       };
 
-      const res = await axios.post(`${API_BASE_URL}/api/tasks/gp`, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.data?.success || res.status === 200 || res.status === 201) {
-        toast.success(`Task "${title}" created!`);
-        setQuickTitle('');
-        refreshTasks();
-      }
+      await taskService.createTask(payload, refreshTasks);
+      toast.success(`Task "${title}" created!`);
+      setQuickTitle('');
+      refreshTasks();
     } catch (err) {
       console.error('Quick add failed:', err);
-      toast.error(err.response?.data?.message || 'Failed to create task');
+      toast.error(err.message || 'Failed to create task');
     } finally {
       setQuickSubmitting(false);
       quickInputRef.current?.focus();
@@ -410,7 +405,7 @@ const PendingPage = () => {
     if (selectedTaskIds.length === sortedTasks.length) {
       setSelectedTaskIds([]);
     } else {
-      setSelectedTaskIds(sortedTasks.map((t) => t._id || t.id).filter(Boolean));
+      setSelectedTaskIds(sortedTasks.map((t) => t._id || t.localId || t.id).filter(Boolean));
     }
   }, [selectedTaskIds, sortedTasks]);
 
@@ -418,52 +413,39 @@ const PendingPage = () => {
     if (!selectedTaskIds.length) return;
     setBulkLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/tasks/bulk`,
-        { taskIds: selectedTaskIds, action, value },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (data.success) {
-        toast.success(data.message || 'Bulk operation completed');
-        if (action === 'delete') {
-          const deletedIds = [...selectedTaskIds];
-          toast.info(
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <span>{deletedIds.length} tasks moved to trash</span>
-              <button
-                onClick={async () => {
-                  try {
-                    await Promise.all(
-                      deletedIds.map((id) =>
-                        axios.post(
-                          `${API_BASE_URL}/api/tasks/${id}/restore`,
-                          {},
-                          { headers: { Authorization: `Bearer ${token}` } }
-                        )
-                      )
-                    );
-                    toast.success('Tasks restored!');
-                    refreshTasks();
-                  } catch (_e) {
-                    toast.error('Failed to restore tasks');
-                  }
-                }}
-                className="px-2.5 py-1 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700 transition cursor-pointer"
-              >
-                Undo
-              </button>
-            </div>,
-            { autoClose: 7000 }
-          );
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const token = localStorage.getItem('token');
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/tasks/bulk`,
+          { taskIds: selectedTaskIds, action, value },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (data.success) {
+          toast.success(data.message || 'Bulk operation completed');
+          setSelectedTaskIds([]);
+          setIsSelectionMode(false);
+          refreshTasks();
+          return;
         }
-        setSelectedTaskIds([]);
-        setIsSelectionMode(false);
-        refreshTasks();
       }
+
+      // Offline bulk operations fallback
+      for (const id of selectedTaskIds) {
+        if (action === 'delete') {
+          await taskService.deleteTask(id);
+        } else if (action === 'complete') {
+          await taskService.completeTask(id, true);
+        } else if (action === 'priority') {
+          await taskService.updateTask(id, { priority: value });
+        }
+      }
+      toast.success('Bulk operation completed offline');
+      setSelectedTaskIds([]);
+      setIsSelectionMode(false);
+      refreshTasks();
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Bulk operation failed');
+      toast.error(err.response?.data?.message || err.message || 'Bulk operation failed');
     } finally {
       setBulkLoading(false);
     }
@@ -1033,6 +1015,9 @@ const PendingPage = () => {
       {/* 5. TASK LIST (LOGICAL SECTIONS OR CLEAN FLAT LIST) */}
       <div className="space-y-4">
         {sortedTasks.length === 0 ? (
+          typeof navigator !== "undefined" && !navigator.onLine && tasks.length === 0 ? (
+            <EmptyCachedTasksState onCreateTask={() => setShowTaskModal(true)} />
+          ) : (
           <div className="bg-white rounded-2xl border border-purple-100 p-8 shadow-xs text-center">
             <div className="max-w-xs mx-auto py-4 text-center">
               <div className="w-14 h-14 bg-purple-50 border border-purple-100 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-600">
@@ -1074,6 +1059,7 @@ const PendingPage = () => {
               </div>
             </div>
           </div>
+          )
         ) : taskGroups ? (
           // Grouped Sections for All Pending in Smart Urgency Order
           <div className="space-y-5">

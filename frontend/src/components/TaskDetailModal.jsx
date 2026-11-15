@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import { format } from "date-fns";
 import { API_BASE_URL, resolveAttachmentUrl } from "../config/api";
 import { getPriorityBadgeColor } from "../assets/dummy";
+import { taskService } from "../services/taskService";
 
 const API_BASE = `${API_BASE_URL}/api/tasks`;
 
@@ -51,14 +52,12 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onRefresh, onEdit, onLo
     return { Authorization: `Bearer ${token}` };
   };
 
+  const taskId = task._id || task.localId || task.id;
+
   const handleToggleComplete = async () => {
     try {
       const nextStatus = isCompleted ? "No" : "Yes";
-      await axios.put(
-        `${API_BASE}/${task._id}/gp`,
-        { completed: nextStatus },
-        { headers: getAuthHeaders() }
-      );
+      await taskService.completeTask(taskId, nextStatus === "Yes", onRefresh);
       setIsCompleted(!isCompleted);
       onRefresh?.();
       toast.success(isCompleted ? "Task marked as pending" : "Task completed! 🎉");
@@ -75,11 +74,7 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onRefresh, onEdit, onLo
     );
     setSubtasks(updated);
     try {
-      await axios.put(
-        `${API_BASE}/${task._id}/gp`,
-        { subtasks: updated },
-        { headers: getAuthHeaders() }
-      );
+      await taskService.updateTask(taskId, { subtasks: updated }, onRefresh);
       onRefresh?.();
     } catch (err) {
       console.error(err);
@@ -95,11 +90,7 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onRefresh, onEdit, onLo
     setNewSubtaskTitle("");
     setAddingSubtask(false);
     try {
-      await axios.put(
-        `${API_BASE}/${task._id}/gp`,
-        { subtasks: updated },
-        { headers: getAuthHeaders() }
-      );
+      await taskService.updateTask(taskId, { subtasks: updated }, onRefresh);
       onRefresh?.();
       toast.success("Subtask added");
     } catch (err) {

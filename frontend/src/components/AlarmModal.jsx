@@ -11,6 +11,8 @@ import {
   CheckCheck,
 } from "lucide-react";
 import { soundManager } from "../utils/soundManager";
+import { deviceAlarmManager } from "../utils/deviceAlarmManager";
+import { centralAlarmEngine } from "../utils/centralAlarmEngine";
 import { useModalAccessibility } from "../utils/scrollLock";
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
@@ -67,6 +69,7 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
   };
 
   const isFocusAlarm =
+    alarm.isFocus === true ||
     alarm.alarmType === "focus" ||
     alarm.alarmType === "short_break" ||
     alarm.alarmType === "long_break" ||
@@ -86,12 +89,19 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
       // 1. If this is a focus alarm, cancel focus timers and do NOT call reminder routes
       if (isFocusAlarm) {
         try {
+          deviceAlarmManager.cancelFocusAlarm();
           if (alarm.alarmId) {
-            axios.post(
-              `${API_BASE}/api/focus/${alarm.alarmId}/stop`,
-              {},
-              { headers }
-            ).catch(() => {});
+            deviceAlarmManager.cancelFocusAlarm(alarm.alarmId);
+            try {
+              centralAlarmEngine.cancelAlarm(alarm.alarmId);
+            } catch (_) {}
+            if (!String(alarm.alarmId).startsWith("focus-")) {
+              axios.post(
+                `${API_BASE}/api/focus/${alarm.alarmId}/stop`,
+                {},
+                { headers }
+              ).catch(() => {});
+            }
           }
         } catch (_) {}
       } else if (token && alarm.alarmId) {
@@ -151,7 +161,17 @@ const AlarmModal = ({ alarm, onClose, onActionCompleted }) => {
     setErrorMessage(null);
     try {
       const token = localStorage.getItem("token");
-      if (token && alarm.alarmId && !isFocusAlarm) {
+      if (isFocusAlarm) {
+        try {
+          deviceAlarmManager.scheduleFocusAlarm({
+            id: alarm.alarmId || "active-focus-session",
+            title: "⏰ Snoozed Focus Alarm",
+            mode: "focus",
+            durationSeconds: selectedSnooze * 60,
+            targetEndAt: new Date(Date.now() + selectedSnooze * 60 * 1000),
+          });
+        } catch (_) {}
+      } else if (token && alarm.alarmId) {
         try {
           await axios.post(
             `${API_BASE}/api/reminders/${alarm.alarmId}/snooze`,

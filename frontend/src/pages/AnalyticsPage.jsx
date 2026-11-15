@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import {
@@ -37,6 +37,10 @@ import {
 } from "recharts";
 import { API_BASE_URL } from "../config/api";
 import PageTransitionLoader from "../components/PageTransitionLoader";
+import { computeLocalAnalytics } from "../utils/localAnalytics";
+import { taskRepository } from "../db/taskRepository";
+import { focusSessionRepository } from "../db/focusSessionRepository";
+import { accountManager } from "../db/accountManager";
 
 const PRIORITY_COLORS = {
   High: "#ef4444",   // Red
@@ -66,6 +70,32 @@ export const AnalyticsPage = () => {
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // If currently offline, calculate directly from local IndexedDB
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const userId = accountManager.getActiveUserId();
+      if (userId) {
+        try {
+          const [localTasks, localSessions] = await Promise.all([
+            taskRepository.getTasks(userId),
+            focusSessionRepository.getSessions(userId, 500),
+          ]);
+          const localComputed = computeLocalAnalytics(
+            localTasks,
+            localSessions,
+            range,
+            customStart,
+            customEnd
+          );
+          setAnalyticsData(localComputed);
+          setLoading(false);
+          return;
+        } catch (localErr) {
+          console.warn("Offline local analytics error:", localErr);
+        }
+      }
+    }
+
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -89,7 +119,28 @@ export const AnalyticsPage = () => {
         setAnalyticsData(data);
       }
     } catch (err) {
-      console.error("Failed to load analytics:", err);
+      console.warn("Failed to load server analytics, falling back to local database:", err.message);
+      try {
+        const userId = accountManager.getActiveUserId();
+        if (userId) {
+          const [localTasks, localSessions] = await Promise.all([
+            taskRepository.getTasks(userId),
+            focusSessionRepository.getSessions(userId, 500),
+          ]);
+          const localComputed = computeLocalAnalytics(
+            localTasks,
+            localSessions,
+            range,
+            customStart,
+            customEnd
+          );
+          setAnalyticsData(localComputed);
+          setError(null);
+          return;
+        }
+      } catch (localErr) {
+        console.error("Local analytics calculation failed:", localErr);
+      }
       setError(err.response?.data?.message || "Failed to load productivity analytics.");
     } finally {
       setLoading(false);
@@ -173,6 +224,12 @@ export const AnalyticsPage = () => {
               <p className="hidden sm:block text-xs sm:text-sm text-gray-500 mt-0.5">
                 Track real task throughput, completion milestones, and focused study/work hours.
               </p>
+              {analyticsData?.isOffline && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Local Offline Analytics
+                </div>
+              )}
             </div>
           </div>
 
@@ -236,6 +293,24 @@ export const AnalyticsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Offline Indicator Alert Banner */}
+      {analyticsData?.isOffline && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-3 sm:p-4 text-xs text-amber-800 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="p-1.5 rounded-xl bg-amber-100 text-amber-700 font-bold shrink-0">⚡</span>
+            <p>
+              <span className="font-bold">Offline Analytics:</span> Displaying metrics computed locally from cached device tasks and focus sessions.
+            </p>
+          </div>
+          <button
+            onClick={fetchAnalytics}
+            className="px-2.5 py-1 bg-amber-200/80 hover:bg-amber-300 font-bold rounded-lg text-xs cursor-pointer transition shrink-0"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
 
       {/* Custom Date Range Pickers (Visible when custom range is selected) */}
       {range === "custom" && (
