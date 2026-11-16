@@ -823,9 +823,9 @@ const Layout = ({ onLogout, user }) => {
                 </h3>
 
                 <div className="space-y-2 sm:space-y-3">
-                  {tasks.slice(0, 3).map((task) => (
+                  {tasks.slice(0, 3).map((task, index) => (
                     <div
-                      key={task._id || task.id}
+                      key={task.localId || task.serverId || task._id || task.id || `recent-${index}`}
                       className="flex items-center justify-between p-2 sm:p-3 hover:bg-purple-50/50 rounded-lg transition-colors duration-200 border border-transparent hover:border-purple-100"
                     >
                       <div className="flex-1 min-w-0">

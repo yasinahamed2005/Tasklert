@@ -31,8 +31,8 @@ const AlertsPanel = ({ tasks = [] }) => {
           {dueToday.length === 0 ? (
             <p className="alert-empty">No tasks due today.</p>
           ) : (
-            dueToday.slice(0, 3).map((task) => (
-              <p key={task._id || task.id} className="alert-item">
+            dueToday.slice(0, 3).map((task, index) => (
+              <p key={task.localId || task.serverId || task._id || task.id || `due-${index}`} className="alert-item">
                 {task.title}
               </p>
             ))
@@ -65,8 +65,8 @@ const AlertsPanel = ({ tasks = [] }) => {
           {overdue.length === 0 ? (
             <p className="alert-empty">No overdue tasks.</p>
           ) : (
-            overdue.slice(0, 3).map((task) => (
-              <p key={task._id || task.id} className="alert-item">
+            overdue.slice(0, 3).map((task, index) => (
+              <p key={task.localId || task.serverId || task._id || task.id || `overdue-${index}`} className="alert-item">
                 {task.title}
               </p>
             ))

@@ -1016,7 +1016,7 @@ const PendingPage = () => {
       <div className="space-y-4">
         {sortedTasks.length === 0 ? (
           typeof navigator !== "undefined" && !navigator.onLine && tasks.length === 0 ? (
-            <EmptyCachedTasksState onCreateTask={() => setShowTaskModal(true)} />
+            <EmptyCachedTasksState onCreateTask={() => setShowModal(true)} />
           ) : (
           <div className="bg-white rounded-2xl border border-purple-100 p-8 shadow-xs text-center">
             <div className="max-w-xs mx-auto py-4 text-center">

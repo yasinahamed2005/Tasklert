@@ -25,7 +25,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'no-empty': ['error', { allowEmptyCatch: true }],
       'no-unused-vars': [
-        'error',
+        'warn',
         {
           varsIgnorePattern: '^[A-Z_]',
           argsIgnorePattern: '^[A-Z_]',

@@ -88,7 +88,9 @@ describe("Android Offline Launch & Direct Route Loading Suite", () => {
   it("Test 7: scrollLock hook and Navbar safely guard against null dispatcher error", () => {
     const scrollLockPath = path.resolve(__dirname, "../../frontend/src/utils/scrollLock.js");
     const scrollContent = fs.readFileSync(scrollLockPath, "utf-8");
-    assert.ok(scrollContent.includes("typeof useEffectFn === \"function\""));
+    assert.ok(scrollContent.includes("useBodyScrollLock"));
+    assert.ok(scrollContent.includes("lockBodyScroll"));
+    assert.ok(scrollContent.includes("unlockBodyScroll"));
 
     const navbarPath = path.resolve(__dirname, "../../frontend/src/components/Navbar.jsx");
     const navbarContent = fs.readFileSync(navbarPath, "utf-8");

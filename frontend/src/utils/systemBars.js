@@ -1,8 +1,13 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
-const SystemBars =
-  (typeof window !== "undefined" && window.Capacitor?.Plugins?.SystemBars) ||
-  registerPlugin("SystemBars");
+let SystemBars;
+try {
+  SystemBars =
+    (typeof window !== "undefined" && window.Capacitor?.Plugins?.SystemBars) ||
+    registerPlugin("SystemBars");
+} catch (_) {
+  SystemBars = (typeof window !== "undefined" && window.Capacitor?.Plugins?.SystemBars) || null;
+}
 
 export function syncSystemNavigationBar() {
   if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
@@ -26,7 +31,7 @@ export function syncSystemNavigationBar() {
     const luminance = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
     lightIcons = 0.2126 * luminance[0] + 0.7152 * luminance[1] + 0.0722 * luminance[2] < 0.45;
   }
-  SystemBars.setNavigationBar({ color, lightIcons }).catch((error) => {
+  SystemBars?.setNavigationBar?.({ color, lightIcons })?.catch?.((error) => {
     console.warn("Could not update native navigation bar appearance:", error);
   });
 }

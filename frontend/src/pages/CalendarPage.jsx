@@ -124,10 +124,14 @@ const CalendarPage = () => {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await axios.get(`${API_BASE_URL}/api/reminders`, { headers });
         const list = res.data?.reminders || [];
-        setReminders(list);
-        deviceAlarmManager.syncUpcomingAlarms(list);
-        if (userId && list.length > 0) {
-          await reminderRepository.saveReminders(list, userId);
+        if (userId) {
+          await reminderRepository.bulkUpsertFromServer(list, userId);
+          const mergedList = await reminderRepository.getReminders(userId);
+          setReminders(mergedList);
+          deviceAlarmManager.syncUpcomingAlarms(mergedList);
+        } else {
+          setReminders(list);
+          deviceAlarmManager.syncUpcomingAlarms(list);
         }
       }
     } catch (err) {

@@ -133,7 +133,7 @@ export default function EmailReader({
       }
     )
     .replace(
-      /url\(\s*["']?\s*cid:([^"'\)]+)\s*["']?\s*\)/gi,
+      /url\(\s*["']?\s*cid:([^"')]+)\s*["']?\s*\)/gi,
       'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")'
     )
     .replace(
@@ -369,7 +369,6 @@ export default function EmailReader({
           {cleanHtml ? (
             <div
               className="prose prose-sm max-w-none gmail-html-content overflow-x-auto"
-              // eslint-disable-next-line react/no-danger
               dangerouslySetInnerHTML={{ __html: cleanHtml }}
             />
           ) : email.body ? (

@@ -2,7 +2,7 @@ import React, { useEffect, useState, Suspense, lazy, useCallback } from "react";
 import { Outlet, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import "react-toastify/dist/ReactToastify.css";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import AuthShell from "./components/AuthShell";
 import Landing from "./pages/Landing";
 import AuthPage from "./pages/AuthPage";

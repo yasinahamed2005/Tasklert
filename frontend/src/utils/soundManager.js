@@ -13,6 +13,7 @@
 class SoundManager {
   constructor() {
     this.audioCtx = null;
+    this.audioUnlocked = false;
     this.activeNodes = [];
     this.loopInterval = null;
     this.isPlaying = false;
@@ -38,6 +39,10 @@ class SoundManager {
       this.audioCtx = null;
     }
     if (!this.audioCtx) {
+      // Creating an AudioContext before a real interaction triggers Chromium's
+      // autoplay warning. Sound can be unlocked explicitly or by a user gesture.
+      const hasUserActivation = Boolean(window.navigator?.userActivation?.isActive);
+      if (!this.audioUnlocked && !hasUserActivation) return null;
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.audioCtx = new AudioCtx();
@@ -52,6 +57,7 @@ class SoundManager {
    * Unlocks both Web Audio and HTML5 Audio on mobile browsers (Android & iOS).
    */
   async unlockAudioContext() {
+    this.audioUnlocked = true;
     const ctx = this.getAudioContext();
 
     if (ctx) {

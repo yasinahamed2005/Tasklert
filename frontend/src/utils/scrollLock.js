@@ -103,16 +103,13 @@ export function unlockBodyScroll() {
  * React hook to lock body scroll while modal or drawer is open.
  */
 export function useBodyScrollLock(isLocked) {
-  const useEffectFn = typeof useEffect === "function" ? useEffect : React?.useEffect;
-  if (typeof useEffectFn === "function") {
-    useEffectFn(() => {
-      if (!isLocked) return;
-      lockBodyScroll();
-      return () => {
-        unlockBodyScroll();
-      };
-    }, [isLocked]);
-  }
+  useEffect(() => {
+    if (!isLocked) return;
+    lockBodyScroll();
+    return () => {
+      unlockBodyScroll();
+    };
+  }, [isLocked]);
 }
 
 /**
@@ -123,53 +120,49 @@ export function useBodyScrollLock(isLocked) {
  * - Auto-focuses modal panel
  */
 export function useModalAccessibility({ isOpen, onClose, modalRef }) {
-  const useRefFn = typeof useRef === "function" ? useRef : React?.useRef;
-  const useEffectFn = typeof useEffect === "function" ? useEffect : React?.useEffect;
-  const triggerElementRef = typeof useRefFn === "function" ? useRefFn(null) : { current: null };
+  const triggerElementRef = useRef(null);
 
   // Lock body scroll
   useBodyScrollLock(isOpen);
 
   // Focus management
-  if (typeof useEffectFn === "function") {
-    useEffectFn(() => {
-      if (!isOpen) return;
+  useEffect(() => {
+    if (!isOpen) return;
 
-      triggerElementRef.current = document.activeElement;
+    triggerElementRef.current = document.activeElement;
 
-      // Small delay to allow element rendering before focusing
-      const timer = setTimeout(() => {
-        if (modalRef?.current) {
-          // Focus close button or first focusable input
-          const focusable = modalRef.current.querySelector(
-            'button[aria-label="Close"], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          focusable?.focus?.();
-        }
-      }, 50);
+    // Small delay to allow element rendering before focusing
+    const timer = setTimeout(() => {
+      if (modalRef?.current) {
+        // Focus close button or first focusable input
+        const focusable = modalRef.current.querySelector(
+          'button[aria-label="Close"], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        focusable?.focus?.();
+      }
+    }, 50);
 
-      return () => {
-        clearTimeout(timer);
-        if (triggerElementRef.current && typeof triggerElementRef.current.focus === "function") {
-          triggerElementRef.current.focus();
-        }
-      };
-    }, [isOpen, modalRef]);
+    return () => {
+      clearTimeout(timer);
+      if (triggerElementRef.current && typeof triggerElementRef.current.focus === "function") {
+        triggerElementRef.current.focus();
+      }
+    };
+  }, [isOpen, modalRef]);
 
-    // Escape key support
-    useEffectFn(() => {
-      if (!isOpen) return;
+  // Escape key support
+  useEffect(() => {
+    if (!isOpen) return;
 
-      const handleKeyDown = (e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose?.();
-        }
-      };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose?.();
+      }
+    };
 
-      document.addEventListener("keydown", handleKeyDown);
-      return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, onClose]);
-  }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 }

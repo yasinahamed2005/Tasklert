@@ -20,7 +20,7 @@ class DeviceAlarmManager {
     // Listen for user interaction to unlock Web Audio context on mobile browsers
     if (typeof window !== "undefined") {
       const unlockAudio = () => {
-        soundManager.getAudioContext();
+        soundManager.unlockAudioContext();
         this.audioContextUnlocked = true;
         window.removeEventListener("click", unlockAudio);
         window.removeEventListener("touchstart", unlockAudio);

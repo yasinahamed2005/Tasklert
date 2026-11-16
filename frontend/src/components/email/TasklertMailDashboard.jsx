@@ -571,7 +571,7 @@ export default function TasklertMailDashboard({ onOpenCompose, onOpenSchedule })
                           '$1="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"'
                         )
                         .replace(
-                          /url\(\s*["']?\s*cid:([^"'\)]+)\s*["']?\s*\)/gi,
+                          /url\(\s*["']?\s*cid:([^"')]+)\s*["']?\s*\)/gi,
                           'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")'
                         ),
                       { FORBID_TAGS: ["script", "iframe", "form", "input"] }

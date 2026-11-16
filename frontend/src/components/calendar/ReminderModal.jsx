@@ -281,7 +281,7 @@ const ReminderModal = ({
             savedReminder = res.data.reminder;
           }
           if (userId && savedReminder) {
-            await reminderRepository.saveReminders([savedReminder], userId);
+            await reminderRepository.bulkUpsertFromServer([savedReminder], userId);
           }
         } catch (netErr) {
           console.warn("Direct reminder server sync failed, falling back to local DB:", netErr.message);

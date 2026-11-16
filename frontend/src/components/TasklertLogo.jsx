@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useId } from "react";
 
 /**
  * Tasklert Circular Brand Icon Component
  * Vector SVG with gradient ring, T-stem symbol, and alert bell node.
  */
 export const TasklertIcon = ({ size = 36, className = "", idPrefix = "tl" }) => {
-  const reactId = React.useId ? React.useId().replace(/[:]/g, "_") : Math.random().toString(36).substring(2, 7);
-  const uniquePrefix = `${idPrefix}_${reactId}`;
+  const generatedId = useId().replace(/[:]/g, "_");
+  const uniquePrefix = `${idPrefix}_${generatedId}`;
   const bgGradId = `${uniquePrefix}-bgGrad`;
   const ringGradId = `${uniquePrefix}-ringGrad`;
   const tGradId = `${uniquePrefix}-tGrad`;
