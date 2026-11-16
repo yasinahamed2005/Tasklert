@@ -149,7 +149,7 @@ export async function subscribeToDevicePush() {
   if (permission !== "granted") {
     throw new Error(
       permission === "denied"
-        ? "Notification permission was blocked in browser settings. Please allow notifications in site settings."
+        ? "Notifications are blocked. Click the lock icon in your address bar to enable alarms."
         : "Notification permission was dismissed."
     );
   }
@@ -433,7 +433,6 @@ export async function syncPushSubscription(options = { force: false }) {
     );
 
     localStorage.setItem("tasklert_push_synced_at", String(Date.now()));
-    console.log("✅ Web Push subscription synchronized with backend");
     return subscription;
   } catch (err) {
     console.warn("Web Push sync failed:", err.message);

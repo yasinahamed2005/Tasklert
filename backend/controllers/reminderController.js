@@ -12,6 +12,9 @@ import {
 } from "../utils/timeZone.js";
 import { isEmailConfigured } from "../utils/mailer.js";
 import { isVapidConfigured } from "../services/pushService.js";
+import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../config/jwt.js";
+import { sanitizePayload, REMINDER_ALLOWED_FIELDS, PREFERENCES_ALLOWED_FIELDS } from "../utils/massAssignment.js";
 
 const isCompleted = (val) =>
   [true, 1, "yes", "true", "completed"].includes(
@@ -320,7 +323,7 @@ export const updateReminder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Reminder not found or not yours" });
     }
 
-    const data = { ...req.body };
+    const data = sanitizePayload(req.body, REMINDER_ALLOWED_FIELDS);
     if (data.notes) {
       data.message = data.notes;
     }
@@ -671,7 +674,7 @@ export const getUserPreferences = async (req, res) => {
 export const updateUserPreferences = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-    const data = { ...req.body };
+    const data = sanitizePayload(req.body, PREFERENCES_ALLOWED_FIELDS);
 
     // Validate quietHours timezone if provided
     if (data.quietHours?.timeZone) {
@@ -868,13 +871,41 @@ export const getReminderDiagnostics = async (req, res) => {
 // CONFIRM DELIVERY ACKNOWLEDGMENT (from Service Worker on device arrival)
 export const confirmDeliveryAck = async (req, res) => {
   try {
-    const { alarmId } = req.body;
+    const { alarmId, ackToken } = req.body;
     if (!alarmId) {
       return res.status(400).json({ success: false, message: "alarmId required" });
     }
 
-    const updated = await Reminder.findByIdAndUpdate(
-      alarmId,
+    let ownerId = req.user?.id || req.user?._id;
+
+    // If req.user is not populated (service worker call without standard auth header),
+    // check for Bearer token or body ackToken
+    if (!ownerId) {
+      let token = ackToken;
+      const authHeader = req.headers.authorization;
+      if (!token && authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, getJwtSecret());
+          if (decoded.alarmId && String(decoded.alarmId) !== String(alarmId)) {
+            return res.status(403).json({ success: false, message: "Token does not match alarmId" });
+          }
+          ownerId = decoded.id || decoded.owner;
+        } catch (_) {
+          return res.status(401).json({ success: false, message: "Invalid or expired delivery acknowledgment token" });
+        }
+      }
+    }
+
+    if (!ownerId) {
+      return res.status(401).json({ success: false, message: "Authentication required to acknowledge delivery" });
+    }
+
+    const updated = await Reminder.findOneAndUpdate(
+      { _id: alarmId, owner: ownerId },
       {
         deliveryConfirmedAt: new Date(),
         deliveryStatus: "DELIVERY CONFIRMED",
@@ -888,6 +919,10 @@ export const confirmDeliveryAck = async (req, res) => {
       },
       { new: true }
     );
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Reminder not found or does not belong to user" });
+    }
 
     res.json({ success: true, confirmed: Boolean(updated) });
   } catch (err) {

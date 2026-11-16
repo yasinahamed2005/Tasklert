@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Contact from "../models/contactModel.js";
 import Message from "../models/messageModel.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export const SEED_CONTACTS = [
   {
@@ -137,15 +138,17 @@ export const getContacts = async (req, res) => {
     }
 
     if (search && search.trim()) {
-      const q = search.trim();
-      const regex = new RegExp(q, "i");
-      filter.$or = [
-        { name: regex },
-        { phone: regex },
-        { whatsappPhone: regex },
-        { telegramUsername: regex },
-        { email: regex },
-      ];
+      const q = escapeRegex(search);
+      if (q) {
+        const regex = new RegExp(q, "i");
+        filter.$or = [
+          { name: regex },
+          { phone: regex },
+          { whatsappPhone: regex },
+          { telegramUsername: regex },
+          { email: regex },
+        ];
+      }
     }
 
     const contacts = await Contact.find(filter)

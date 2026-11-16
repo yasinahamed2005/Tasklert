@@ -28,12 +28,14 @@ import {
   handleDeleteTasklertMail,
   handleResendTasklertMail,
 } from "../controllers/email.controller.js";
+import { fileFilterAllowlist } from "../utils/uploadSecurity.js";
 
 const emailRouter = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 10 }, // 25MB per file, up to 10 files
+  fileFilter: fileFilterAllowlist,
 });
 
 // OAuth Callback from Google (Public callback - authenticated cryptographically via signed PKCE state token)

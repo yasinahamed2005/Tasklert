@@ -88,9 +88,9 @@ export const NotificationPermissionBanner = () => {
           </p>
 
           {isIOSWebPush && (
-            <p className="text-[11px] text-indigo-600 mt-1.5 flex items-center gap-1 font-medium">
+            <p className="text-[11px] text-indigo-600 mt-1.5 flex items-center gap-1 font-medium leading-relaxed">
               <Smartphone className="w-3.5 h-3.5 shrink-0" />
-              Tip: On iOS Safari, tap &quot;Share&quot; → &quot;Add to Home Screen&quot; for full push alarms.
+              On iPhone, reminders arrive as notifications. For audible alarms with snooze, open Tasklert as an installed PWA on Android.
             </p>
           )}
 

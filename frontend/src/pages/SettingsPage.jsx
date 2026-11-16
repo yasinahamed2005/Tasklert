@@ -27,6 +27,7 @@ import {
   Clock,
   LogOut,
   Sliders,
+  AlertTriangle,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { notify } from "../utils/toastManager";
@@ -115,6 +116,60 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
   const [savingProfile, setSavingProfile] = useState(false);
 
   const isGoogleAccount = user?.provider === "google";
+
+  // Account Deletion State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteOtp, setDeleteOtp] = useState("");
+  const [deleteOtpSent, setDeleteOtpSent] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isSendingDeleteOtp, setIsSendingDeleteOtp] = useState(false);
+
+  const handleRequestDeleteOtp = async () => {
+    setIsSendingDeleteOtp(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(`${API_BASE_URL}/api/user/account/request-delete-otp`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDeleteOtpSent(true);
+      notify.success("Verification code sent to your email.");
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Failed to send verification code.");
+    } finally {
+      setIsSendingDeleteOtp(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (!window.confirm("Are you absolutely sure you want to permanently delete your account? This action cannot be undone.")) {
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`${API_BASE_URL}/api/user/account`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          password: isGoogleAccount ? undefined : deletePassword,
+          otp: isGoogleAccount ? deleteOtp : undefined,
+        }
+      });
+      notify.success("Account deleted permanently.");
+      setShowDeleteModal(false);
+      if (onLogout) {
+        onLogout();
+      } else {
+        localStorage.clear();
+        window.location.href = "/";
+      }
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Failed to delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -751,6 +806,33 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
                   </button>
                 </div>
                 <SecurityDevices />
+
+                {/* Danger Zone: Delete Account */}
+                <div className="pt-6 border-t border-rose-100">
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                        <span>Danger Zone: Delete Account</span>
+                      </h4>
+                      <p className="text-xs text-rose-700 mt-1 max-w-xl">
+                        Permanently delete your account, tasks, alarms, Telegram/WhatsApp connections, and uploaded media. This action cannot be reversed.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeleteModal(true);
+                        setDeletePassword("");
+                        setDeleteOtp("");
+                        setDeleteOtpSent(false);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1177,6 +1259,93 @@ const SettingsPage = ({ user, setCurrentUser, onLogout }) => {
           </main>
         </div>
       </div>
+
+      {/* DELETE ACCOUNT CONFIRMATION MODAL */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-rose-100 w-full max-w-md overflow-hidden p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900">Delete Account Permanently</h3>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  This action is irreversible. All your tasks, projects, reminders, alarms, uploaded attachments, and connected messaging accounts will be permanently erased.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleDeleteAccount} className="space-y-4 pt-2">
+              {isGoogleAccount ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-600">
+                    As a Google account user, please enter the security verification code sent to your email (<strong>{user?.email}</strong>) to confirm deletion.
+                  </p>
+                  {!deleteOtpSent ? (
+                    <button
+                      type="button"
+                      disabled={isSendingDeleteOtp}
+                      onClick={handleRequestDeleteOtp}
+                      className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSendingDeleteOtp ? "Sending code..." : "Send Verification Code"}
+                    </button>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Enter 6-Digit Email Code
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        inputMode="numeric"
+                        value={deleteOtp}
+                        onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, ""))}
+                        placeholder="123456"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Enter Your Current Password to Confirm
+                  </label>
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingAccount}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeletingAccount || (isGoogleAccount && (!deleteOtpSent || deleteOtp.length !== 6)) || (!isGoogleAccount && !deletePassword)}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  {isDeletingAccount ? "Deleting..." : "Permanently Delete"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -137,32 +137,24 @@ export default function EmailOnboarding({
                 </div>
               </div>
 
-              {/* Primary Connect Gmail Button — High contrast, vibrant purple */}
+              {/* Connect Gmail Button — Private beta pending verification */}
               <button
                 type="button"
                 onClick={onConnectGmail}
-                disabled={connecting}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-extrabold shadow-md shadow-purple-300/40 hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+                disabled={true}
+                title="Gmail integration is currently in private beta pending Google verification. Use standard IMAP/SMTP in the meantime."
+                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-slate-400 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-not-allowed shrink-0"
               >
-                {connecting && connectingProvider === "gmail" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting Google...</span>
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="w-4 h-4" />
-                    <span>Connect Gmail</span>
-                  </>
-                )}
+                <Lock className="w-4 h-4" />
+                <span>Private Beta</span>
               </button>
             </div>
 
-            {/* Google Security Guarantee Note */}
-            <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100 flex items-start gap-2.5 text-xs text-purple-900">
-              <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+            {/* Google Verification Status Note */}
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed">
-                <strong>Bank-Grade Multi-User Isolation:</strong> Tasklert never sees or stores your personal Google password. Tokens are encrypted server-side with AES-256-GCM.
+                <strong>Private Beta Notice:</strong> Gmail integration is currently in private beta pending Google verification. Use standard IMAP/SMTP below in the meantime.
               </div>
             </div>
           </div>

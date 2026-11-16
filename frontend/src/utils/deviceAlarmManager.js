@@ -297,7 +297,6 @@ class DeviceAlarmManager {
           fileName: file.name,
           base64Data,
         });
-        console.log("[deviceAlarmManager] Custom ringtone saved to native Android storage:", res);
         return res;
       }
     } catch (err) {

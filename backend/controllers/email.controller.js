@@ -18,6 +18,7 @@ import { sendOutboundEmail, sendTasklertMail } from "../services/email/emailSend
 import EmailMessage from "../models/EmailMessage.js";
 import EmailAccount from "../models/EmailAccount.js";
 import Message from "../models/messageModel.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 // ==========================================
 // 1. ACCOUNT CONNECTION & STATUS
@@ -66,6 +67,12 @@ export const handleGetAccountStatus = async (req, res) => {
 
 export const handleGetGmailAuthUrl = async (req, res) => {
   try {
+    if (process.env.GMAIL_CONNECT_ENABLED !== "true") {
+      return res.status(403).json({
+        success: false,
+        message: "Gmail integration is currently in private beta pending Google verification. Use standard IMAP/SMTP in the meantime.",
+      });
+    }
     const userId = req.user?._id;
     const hostUrl = `${req.protocol}://${req.get("host")}`;
     const result = getGoogleAuthUrl(userId, hostUrl);
@@ -674,12 +681,14 @@ export const handleGetTasklertSentMails = async (req, res) => {
     }
 
     if (search && search.trim()) {
-      const s = search.trim();
-      query.$or = [
-        { subject: { $regex: s, $options: "i" } },
-        { to: { $in: [new RegExp(s, "i")] } },
-        { snippet: { $regex: s, $options: "i" } },
-      ];
+      const s = escapeRegex(search);
+      if (s) {
+        query.$or = [
+          { subject: { $regex: s, $options: "i" } },
+          { to: { $in: [new RegExp(s, "i")] } },
+          { snippet: { $regex: s, $options: "i" } },
+        ];
+      }
     }
 
     const skip = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(limit));

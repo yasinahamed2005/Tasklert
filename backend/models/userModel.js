@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    avatarPublicId: {
+      type: String,
+      default: "",
+    },
     provider: {
       type: String,
       enum: ["local", "google", "facebook", "github", "linkedin"],

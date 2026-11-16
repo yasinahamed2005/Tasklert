@@ -20,10 +20,12 @@ import {
   webhookWhatsAppGet,
   webhookWhatsAppPost,
 } from "../controllers/messageController.js";
+import { fileFilterAllowlist } from "../utils/uploadSecurity.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 5 }, // 15MB per file, up to 5 files
+  fileFilter: fileFilterAllowlist,
 });
 
 const messageRouter = express.Router();

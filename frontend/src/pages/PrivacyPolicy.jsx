@@ -357,15 +357,42 @@ export default function PrivacyPolicy() {
             </section>
 
             {/* 9. Email and Communication Data */}
-            <section id="communication-data" className="scroll-mt-24 p-6 sm:p-8 rounded-3xl border border-white/10 bg-slate-900/60 backdrop-blur-md space-y-3">
+            <section id="communication-data" className="scroll-mt-24 p-6 sm:p-8 rounded-3xl border border-white/10 bg-slate-900/60 backdrop-blur-md space-y-4">
               <span className="text-xs font-mono font-bold text-purple-400">Section 09</span>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">9. Email &amp; QuickSend Communication Data</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">9. Messaging, Alarms &amp; Push Notification Data</h2>
               <p>
-                For QuickSend deliveries, we store audit logs containing recipient addresses, subject lines, message snippets, timestamps, delivery statuses (<code>scheduled</code>, <code>sent</code>, <code>failed</code>), and error messages to provide delivery tracking in your workspace.
+                Tasklert offers optional integrations across Telegram, WhatsApp, Email, and Web Push to deliver scheduled task alarms and reminders. We collect and store only what is technically needed to deliver these reminders:
               </p>
-              <p>
-                For Telegram integration, MTProto session strings are stored encrypted in isolated database documents and are never sent to the browser client or third parties.
-              </p>
+              
+              <div className="space-y-3 pt-2 text-sm">
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1.5">
+                  <h3 className="font-bold text-white text-base">Telegram Integration</h3>
+                  <p className="text-slate-300">
+                    Your MTProto session string is encrypted at rest using <strong>AES-256-GCM</strong> with an isolated encryption key. Tasklert <strong>never reads your private chats or incoming messages</strong>. The session is used exclusively to deliver reminders to your <em>Saved Messages</em> or a designated chat ID you choose. You can disconnect anytime from your Tasklert settings or terminate the session directly from <em>Telegram Settings &gt; Devices</em>.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1.5">
+                  <h3 className="font-bold text-white text-base">WhatsApp Integration</h3>
+                  <p className="text-slate-300">
+                    We store your verified recipient phone number and webhook delivery statuses. We do not broadcast marketing messages or share contact lists with third parties. Messages are strictly transactional alerts for your scheduled tasks and daily planning over Meta&apos;s Cloud API.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1.5">
+                  <h3 className="font-bold text-white text-base">Email &amp; QuickSend</h3>
+                  <p className="text-slate-300">
+                    For connected SMTP/IMAP or OAuth email accounts, credentials and tokens are encrypted with AES-256-GCM in isolated database documents. IMAP synchronization caches headers and message snippets scoped exclusively to your user ID. We never use your emails for advertising, analytics profiling, or machine learning training.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1.5">
+                  <h3 className="font-bold text-white text-base">Web Push &amp; Exact-Time Alarms</h3>
+                  <p className="text-slate-300">
+                    When you enable browser push notifications, we store your browser&apos;s VAPID push endpoint along with public authorization keys (<code>p256dh</code> and <code>auth</code>) to wake your device&apos;s service worker and sound scheduled alarms. Push tokens are revoked automatically when you delete a device or reset notifications.
+                  </p>
+                </div>
+              </div>
             </section>
 
             {/* 10. How We Use Information */}

@@ -16,6 +16,8 @@ import {
 import { processScheduledMessages } from "./messageScheduler.js";
 import { processDueTelegramScheduledMessages } from "../services/telegram/telegramScheduler.service.js";
 import { processDueUnifiedScheduledDeliveries } from "../services/scheduling/unifiedScheduler.service.js";
+import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../config/jwt.js";
 
 
 const startOfDay = (date) =>
@@ -195,6 +197,17 @@ export const processScheduledAlarms = async (now = new Date()) => {
               { action: "snooze", title: `Snooze ${claimed.snoozeDuration || 5}m` },
               { action: "dismiss", title: "Dismiss" },
             ],
+            ackToken: (() => {
+              try {
+                return jwt.sign(
+                  { alarmId: String(reminderId), owner: String(claimed.owner), purpose: "delivery_ack" },
+                  getJwtSecret(),
+                  { expiresIn: "10m" }
+                );
+              } catch (_) {
+                return null;
+              }
+            })(),
           };
 
           pushResult = await sendPushToUser(claimed.owner, pushPayload, {
@@ -555,6 +568,9 @@ export const processSmartReminders = async (now = new Date()) => {
 // Execution mutex to prevent overlapping cycles
 let isCronRunning = false;
 let schedulerTimer = null;
+let lastCronRunTime = null;
+
+export const getLastCronRunTime = () => lastCronRunTime;
 
 export const runCronCycle = async () => {
   if (isCronRunning) {
@@ -562,8 +578,8 @@ export const runCronCycle = async () => {
   }
 
   isCronRunning = true;
+  const now = new Date();
   try {
-    const now = new Date();
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
 
@@ -625,6 +641,8 @@ export const runCronCycle = async () => {
   } catch (err) {
     console.error("Reminder scheduler cycle error:", err.message);
   } finally {
+    lastCronRunTime = now;
+    console.log(`[ReminderCron] Cycle finished at ${now.toISOString()}.`);
     isCronRunning = false;
   }
 };
@@ -728,13 +746,41 @@ export const cleanCalendarReminderEmailJobs = async () => {
   }
 };
 
-export const startReminderCron = () => {
+/**
+ * Catch-up step on startup: finds reminders whose scheduled time passed while
+ * the server was asleep or restarted and immediately triggers dispatch.
+ */
+export const catchUpMissedReminders = async () => {
+  try {
+    const now = new Date();
+    const missed = await Reminder.find({
+      alarmEnabled: true,
+      status: { $in: ["scheduled", "snoozed", "failed_retryable"] },
+      scheduledAt: { $lte: now },
+      isClaimed: false,
+    });
+
+    if (missed.length > 0) {
+      console.log(`[ReminderCron] Catch-up step: found ${missed.length} missed reminders during downtime. Dispatching...`);
+      await processScheduledAlarms(now);
+    } else {
+      console.log("[ReminderCron] Catch-up check: No missed reminders during downtime.");
+    }
+  } catch (err) {
+    console.warn("[ReminderCron] Catch-up error:", err.message);
+  }
+};
+
+export const startReminderCron = async () => {
   if (schedulerTimer) return; // Prevent duplicate interval registration
 
   console.log("⏰ Tasklert Smart Alarm Scheduler active (30s interval with concurrency lock)");
 
   // Cancel any stale calendar email jobs on startup
   cleanCalendarReminderEmailJobs().catch(() => {});
+
+  // Catch up any reminders missed while the server was asleep/down
+  await catchUpMissedReminders();
 
   // Initial immediate cycle on startup
   runCronCycle().catch(() => {});

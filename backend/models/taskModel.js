@@ -116,6 +116,7 @@ const taskSchema = new mongoose.Schema({
       {
         name: { type: String, required: true },
         url: { type: String, required: true },
+        publicId: { type: String, default: "" },
         fileType: { type: String, default: "document" },
         size: { type: Number, default: 0 },
       },

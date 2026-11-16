@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import { getClientForUser } from "./telegramClient.service.js";
 import { resolvePeer } from "./telegramPeers.service.js";
+import { fileFilterAllowlist } from "../../utils/uploadSecurity.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "telegram");
@@ -20,6 +21,33 @@ const MEDIA_CACHE_DIR = path.join(UPLOAD_DIR, "media_cache");
 if (!fs.existsSync(MEDIA_CACHE_DIR)) {
   fs.mkdirSync(MEDIA_CACHE_DIR, { recursive: true });
 }
+
+/**
+ * Periodically purge Telegram media cache and uploaded files older than 24 hours.
+ */
+export const cleanOldTelegramMedia = () => {
+  const dirs = [MEDIA_CACHE_DIR, UPLOAD_DIR];
+  const maxAgeMs = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        const filePath = path.join(dir, file);
+        try {
+          const stats = fs.statSync(filePath);
+          if (stats.isFile() && (now - stats.mtimeMs > maxAgeMs)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+};
+
+// Run cache cleanup on service load
+cleanOldTelegramMedia();
 
 // In-memory cache for peers confirmed to have no profile photo: Map<key, timestamp>
 const noAvatarCache = new Map();
@@ -40,6 +68,7 @@ const storage = multer.diskStorage({
 export const telegramUpload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max per attachment
+  fileFilter: fileFilterAllowlist,
 });
 
 /**
@@ -58,8 +87,13 @@ export const downloadMessageMedia = async (userId, chatId, messageId, res) => {
       const stats = fs.statSync(binPath);
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
       if (stats.size > 0 && meta?.mimeType) {
+        const isImage = meta.mimeType.startsWith("image/");
+        res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Content-Type", meta.mimeType);
-        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(meta.filename || `media-${cleanMsgId}`)}"`);
+        res.setHeader(
+          "Content-Disposition",
+          `${isImage ? "inline" : "attachment"}; filename="${encodeURIComponent(meta.filename || `media-${cleanMsgId}`)}"`
+        );
         res.setHeader("Content-Length", stats.size);
         res.setHeader("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
         return fs.createReadStream(binPath).pipe(res);
@@ -107,8 +141,13 @@ export const downloadMessageMedia = async (userId, chatId, messageId, res) => {
       fs.writeFile(metaPath, JSON.stringify({ mimeType, filename }), () => {});
     } catch (_) {}
 
+    const isImage = mimeType.startsWith("image/");
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Type", mimeType);
-    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `${isImage ? "inline" : "attachment"}; filename="${encodeURIComponent(filename)}"`
+    );
     res.setHeader("Content-Length", buffer.length);
     res.setHeader("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
 

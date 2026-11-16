@@ -175,10 +175,14 @@ self.addEventListener("push", (event) => {
 
   // Immediate delivery acknowledgment to backend
   if (data.alarmId) {
+    const ackHeaders = { "Content-Type": "application/json" };
+    if (data.ackToken) {
+      ackHeaders["Authorization"] = `Bearer ${data.ackToken}`;
+    }
     fetch("/api/notifications/delivery-ack", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alarmId: data.alarmId }),
+      headers: ackHeaders,
+      body: JSON.stringify({ alarmId: data.alarmId, ackToken: data.ackToken }),
     }).catch(() => {});
   }
 

@@ -2,6 +2,7 @@ import Task from "../models/taskModel.js";
 import Project from "../models/projectModel.js";
 import Reminder from "../models/reminderModel.js";
 import SyncOperationLog from "../models/syncOperationLogModel.js";
+import { sanitizePayload, TASK_ALLOWED_FIELDS, REMINDER_ALLOWED_FIELDS } from "../utils/massAssignment.js";
 
 /**
  * PUSH SYNCHRONIZATION
@@ -28,8 +29,16 @@ export const pushSync = async (req, res) => {
         entityType,
         entityId,
         action,
-        payload = {},
       } = op;
+
+      const rawPayload = op.payload || {};
+      const allowedFields =
+        entityType === "task"
+          ? [...TASK_ALLOWED_FIELDS, "serverId"]
+          : entityType === "reminder"
+          ? [...REMINDER_ALLOWED_FIELDS, "serverId"]
+          : ["name", "description", "color", "localId", "version", "serverId"];
+      const payload = sanitizePayload(rawPayload, allowedFields);
 
       if (!operationId || !entityType || !action) {
         results.push({

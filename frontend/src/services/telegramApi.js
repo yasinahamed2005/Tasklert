@@ -261,16 +261,35 @@ export const markTelegramChatAsRead = async (chatId, { maxId = 0, unreadCount, a
   return response.data;
 };
 
-export const getTelegramMediaUrl = (chatId, messageId) => {
-  if (!chatId || !messageId) return "";
-  const token = localStorage.getItem("token");
-  return `${API_BASE_URL}/api/telegram/media/${encodeURIComponent(chatId)}/${messageId}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+let currentTicket = null;
+let ticketExpires = 0;
+
+export const getTelegramStreamTicket = async () => {
+  const now = Date.now();
+  if (currentTicket && ticketExpires - now > 10000) {
+    return currentTicket;
+  }
+  try {
+    const res = await axios.post(`${API_BASE_URL}/api/telegram/stream-ticket`, {}, getAuthHeaders());
+    if (res.data?.ticket) {
+      currentTicket = res.data.ticket;
+      ticketExpires = now + 50000;
+      return currentTicket;
+    }
+  } catch (_) {}
+  return "";
 };
 
-export const getTelegramAvatarUrl = (chatId) => {
+export const getTelegramMediaUrl = (chatId, messageId, ticket = "") => {
+  if (!chatId || !messageId) return "";
+  const t = ticket || currentTicket;
+  return `${API_BASE_URL}/api/telegram/media/${encodeURIComponent(chatId)}/${messageId}${t ? `?ticket=${encodeURIComponent(t)}` : ""}`;
+};
+
+export const getTelegramAvatarUrl = (chatId, ticket = "") => {
   if (!chatId) return "";
-  const token = localStorage.getItem("token");
-  return `${API_BASE_URL}/api/telegram/avatar/${encodeURIComponent(chatId)}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  const t = ticket || currentTicket;
+  return `${API_BASE_URL}/api/telegram/avatar/${encodeURIComponent(chatId)}${t ? `?ticket=${encodeURIComponent(t)}` : ""}`;
 };
 
 // ==========================================
@@ -315,8 +334,8 @@ export const cancelTelegramScheduledMessage = async (id) => {
 // REAL-TIME SSE STREAM
 // ==========================================
 
-export const createTelegramEventSource = () => {
-  const token = localStorage.getItem("token");
-  const url = `${API_BASE_URL}/api/telegram/events?token=${encodeURIComponent(token || "")}`;
+export const createTelegramEventSource = async () => {
+  const ticket = await getTelegramStreamTicket();
+  const url = `${API_BASE_URL}/api/telegram/events?ticket=${encodeURIComponent(ticket || "")}`;
   return new EventSource(url);
 };

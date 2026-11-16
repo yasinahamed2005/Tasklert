@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { encryptCredential, decryptCredential } from "../utils/crypto.js";
 
 const messagingAccountSchema = new mongoose.Schema(
   {
@@ -72,6 +73,72 @@ const messagingAccountSchema = new mongoose.Schema(
 );
 
 messagingAccountSchema.index({ owner: 1, channel: 1 }, { unique: true });
+
+// Pre-save hook: Encrypt sensitive tokens with AES-256-GCM before saving to MongoDB
+messagingAccountSchema.pre("save", function (next) {
+  if (this.credentials) {
+    const creds = this.credentials;
+    const sensitiveFields = [
+      "accessToken",
+      "authToken",
+      "botToken",
+      "sessionString",
+      "smtpPass",
+      "apiHash",
+    ];
+
+    for (const field of sensitiveFields) {
+      if (creds[field] && typeof creds[field] === "string" && !creds[field].startsWith("enc:")) {
+        creds[field] = encryptCredential(creds[field]);
+      }
+    }
+  }
+  next();
+});
+
+// Post-init hook: Decrypt sensitive tokens transparently on read for internal service usage
+messagingAccountSchema.post("init", function (doc) {
+  if (doc && doc.credentials) {
+    const creds = doc.credentials;
+    const sensitiveFields = [
+      "accessToken",
+      "authToken",
+      "botToken",
+      "sessionString",
+      "smtpPass",
+      "apiHash",
+    ];
+
+    for (const field of sensitiveFields) {
+      if (creds[field] && typeof creds[field] === "string" && creds[field].startsWith("enc:")) {
+        creds[field] = decryptCredential(creds[field]);
+      }
+    }
+  }
+});
+
+// Security: Strip sensitive tokens from all JSON and Object responses so they are never leaked
+const sanitizeCredentials = (ret) => {
+  if (ret && ret.credentials) {
+    const sanitized = { ...ret.credentials };
+    delete sanitized.accessToken;
+    delete sanitized.authToken;
+    delete sanitized.botToken;
+    delete sanitized.sessionString;
+    delete sanitized.smtpPass;
+    delete sanitized.apiHash;
+    ret.credentials = sanitized;
+  }
+  return ret;
+};
+
+messagingAccountSchema.set("toJSON", {
+  transform: (doc, ret) => sanitizeCredentials(ret),
+});
+
+messagingAccountSchema.set("toObject", {
+  transform: (doc, ret) => sanitizeCredentials(ret),
+});
 
 const MessagingAccount =
   mongoose.models.MessagingAccount ||

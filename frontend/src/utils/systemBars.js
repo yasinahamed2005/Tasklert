@@ -1,16 +1,25 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
-let SystemBars;
-try {
-  SystemBars =
-    (typeof window !== "undefined" && window.Capacitor?.Plugins?.SystemBars) ||
-    registerPlugin("SystemBars");
-} catch (_) {
-  SystemBars = (typeof window !== "undefined" && window.Capacitor?.Plugins?.SystemBars) || null;
+let SystemBars = null;
+
+function getSystemBarsPlugin() {
+  if (SystemBars) return SystemBars;
+  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return null;
+  try {
+    SystemBars =
+      window.Capacitor?.Plugins?.SystemBars ||
+      (Capacitor.isPluginAvailable("SystemBars") ? registerPlugin("SystemBars") : null);
+  } catch (_) {
+    SystemBars = window.Capacitor?.Plugins?.SystemBars || null;
+  }
+  return SystemBars;
 }
 
 export function syncSystemNavigationBar() {
   if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+  const plugin = getSystemBarsPlugin();
+  if (!plugin) return;
+
   const styles = getComputedStyle(document.documentElement);
   const rawColor = styles.getPropertyValue("--system-navigation-background").trim() || "#faf5ff";
   let color = rawColor;
@@ -31,7 +40,7 @@ export function syncSystemNavigationBar() {
     const luminance = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
     lightIcons = 0.2126 * luminance[0] + 0.7152 * luminance[1] + 0.0722 * luminance[2] < 0.45;
   }
-  SystemBars?.setNavigationBar?.({ color, lightIcons })?.catch?.((error) => {
+  plugin.setNavigationBar?.({ color, lightIcons })?.catch?.((error) => {
     console.warn("Could not update native navigation bar appearance:", error);
   });
 }

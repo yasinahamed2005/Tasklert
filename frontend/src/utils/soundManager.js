@@ -116,7 +116,6 @@ class SoundManager {
         source.start(0);
 
         this.keepAliveNode = { source, silentGain };
-        console.log("[SoundManager] Silent audio keep-alive engaged (Context: running)");
       }
     } catch (err) {
       console.warn("[SoundManager] Could not start audio keep-alive:", err);
@@ -142,7 +141,6 @@ class SoundManager {
    */
   clearBuffers() {
     this.customAudioBuffers.clear();
-    console.log("[SoundManager] Cleared all pre-decoded audio buffers.");
   }
 
   /**
@@ -165,7 +163,6 @@ class SoundManager {
         decodedAt: Date.now(),
       });
 
-      console.log(`[SoundManager] Pre-decoded custom audio buffer for slot: ${slotKey} ("${fileName}")`);
       return decoded;
     } catch (err) {
       console.warn("[SoundManager] Could not pre-decode custom audio buffer:", err);
@@ -364,7 +361,6 @@ class SoundManager {
     if (ctx && ctx.state === "suspended") {
       try {
         await ctx.resume();
-        console.log(`[SoundManager] AudioContext resumed prior to alarm playback. State: ${ctx.state}`);
       } catch (resumeErr) {
         console.warn("[SoundManager] Context resume before alarm was blocked:", resumeErr);
       }

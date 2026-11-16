@@ -1,6 +1,8 @@
 import Task from "../models/taskModel.js";
 import Notification from "../models/notificationModel.js";
 import Reminder from "../models/reminderModel.js";
+import { sanitizePayload, TASK_ALLOWED_FIELDS } from "../utils/massAssignment.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export const normalizeCompleted = (value) => {
   if (value === true || value === 1) return true;
@@ -90,6 +92,7 @@ export const getNextDueDate = (dueDate, recurrence) => {
 // CREATE A NEW TASK
 export const createTask = async (req, res) => {
   try {
+    const clean = sanitizePayload(req.body, TASK_ALLOWED_FIELDS);
     const {
       title,
       description,
@@ -103,7 +106,7 @@ export const createTask = async (req, res) => {
       attachments,
       project,
       tags,
-    } = req.body;
+    } = clean;
 
     const parsedRecurrence = normalizeRecurrence(recurrence, null);
     const parsedTags = Array.isArray(tags)
@@ -122,26 +125,26 @@ export const createTask = async (req, res) => {
       subtasks: normalizeSubtasks(subtasks),
       reminderEnabled: Boolean(reminderEnabled),
       reminderAt: reminderAt ? new Date(reminderAt) : null,
-      alarmSound: req.body.alarmSound || req.body.sound || "digital",
-      alarmVolume: req.body.alarmVolume !== undefined ? Number(req.body.alarmVolume) : 80,
-      alarmRepeat: req.body.alarmRepeat || req.body.repeat || "never",
-      snoozeDuration: req.body.snoozeDuration ? Number(req.body.snoozeDuration) : 5,
-      advanceNoticeMinutes: req.body.advanceNoticeMinutes ? Number(req.body.advanceNoticeMinutes) : 0,
+      alarmSound: clean.alarmSound || clean.sound || "digital",
+      alarmVolume: clean.alarmVolume !== undefined ? Number(clean.alarmVolume) : 80,
+      alarmRepeat: clean.alarmRepeat || clean.repeat || "never",
+      snoozeDuration: clean.snoozeDuration ? Number(clean.snoozeDuration) : 5,
+      advanceNoticeMinutes: clean.advanceNoticeMinutes ? Number(clean.advanceNoticeMinutes) : 0,
       channels: {
-        push: req.body.channels?.push !== undefined ? Boolean(req.body.channels.push) : true,
-        inApp: req.body.channels?.inApp !== undefined ? Boolean(req.body.channels.inApp) : true,
-        email: req.body.channels?.email !== undefined ? Boolean(req.body.channels.email) : false,
+        push: clean.channels?.push !== undefined ? Boolean(clean.channels.push) : true,
+        inApp: clean.channels?.inApp !== undefined ? Boolean(clean.channels.inApp) : true,
+        email: clean.channels?.email !== undefined ? Boolean(clean.channels.email) : false,
       },
-      timeZone: req.body.timeZone || "UTC",
+      timeZone: clean.timeZone || "UTC",
       recurrence: parsedRecurrence,
       recurrenceSpawned: false,
-      startDate: req.body.startDate ? new Date(req.body.startDate) : (dueDate ? new Date(dueDate) : null),
-      endDate: req.body.endDate ? new Date(req.body.endDate) : null,
-      allDay: Boolean(req.body.allDay),
-      eventColor: req.body.eventColor || "#2563eb",
-      location: req.body.location || "",
-      notes: req.body.notes || "",
-      isCalendarEvent: Boolean(req.body.isCalendarEvent),
+      startDate: clean.startDate ? new Date(clean.startDate) : (dueDate ? new Date(dueDate) : null),
+      endDate: clean.endDate ? new Date(clean.endDate) : null,
+      allDay: Boolean(clean.allDay),
+      eventColor: clean.eventColor || "#2563eb",
+      location: clean.location || "",
+      notes: clean.notes || "",
+      isCalendarEvent: Boolean(clean.isCalendarEvent),
       project: project || null,
       tags: parsedTags,
       attachments: Array.isArray(attachments) ? attachments : [],
@@ -198,13 +201,15 @@ export const getTasks = async (req, res) => {
       filter.tags = req.query.tag.trim().toLowerCase();
     }
     if (req.query.search) {
-      const q = req.query.search.trim();
-      const regex = new RegExp(q, "i");
-      filter.$or = [
-        { title: regex },
-        { description: regex },
-        { tags: regex },
-      ];
+      const q = escapeRegex(req.query.search);
+      if (q) {
+        const regex = new RegExp(q, "i");
+        filter.$or = [
+          { title: regex },
+          { description: regex },
+          { tags: regex },
+        ];
+      }
     }
 
     const tasks = await Task.find(filter)
@@ -247,7 +252,7 @@ export const updateTask = async (req, res) => {
       });
     }
 
-    const data = { ...req.body };
+    const data = sanitizePayload(req.body, TASK_ALLOWED_FIELDS);
 
     if (data.completed !== undefined) {
       const isCurrentlyCompleted = normalizeCompleted(existingTask.completed);

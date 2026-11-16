@@ -1,4 +1,6 @@
 import express from "express";
+import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../config/jwt.js";
 import authMiddleware from "../middleware/auth.js";
 import { telegramUpload } from "../services/telegram/telegramMedia.service.js";
 import {
@@ -30,12 +32,42 @@ import {
 
 const telegramRouter = express.Router();
 
-// SSE event stream and image tag support: token can also be in query string for native EventSource and <img> tags
+// Generate a one-time short-lived stream ticket valid for 60 seconds
+telegramRouter.post("/stream-ticket", authMiddleware, (req, res) => {
+  const userId = req.user.id || req.user._id;
+  const ticket = jwt.sign(
+    { id: String(userId), type: "stream_ticket" },
+    getJwtSecret(),
+    { expiresIn: "60s" }
+  );
+  res.json({ success: true, ticket });
+});
+
+// SSE event stream and media/avatar authorization
+// Accepts either standard Bearer header or a valid one-time ticket in ?ticket=
 const sseAuthMiddleware = (req, res, next) => {
-  if (req.query.token && !req.headers.authorization) {
-    req.headers.authorization = `Bearer ${req.query.token}`;
+  if (req.headers.authorization) {
+    return authMiddleware(req, res, next);
   }
-  return authMiddleware(req, res, next);
+
+  const ticket = req.query.ticket;
+  if (!ticket) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required: valid ticket or Bearer authorization required.",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(ticket, getJwtSecret());
+    if (decoded.type !== "stream_ticket") {
+      return res.status(401).json({ success: false, message: "Invalid ticket type." });
+    }
+    req.user = { id: decoded.id, _id: decoded.id };
+    return next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Ticket expired or invalid." });
+  }
 };
 
 // All endpoints require user authentication & multi-user isolation

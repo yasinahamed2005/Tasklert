@@ -47,6 +47,9 @@ backend/uploads/**
 !backend/uploads/
 !backend/uploads/**/
 !backend/uploads/**/.gitkeep
+backend/uploads/telegram/*
+backend/uploads/tasks/*.pdf
+frontend/dev-dist/
 
 # Operating System & IDE Artifacts
 .DS_Store

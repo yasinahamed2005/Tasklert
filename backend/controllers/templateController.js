@@ -1,4 +1,5 @@
 import Template from "../models/templateModel.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 // GET ALL TEMPLATES FOR LOGGED-IN USER
 export const getTemplates = async (req, res) => {
@@ -23,11 +24,12 @@ export const createTemplate = async (req, res) => {
     }
 
     const trimmedName = name.trim();
+    const safeRegexName = escapeRegex(trimmedName);
 
     // Check duplicate
     const existing = await Template.findOne({
       owner: req.user.id,
-      name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
+      name: { $regex: new RegExp(`^${safeRegexName}$`, "i") },
     });
 
     if (existing) {

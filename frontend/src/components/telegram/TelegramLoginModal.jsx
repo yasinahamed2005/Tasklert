@@ -241,6 +241,14 @@ export default function TelegramLoginModal({
           {/* STEP 1: ENTER PHONE NUMBER */}
           {step === "phone" && (
             <form onSubmit={handleSendCode} className="space-y-4">
+              {/* Trust & Privacy Notice */}
+              <div className="p-3.5 rounded-2xl bg-sky-50/80 border border-sky-100 text-sky-950 text-xs flex items-start gap-2.5 leading-relaxed">
+                <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <p>
+                  We encrypt your session with <strong>AES-256-GCM</strong>. We never read private chats — we only send reminders to Saved Messages or a chat you select. You can disconnect and revoke access anytime from <em>Telegram Settings &gt; Devices</em>.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                   Telegram Phone Number

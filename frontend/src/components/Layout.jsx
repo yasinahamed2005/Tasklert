@@ -455,7 +455,6 @@ const Layout = ({ onLogout, user }) => {
 
     const handleMessage = (event) => {
       if (event.data?.type === "TASKLERT_ALARM_EVENT" && event.data?.alarm) {
-        console.log("🔔 Received alarm event from Service Worker:", event.data.alarm);
         const alarm = event.data.alarm;
         const isFocus =
           alarm.isFocus === true ||
@@ -516,8 +515,6 @@ const Layout = ({ onLogout, user }) => {
 
     const handleAlarmEvent = (e) => {
       if (e.detail) {
-        console.log("⏰ Tasklert device alarm triggered:", e.detail);
-
         // If user is currently on the /focus page and this is a focus completion alarm,
         // FocusTimerPage has its own dedicated completion modal. Do not show duplicate AlarmModal!
         const isFocusAlarm =

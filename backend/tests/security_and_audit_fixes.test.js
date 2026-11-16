@@ -31,6 +31,18 @@ test("Security: Centralized JWT Secret validation", async (t) => {
         () => getJwtSecret(),
         /FATAL: JWT_SECRET environment variable is missing/
       );
+
+      process.env.JWT_SECRET = "too_short_secret";
+      assert.throws(
+        () => getJwtSecret(),
+        /FATAL: JWT_SECRET environment variable is missing/
+      );
+
+      process.env.JWT_SECRET = "please_change_this_secret_in_production_now!";
+      assert.throws(
+        () => getJwtSecret(),
+        /FATAL: JWT_SECRET environment variable is missing/
+      );
     } finally {
       process.env.NODE_ENV = prevEnv;
       process.env.JWT_SECRET = prevSecret;

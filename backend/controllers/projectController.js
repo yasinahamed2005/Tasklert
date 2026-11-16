@@ -1,5 +1,6 @@
 import Project from "../models/projectModel.js";
 import Task from "../models/taskModel.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 // GET ALL PROJECTS WITH TASK STATS FOR LOGGED-IN USER
 export const getProjects = async (req, res) => {
@@ -47,11 +48,12 @@ export const createProject = async (req, res) => {
     }
 
     const trimmedName = name.trim();
+    const safeRegexName = escapeRegex(trimmedName);
 
     // Check duplicate
     const existing = await Project.findOne({
       owner: req.user.id,
-      name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
+      name: { $regex: new RegExp(`^${safeRegexName}$`, "i") },
     });
 
     if (existing) {
@@ -90,11 +92,12 @@ export const updateProject = async (req, res) => {
 
     if (name && name.trim()) {
       const trimmedName = name.trim();
+      const safeRegexName = escapeRegex(trimmedName);
       // Check duplicate name on other project
       const duplicate = await Project.findOne({
         _id: { $ne: project._id },
         owner: req.user.id,
-        name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
+        name: { $regex: new RegExp(`^${safeRegexName}$`, "i") },
       });
       if (duplicate) {
         return res.status(400).json({

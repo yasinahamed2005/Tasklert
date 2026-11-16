@@ -1,7 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import {
   getCurrentUser,
   loginUser,
@@ -12,29 +10,14 @@ import {
   uploadAvatar,
   requestForgotPasswordOtp,
   resetPasswordWithOtp,
+  requestDeleteAccountOtp,
+  deleteUserAccount,
 } from '../controllers/userController.js';
 import authMiddleware from '../middleware/auth.js';
 
 const userRouter = express.Router();
 
-// Ensure uploads/avatars directory exists
-const avatarDir = path.join(process.cwd(), "uploads", "avatars");
-if (!fs.existsSync(avatarDir)) {
-  fs.mkdirSync(avatarDir, { recursive: true });
-}
-
-// Multer storage for profile avatar images
-const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, avatarDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const safeName = `avatar_${req.user.id}_${Date.now()}${ext}`;
-    cb(null, safeName);
-  },
-});
-
+// Allowed avatar formats
 const avatarFilter = (req, file, cb) => {
   const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   if (allowed.includes(file.mimetype)) {
@@ -44,8 +27,9 @@ const avatarFilter = (req, file, cb) => {
   }
 };
 
+// Memory storage for avatar images before uploading to persistent cloud storage
 const avatarUpload = multer({
-  storage: avatarStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB max
   fileFilter: avatarFilter,
 });
@@ -62,5 +46,7 @@ userRouter.get('/me', authMiddleware, getCurrentUser);
 userRouter.put('/profile', authMiddleware, updateProfile);
 userRouter.put('/password', authMiddleware, updatePassword);
 userRouter.post('/avatar', authMiddleware, avatarUpload.single('avatar'), uploadAvatar);
+userRouter.post('/account/request-delete-otp', authMiddleware, requestDeleteAccountOtp);
+userRouter.delete('/account', authMiddleware, deleteUserAccount);
 
 export default userRouter;

@@ -1,4 +1,6 @@
 // frontend/src/config/api.js
+import axios from "axios";
+import { notify } from "../utils/toastManager";
 
 /**
  * Standardized API base configuration for Tasklert.
@@ -24,6 +26,43 @@ export const getApiBaseUrl = () => {
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+
+/**
+ * Cold-Start Detector:
+ * If an initial API request takes > 3s on first load (e.g. Render free tier spin-up),
+ * inform the user with a friendly, reassuring message.
+ */
+let coldStartTimer = null;
+let hasShownColdStartNotice = false;
+
+axios.interceptors.request.use((config) => {
+  if (!hasShownColdStartNotice && !coldStartTimer) {
+    coldStartTimer = setTimeout(() => {
+      if (!hasShownColdStartNotice) {
+        hasShownColdStartNotice = true;
+        notify.info("Waking up the server, thanks for your patience! This only happens after inactivity.", { autoClose: 6000 });
+      }
+    }, 3000);
+  }
+  return config;
+});
+
+axios.interceptors.response.use(
+  (response) => {
+    if (coldStartTimer) {
+      clearTimeout(coldStartTimer);
+      coldStartTimer = null;
+    }
+    return response;
+  },
+  (error) => {
+    if (coldStartTimer) {
+      clearTimeout(coldStartTimer);
+      coldStartTimer = null;
+    }
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Helper to resolve attachment URLs:

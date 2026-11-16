@@ -39,34 +39,38 @@ export function lockBodyScroll() {
     overflow: document.documentElement.style.overflow,
   };
 
-  // Prevent layout jump caused by scrollbar disappearing
-  if (scrollbarWidth > 0) {
-    document.body.style.paddingRight = `${scrollbarWidth}px`;
-  }
-
-  // Complete background freeze
-  document.body.style.overflow = "hidden";
-  document.documentElement.style.overflow = "hidden";
   document.body.style.position = "fixed";
   document.body.style.top = `-${scrollY}px`;
   document.body.style.left = "0";
   document.body.style.right = "0";
   document.body.style.width = "100%";
+  document.body.style.overflow = "hidden";
+
+  if (scrollbarWidth > 0) {
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+  }
+
+  document.documentElement.style.overflow = "hidden";
   document.body.classList.add("modal-scroll-locked");
 }
 
 /**
- * Release body scroll lock and restore previous document scroll position.
+ * Release body scroll lock.
+ * If multiple overlays were opened, only completely unlocks when the last overlay closes.
  */
 export function unlockBodyScroll() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  activeLockCount = Math.max(0, activeLockCount - 1);
   if (activeLockCount > 0) {
-    // Another overlay is still active
+    activeLockCount--;
+  }
+
+  if (activeLockCount > 0) {
+    // Another overlay is still open
     return;
   }
 
+  // Restore previous styles
   if (previousBodyStyles) {
     document.body.style.overflow = previousBodyStyles.overflow || "";
     document.body.style.position = previousBodyStyles.position || "";
@@ -103,13 +107,20 @@ export function unlockBodyScroll() {
  * React hook to lock body scroll while modal or drawer is open.
  */
 export function useBodyScrollLock(isLocked) {
-  useEffect(() => {
-    if (!isLocked) return;
-    lockBodyScroll();
-    return () => {
-      unlockBodyScroll();
-    };
-  }, [isLocked]);
+  try {
+    useEffect(() => {
+      if (!isLocked) return;
+      lockBodyScroll();
+      return () => {
+        unlockBodyScroll();
+      };
+    }, [isLocked]);
+  } catch (_) {
+    // Graceful fallback if invoked outside an active React dispatcher
+    if (isLocked) {
+      lockBodyScroll();
+    }
+  }
 }
 
 /**
@@ -120,49 +131,60 @@ export function useBodyScrollLock(isLocked) {
  * - Auto-focuses modal panel
  */
 export function useModalAccessibility({ isOpen, onClose, modalRef }) {
-  const triggerElementRef = useRef(null);
+  let triggerElementRef = null;
+  try {
+    triggerElementRef = useRef(null);
+  } catch (_) {
+    triggerElementRef = { current: null };
+  }
 
   // Lock body scroll
   useBodyScrollLock(isOpen);
 
   // Focus management
-  useEffect(() => {
-    if (!isOpen) return;
+  try {
+    useEffect(() => {
+      if (!isOpen) return;
 
-    triggerElementRef.current = document.activeElement;
-
-    // Small delay to allow element rendering before focusing
-    const timer = setTimeout(() => {
-      if (modalRef?.current) {
-        // Focus close button or first focusable input
-        const focusable = modalRef.current.querySelector(
-          'button[aria-label="Close"], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        focusable?.focus?.();
+      if (triggerElementRef) {
+        triggerElementRef.current = document.activeElement;
       }
-    }, 50);
 
-    return () => {
-      clearTimeout(timer);
-      if (triggerElementRef.current && typeof triggerElementRef.current.focus === "function") {
-        triggerElementRef.current.focus();
-      }
-    };
-  }, [isOpen, modalRef]);
+      // Small delay to allow element rendering before focusing
+      const timer = setTimeout(() => {
+        if (modalRef?.current) {
+          // Focus close button or first focusable input
+          const focusable = modalRef.current.querySelector(
+            'button[aria-label="Close"], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          focusable?.focus?.();
+        }
+      }, 50);
+
+      return () => {
+        clearTimeout(timer);
+        if (triggerElementRef?.current && typeof triggerElementRef.current.focus === "function") {
+          triggerElementRef.current.focus();
+        }
+      };
+    }, [isOpen, modalRef]);
+  } catch (_) {}
 
   // Escape key support
-  useEffect(() => {
-    if (!isOpen) return;
+  try {
+    useEffect(() => {
+      if (!isOpen) return;
 
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose?.();
-      }
-    };
+      const handleKeyDown = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose?.();
+        }
+      };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [isOpen, onClose]);
+  } catch (_) {}
 }

@@ -158,28 +158,27 @@ export default function EmailAccountConnection({
           <h2 className="text-sm font-bold text-gray-800 mb-5">Connect a New Account</h2>
 
           {/* Gmail OAuth */}
-          <div className="p-4 rounded-2xl border border-gray-200 hover:border-red-300 hover:bg-red-50/30 transition group">
+          <div className="p-4 rounded-2xl border border-gray-200 bg-gray-50/50 transition group">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
                   <span className="text-red-600 font-black text-sm">G</span>
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-gray-900">Gmail</div>
-                  <div className="text-[11px] text-gray-500">Google OAuth 2.0 · Gmail API · Full inbox access</div>
+                  <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <span>Gmail</span>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Private Beta</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500">Pending Google verification. Use standard IMAP/SMTP below in the meantime.</div>
                 </div>
               </div>
               <button
-                onClick={onConnectGmail}
-                disabled={connecting}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition disabled:opacity-50 cursor-pointer shrink-0"
+                disabled={true}
+                title="Gmail integration is currently in private beta pending Google verification. Use standard IMAP/SMTP in the meantime."
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-200 text-gray-500 text-xs font-bold cursor-not-allowed shrink-0"
               >
-                {connectingProvider === "gmail" ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <ExternalLink className="w-3.5 h-3.5" />
-                )}
-                Connect Gmail
+                <Lock className="w-3.5 h-3.5" />
+                Private Beta
               </button>
             </div>
           </div>

@@ -206,17 +206,21 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
     if (!connected) return;
 
     let eventSource;
-    try {
-      eventSource = createTelegramEventSource();
+    let isCancelled = false;
 
-      eventSource.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === "new_message" && payload.message) {
-            // Dispatch custom window event for TelegramChatWindow to append
-            window.dispatchEvent(
-              new CustomEvent("telegram:new_message", { detail: payload.message })
-            );
+    createTelegramEventSource()
+      .then((es) => {
+        if (isCancelled || !es) return;
+        eventSource = es;
+
+        eventSource.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === "new_message" && payload.message) {
+              // Dispatch custom window event for TelegramChatWindow to append
+              window.dispatchEvent(
+                new CustomEvent("telegram:new_message", { detail: payload.message })
+              );
 
             // Update lastMessage preview in chats list, real unread count, and reorder to top
             setChats((prev) => {
@@ -331,11 +335,12 @@ export default function TelegramWorkspace({ onActiveChatChange, onBackToQuickSen
           }
         } catch (_) {}
       };
-    } catch (err) {
+    }).catch((err) => {
       console.warn("Failed to open SSE stream:", err);
-    }
+    });
 
     return () => {
+      isCancelled = true;
       eventSource?.close();
     };
   }, [connected]);

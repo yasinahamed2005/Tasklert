@@ -290,7 +290,6 @@ class CentralAlarmEngine {
           fileName,
           base64Data,
         });
-        console.log(`[centralAlarmEngine] Synced ONE GLOBAL RINGTONE to native Android: ${fileName}`);
       } catch (nativeErr) {
         console.warn("[centralAlarmEngine] Native global ringtone sync failed:", nativeErr);
       }
@@ -405,8 +404,6 @@ class CentralAlarmEngine {
           ringtoneFileName: ringtoneInfo.name,
           customAudioPath: null,
         });
-
-        console.log(`[centralAlarmEngine] Native Samsung Android exact alarm scheduled for: ${targetDate.toISOString()}`);
 
         // Acknowledge to backend that mobile has confirmed native control (Phase 7 priority)
         const token = localStorage.getItem("token");
@@ -543,7 +540,6 @@ class CentralAlarmEngine {
     // Multi-Device Priority Check (Phase 7):
     // If on Laptop and mobile confirmed this alarm, suppress loud duplicate ringing
     if (this.getDeviceType() === "laptop" && alarm.mobileOwned) {
-      console.log(`[centralAlarmEngine] Mobile phone is primary owner for alarm ${alarm.id}. Laptop duplicate audio suppressed.`);
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
         try {
           new Notification(`⏰ Tasklert: ${alarm.title}`, {

@@ -10,6 +10,7 @@ const TAG_LENGTH = 16;
 const getEncryptionKey = (customSecret = null) => {
   const secret =
     customSecret ||
+    process.env.ENCRYPTION_KEY ||
     process.env.TELEGRAM_SESSION_ENCRYPTION_KEY ||
     process.env.CREDENTIALS_ENCRYPTION_KEY ||
     process.env.JWT_SECRET ||

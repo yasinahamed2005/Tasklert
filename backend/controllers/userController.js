@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { sendEmail } from '../utils/mailer.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { createDeviceSession } from './securityController.js';
+import { upload as uploadStorage, remove as removeStorage } from '../utils/storage.js';
 
 // JWT_SECRET handled via getJwtSecret()
 const TOKEN_EXPIRES = '24h';
@@ -288,16 +289,28 @@ export async function uploadAvatar(req, res) {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "No image file provided" });
     }
-    const relativeUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser?.avatarPublicId) {
+      await removeStorage(currentUser.avatarPublicId).catch(() => {});
+    }
+
+    const safeName = `avatar_${req.user.id}_${Date.now()}`;
+    const result = await uploadStorage(req.file.buffer || req.file, {
+      folder: "avatars",
+      filename: req.file.originalname || `${safeName}.png`,
+      resourceType: "image",
+    });
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { avatar: relativeUrl },
+      { avatar: result.url, avatarPublicId: result.public_id },
       { new: true, select: "name email avatar provider createdAt" }
     );
     res.json({
       success: true,
       message: "Avatar uploaded successfully",
-      avatar: relativeUrl,
+      avatar: result.url,
       user,
     });
   } catch (err) {
@@ -462,6 +475,180 @@ export async function resetPasswordWithOtp(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+}
+
+// REQUEST OTP FOR PERMANENT ACCOUNT DELETION
+export async function requestDeleteAccountOtp(req, res) {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const normalizedEmail = user.email.toLowerCase();
+    const existing = await EmailOtp.findOne({ email: normalizedEmail });
+    if (existing && Date.now() - existing.updatedAt?.getTime() < OTP_RESEND_COOLDOWN_MS) {
+      return res.status(429).json({
+        success: false,
+        message: "Please wait a minute before requesting another code.",
+      });
+    }
+
+    const code = generateOtp();
+    await EmailOtp.findOneAndUpdate(
+      { email: normalizedEmail },
+      { code, expiresAt: new Date(Date.now() + OTP_TTL_MS) },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Tasklert Account Deletion Confirmation Code",
+      text: `Your Tasklert account deletion confirmation code is ${code}. It expires in 10 minutes. If you did not request this, your account remains completely safe.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 24px; border: 1px solid #fee2e2; border-radius: 12px; background: #fff5f5; max-width: 480px;">
+          <h2 style="color: #b91c1c; margin-top: 0;">Confirm Account Deletion</h2>
+          <p style="color: #4b5563; font-size: 14px;">You have requested to permanently delete your Tasklert account and all associated data.</p>
+          <div style="background: #ffffff; border: 2px dashed #ef4444; padding: 16px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #dc2626; border-radius: 8px; margin: 16px 0;">
+            ${code}
+          </div>
+          <p style="color: #6b7280; font-size: 12px; margin-bottom: 0;">This code expires in 10 minutes. If you did not request this, please ignore this email and your account will remain safe.</p>
+        </div>
+      `,
+    });
+
+    res.json({ success: true, message: "Confirmation code sent to your email address." });
+  } catch (err) {
+    console.error("[Request Delete OTP Error]", err);
+    res.status(500).json({ success: false, message: "Failed to send confirmation code." });
+  }
+}
+
+// PERMANENTLY DELETE USER ACCOUNT AND CASCADE ALL DATA
+export async function deleteUserAccount(req, res) {
+  try {
+    const userId = req.user.id;
+    const { password, otp } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Require password (for password-based accounts) OR verified email OTP
+    if (user.password && user.provider === "local") {
+      if (!password && !otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter your current password or request an email OTP to confirm account deletion.",
+        });
+      }
+
+      if (password) {
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return res.status(401).json({ success: false, message: "Incorrect password." });
+        }
+      } else if (otp) {
+        const validOtp = await EmailOtp.findOne({
+          email: user.email.toLowerCase(),
+          code: String(otp).trim(),
+          expiresAt: { $gt: new Date() },
+        });
+        if (!validOtp) {
+          return res.status(401).json({ success: false, message: "Invalid or expired confirmation code." });
+        }
+        await EmailOtp.deleteOne({ _id: validOtp._id });
+      }
+    } else {
+      // OAuth accounts: require OTP if provided
+      if (otp) {
+        const validOtp = await EmailOtp.findOne({
+          email: user.email.toLowerCase(),
+          code: String(otp).trim(),
+          expiresAt: { $gt: new Date() },
+        });
+        if (!validOtp) {
+          return res.status(401).json({ success: false, message: "Invalid or expired confirmation code." });
+        }
+        await EmailOtp.deleteOne({ _id: validOtp._id });
+      }
+    }
+
+    // 1. Delete user files from storage
+    if (user.avatarPublicId) {
+      await removeStorage(user.avatarPublicId).catch(() => {});
+    }
+
+    const Task = (await import("../models/taskModel.js")).default;
+    const tasks = await Task.find({ owner: userId }).select("attachments");
+    for (const t of tasks) {
+      if (Array.isArray(t.attachments)) {
+        for (const att of t.attachments) {
+          if (att.publicId) {
+            await removeStorage(att.publicId).catch(() => {});
+          }
+        }
+      }
+    }
+
+    // 2. Disconnect and remove Telegram sessions
+    try {
+      const { deleteSessionForUser } = await import("../services/telegram/telegramSession.service.js");
+      await deleteSessionForUser(userId).catch(() => {});
+    } catch (_) {}
+
+    // 3. Cascade delete all data across all collections
+    const Reminder = (await import("../models/reminderModel.js")).default;
+    const Project = (await import("../models/projectModel.js")).default;
+    const Notification = (await import("../models/notificationModel.js")).default;
+    const Template = (await import("../models/templateModel.js")).default;
+    const Contact = (await import("../models/contactModel.js")).default;
+    const Message = (await import("../models/messageModel.js")).default;
+    const ScheduledDelivery = (await import("../models/ScheduledDelivery.js")).default;
+    const FocusSession = (await import("../models/focusSessionModel.js")).default;
+    const PushSubscription = (await import("../models/pushSubscriptionModel.js")).default;
+    const UserDevice = (await import("../models/userDeviceModel.js")).default;
+    const DeviceSession = (await import("../models/deviceSessionModel.js")).default;
+    const MessagingAccount = (await import("../models/messagingAccountModel.js")).default;
+    const EmailAccount = (await import("../models/EmailAccount.js")).default;
+    const EmailMessage = (await import("../models/EmailMessage.js")).default;
+    const SyncOperationLog = (await import("../models/syncOperationLogModel.js")).default;
+    const UserPreferences = (await import("../models/userPreferencesModel.js")).default;
+    const DeliveryLog = (await import("../models/deliveryLogModel.js")).default;
+
+    await Promise.allSettled([
+      Task.deleteMany({ owner: userId }),
+      Reminder.deleteMany({ owner: userId }),
+      Project.deleteMany({ owner: userId }),
+      Template.deleteMany({ owner: userId }),
+      Contact.deleteMany({ owner: userId }),
+      Message.deleteMany({ owner: userId }),
+      ScheduledDelivery.deleteMany({ $or: [{ userId }, { owner: userId }] }),
+      FocusSession.deleteMany({ owner: userId }),
+      Notification.deleteMany({ owner: userId }),
+      PushSubscription.deleteMany({ $or: [{ userId }, { owner: userId }] }),
+      UserDevice.deleteMany({ userId }),
+      DeviceSession.deleteMany({ userId }),
+      MessagingAccount.deleteMany({ owner: userId }),
+      EmailAccount.deleteMany({ userId }),
+      EmailMessage.deleteMany({ userId }),
+      SyncOperationLog.deleteMany({ userId }),
+      UserPreferences.deleteMany({ owner: userId }),
+      DeliveryLog.deleteMany({ owner: userId }),
+      EmailOtp.deleteMany({ email: user.email.toLowerCase() }),
+      User.deleteOne({ _id: userId }),
+    ]);
+
+    res.json({
+      success: true,
+      message: "Your account and all associated data have been permanently deleted.",
+    });
+  } catch (err) {
+    console.error("[Delete Account Error]", err);
+    res.status(500).json({ success: false, message: err.message || "Failed to delete account" });
   }
 }
 

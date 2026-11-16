@@ -1395,6 +1395,121 @@ const Dashboard = () => {
             <Plus className="w-5 h-5 mr-2 cta-icon" />
             <span className="font-semibold cta-label">Add New Task</span>
           </div>
+
+          {/* EXPLORE MORE SUPERPOWERS SECTION */}
+          <div className="mt-8 pt-6 border-t border-purple-100/80">
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span>Explore More Superpowers</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Connect your communication channels, device alarms, and focus sessions.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Telegram */}
+              <div
+                onClick={() => navigate("/messages?channel=telegram")}
+                className="p-4 rounded-2xl border border-sky-100 bg-sky-50/40 hover:bg-sky-50 hover:border-sky-200 transition cursor-pointer flex flex-col justify-between group shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-sky-500 text-white shadow-xs">
+                      <Send className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full">
+                      Telegram
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-gray-900 group-hover:text-sky-700 transition">Telegram Reminders</h4>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                    Send task alarms and instant reminders directly to your Saved Messages or Telegram chats.
+                  </p>
+                </div>
+                <div className="mt-3 text-xs font-bold text-sky-700 flex items-center gap-1">
+                  <span>Connect Telegram</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+                </div>
+              </div>
+
+              {/* WhatsApp */}
+              <div
+                onClick={() => navigate("/messages?channel=whatsapp")}
+                className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-200 transition cursor-pointer flex flex-col justify-between group shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs">
+                      <BellRing className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      WhatsApp
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-gray-900 group-hover:text-emerald-700 transition">WhatsApp Alerts</h4>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                    Get critical task reminders and daily schedule summaries delivered to your WhatsApp.
+                  </p>
+                </div>
+                <div className="mt-3 text-xs font-bold text-emerald-700 flex items-center gap-1">
+                  <span>Explore WhatsApp</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div
+                onClick={() => navigate("/messages?channel=email")}
+                className="p-4 rounded-2xl border border-purple-100 bg-purple-50/40 hover:bg-purple-50 hover:border-purple-200 transition cursor-pointer flex flex-col justify-between group shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-purple-600 text-white shadow-xs">
+                      <Clock className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                      Email
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-gray-900 group-hover:text-purple-700 transition">Tasklert Mail</h4>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                    Dispatch scheduled emails, reminders, and alerts via verified SMTP/IMAP accounts.
+                  </p>
+                </div>
+                <div className="mt-3 text-xs font-bold text-purple-700 flex items-center gap-1">
+                  <span>Open Mail Center</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+                </div>
+              </div>
+
+              {/* Focus Timer */}
+              <div
+                onClick={() => navigate("/focus")}
+                className="p-4 rounded-2xl border border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer flex flex-col justify-between group shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-rose-600 text-white shadow-xs">
+                      <Timer className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                      Pomodoro
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-gray-900 group-hover:text-rose-700 transition">Focus Timer</h4>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                    Work in dedicated distraction-free sprints with soundscapes and automatic streak logging.
+                  </p>
+                </div>
+                <div className="mt-3 text-xs font-bold text-rose-700 flex items-center gap-1">
+                  <span>Start Focus Session</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

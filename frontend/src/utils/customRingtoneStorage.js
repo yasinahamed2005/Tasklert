@@ -113,7 +113,6 @@ export const customRingtoneStorage = {
             base64Data,
           });
         }
-        console.log(`[customRingtoneStorage] Synced ringtone "${fileName}" to native Android global storage`);
       }
     } catch (nativeErr) {
       console.warn("[customRingtoneStorage] Native Android ringtone sync failed:", nativeErr);

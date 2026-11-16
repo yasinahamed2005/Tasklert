@@ -5,6 +5,7 @@ import User from "../models/userModel.js";
 import { sendTasklertMail, sendOutboundEmail } from "../services/email/emailSend.service.js";
 import { getClientForUser } from "../services/telegram/telegramClient.service.js";
 import validator from "validator";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 const formatOverviewDate = (date) => {
   if (!date) return "";
@@ -168,13 +169,16 @@ export const getScheduledDeliveries = async (req, res) => {
     }
 
     if (search && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
-      query.$or = [
-        { recipient: regex },
-        { recipientName: regex },
-        { subject: regex },
-        { message: regex },
-      ];
+      const escaped = escapeRegex(search);
+      if (escaped) {
+        const regex = new RegExp(escaped, "i");
+        query.$or = [
+          { recipient: regex },
+          { recipientName: regex },
+          { subject: regex },
+          { message: regex },
+        ];
+      }
     }
 
     const deliveries = await ScheduledDelivery.find(query)

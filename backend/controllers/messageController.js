@@ -1,11 +1,13 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import Message from "../models/messageModel.js";
 import Contact from "../models/contactModel.js";
 import MessagingAccount from "../models/messagingAccountModel.js";
 import MessageTemplate from "../models/messageTemplateModel.js";
 import { encryptCredentialsObject } from "../utils/crypto.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 import {
   dispatchQuickSendMessage,
   getProviderStatus,
@@ -382,12 +384,15 @@ export const getMessages = async (req, res) => {
     }
 
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), "i");
-      query.$or = [
-        { recipient: searchRegex },
-        { subject: searchRegex },
-        { message: searchRegex },
-      ];
+      const escaped = escapeRegex(search);
+      if (escaped) {
+        const searchRegex = new RegExp(escaped, "i");
+        query.$or = [
+          { recipient: searchRegex },
+          { subject: searchRegex },
+          { message: searchRegex },
+        ];
+      }
     }
 
     const maxLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
@@ -944,7 +949,11 @@ export const webhookWhatsAppGet = (req, res) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "tasklert_webhook_secret";
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (!verifyToken) {
+    console.error("[WhatsApp Webhook] WHATSAPP_VERIFY_TOKEN environment variable is not configured.");
+    return res.status(500).json({ success: false, message: "Webhook verify token not configured." });
+  }
 
   if (mode === "subscribe" && token === verifyToken) {
     return res.status(200).send(challenge);
@@ -957,6 +966,26 @@ export const webhookWhatsAppGet = (req, res) => {
  */
 export const webhookWhatsAppPost = async (req, res) => {
   try {
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+    const signature = req.headers["x-hub-signature-256"];
+
+    if (appSecret) {
+      if (!signature || !signature.startsWith("sha256=")) {
+        return res.status(401).json({ success: false, message: "Missing or invalid X-Hub-Signature-256 header." });
+      }
+
+      const raw = req.rawBody || Buffer.from(JSON.stringify(req.body));
+      const expectedHash = crypto.createHmac("sha256", appSecret).update(raw).digest("hex");
+      const expectedSignature = `sha256=${expectedHash}`;
+
+      const sigBuffer = Buffer.from(signature);
+      const expBuffer = Buffer.from(expectedSignature);
+
+      if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
+        return res.status(401).json({ success: false, message: "Invalid webhook signature." });
+      }
+    }
+
     const body = req.body;
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0]?.value;
@@ -978,8 +1007,9 @@ export const webhookWhatsAppPost = async (req, res) => {
     }
 
     return res.status(200).json({ status: "ok" });
-  } catch {
-    return res.status(200).json({ status: "ok" });
+  } catch (err) {
+    console.error("[WhatsApp Webhook Error]", err);
+    return res.status(500).json({ status: "error", message: err.message });
   }
 };
 

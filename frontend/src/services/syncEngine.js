@@ -6,6 +6,7 @@ import { projectRepository } from "../db/projectRepository.js";
 import { reminderRepository } from "../db/reminderRepository.js";
 import { accountManager } from "../db/accountManager.js";
 import { API_BASE_URL } from "../config/api";
+import { notify } from "../utils/toastManager.js";
 
 const API_BASE = API_BASE_URL;
 
@@ -32,7 +33,6 @@ class SyncEngine {
 
     // 1. Listen for connectivity restoration
     window.addEventListener("online", () => {
-      console.log("🌐 Connection restored -> Triggering sync");
       this.retryCount = 0;
       this.scheduleSync(500);
     });
@@ -244,6 +244,7 @@ class SyncEngine {
 
   /**
    * PUSH PHASE: Process pending local operations
+   * Batches operations in chunks of 20 with 100ms pause and 429 rate limit backoff
    */
   async executePushPhase(token, userId) {
     const pendingOps = await operationsRepository.getPendingOperations(userId);
@@ -251,67 +252,94 @@ class SyncEngine {
       return { processedCount: 0 };
     }
 
-    const batch = pendingOps.slice(0, 50);
     const deviceId = getDeviceId();
+    const CHUNK_SIZE = 20;
+    let totalProcessed = 0;
 
-    const { data } = await axios.post(
-      `${API_BASE}/api/sync/push`,
-      { deviceId, operations: batch },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    for (let i = 0; i < pendingOps.length; i += CHUNK_SIZE) {
+      const chunk = pendingOps.slice(i, i + CHUNK_SIZE);
+      let success = false;
+      let attempts = 0;
 
-    if (data.success && Array.isArray(data.results)) {
-      for (const res of data.results) {
-        const matchingOp = batch.find((o) => o.operationId === res.operationId || o.id === res.operationId);
-        const opId = matchingOp ? matchingOp.id : res.operationId;
-        const localId = res.localId || matchingOp?.localId;
+      while (!success && attempts < 3) {
+        attempts++;
+        try {
+          const { data } = await axios.post(
+            `${API_BASE}/api/sync/push`,
+            { deviceId, operations: chunk },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
 
-        if (res.status === "applied" || res.status === "already_processed") {
-          // Update local entity with serverId and synced status
-          if (localId) {
-            if (matchingOp?.entityType === "task") {
-              const task = await db.tasks.get(localId);
-              if (task) {
-                await db.tasks.update(localId, {
-                  serverId: res.serverId || task.serverId,
-                  syncStatus: "synced",
-                  version: res.version || task.version,
-                  updatedAt: res.updatedAt || new Date().toISOString(),
-                });
-              }
-            } else if (matchingOp?.entityType === "project") {
-              const proj = await db.projects.get(localId);
-              if (proj) {
-                await db.projects.update(localId, {
-                  serverId: res.serverId || proj.serverId,
-                  syncStatus: "synced",
-                  version: res.version || proj.version,
-                });
-              }
-            } else if (matchingOp?.entityType === "reminder") {
-              const rem = await db.reminders.get(localId);
-              if (rem) {
-                await db.reminders.update(localId, {
-                  serverId: res.serverId || rem.serverId,
-                  syncStatus: "synced",
-                });
+          if (data.success && Array.isArray(data.results)) {
+            for (const res of data.results) {
+              const matchingOp = chunk.find((o) => o.operationId === res.operationId || o.id === res.operationId);
+              const opId = matchingOp ? matchingOp.id : res.operationId;
+              const localId = res.localId || matchingOp?.localId;
+
+              if (res.status === "applied" || res.status === "already_processed") {
+                // Update local entity with serverId and synced status
+                if (localId) {
+                  if (matchingOp?.entityType === "task") {
+                    const task = await db.tasks.get(localId);
+                    if (task) {
+                      await db.tasks.update(localId, {
+                        serverId: res.serverId || task.serverId,
+                        syncStatus: "synced",
+                        version: res.version || task.version,
+                        updatedAt: res.updatedAt || new Date().toISOString(),
+                      });
+                    }
+                  } else if (matchingOp?.entityType === "project") {
+                    const proj = await db.projects.get(localId);
+                    if (proj) {
+                      await db.projects.update(localId, {
+                        serverId: res.serverId || proj.serverId,
+                        syncStatus: "synced",
+                        version: res.version || proj.version,
+                      });
+                    }
+                  } else if (matchingOp?.entityType === "reminder") {
+                    const rem = await db.reminders.get(localId);
+                    if (rem) {
+                      await db.reminders.update(localId, {
+                        serverId: res.serverId || rem.serverId,
+                        syncStatus: "synced",
+                      });
+                    }
+                  }
+                }
+
+                await operationsRepository.markOperationCompleted(opId);
+              } else if (res.status === "conflict") {
+                // Version conflict handling
+                await this.handleConflict(res, matchingOp, userId);
+                await operationsRepository.markOperationCompleted(opId);
+              } else if (res.status === "rejected") {
+                // Permanent validation or rejected error: do not retry indefinitely
+                await operationsRepository.markOperationFailed(opId, res.message || "Rejected by server");
               }
             }
           }
 
-          await operationsRepository.markOperationCompleted(opId);
-        } else if (res.status === "conflict") {
-          // Version conflict handling
-          await this.handleConflict(res, matchingOp, userId);
-          await operationsRepository.markOperationCompleted(opId);
-        } else if (res.status === "rejected") {
-          // Permanent validation or rejected error: do not retry indefinitely
-          await operationsRepository.markOperationFailed(opId, res.message || "Rejected by server");
+          success = true;
+          totalProcessed += chunk.length;
+        } catch (err) {
+          if (err.response?.status === 429) {
+            notify.info("Syncing slowly to respect rate limits...", { toastId: "sync-rate-limit" });
+            await new Promise((r) => setTimeout(r, 1500));
+          } else {
+            throw err;
+          }
         }
+      }
+
+      // Small 100ms pause between chunks to keep request rates smooth
+      if (i + CHUNK_SIZE < pendingOps.length) {
+        await new Promise((r) => setTimeout(r, 100));
       }
     }
 
-    return { processedCount: batch.length };
+    return { processedCount: totalProcessed };
   }
 
   /**
@@ -431,7 +459,6 @@ class SyncEngine {
       const jitter = Math.random() * 1000;
       const delayMs = Math.min(60000, baseDelay + jitter);
 
-      console.log(`🔄 Sync failed. Scheduling retry #${this.retryCount} in ${(delayMs / 1000).toFixed(1)}s`);
       if (this.retryTimer) clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => {
         this.syncNow().catch(() => {});
